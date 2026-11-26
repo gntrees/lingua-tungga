@@ -8,12 +8,12 @@ export interface Displayable {
 }
 
 export type Opt<T> =
-  | { readonly tag: "some"; readonly values: readonly [T]; readonly __lt_display: (value: any) => string }
-  | { readonly tag: "none"; readonly values: readonly []; readonly __lt_display: (value: any) => string };
+  | { readonly tag: "some"; readonly values: readonly [T]; readonly __lt_display: (value: any) => string; readonly __lt_order: number }
+  | { readonly tag: "none"; readonly values: readonly []; readonly __lt_display: (value: any) => string; readonly __lt_order: number };
 
 export type Res<T, E> =
-  | { readonly tag: "ok"; readonly values: readonly [T]; readonly __lt_display: (value: any) => string }
-  | { readonly tag: "err"; readonly values: readonly [E]; readonly __lt_display: (value: any) => string };
+  | { readonly tag: "ok"; readonly values: readonly [T]; readonly __lt_display: (value: any) => string; readonly __lt_order: number }
+  | { readonly tag: "err"; readonly values: readonly [E]; readonly __lt_display: (value: any) => string; readonly __lt_order: number };
 
 export function disp(value: unknown): string {
   if (typeof value === "bigint") return value.toString();
@@ -51,6 +51,28 @@ export function eq(a: unknown, b: unknown): boolean {
 }
 
 export function cmp(a: unknown, b: unknown): number {
+  const leftValue = a as any;
+  if (leftValue !== null && typeof leftValue === "object") {
+    if (typeof leftValue.__lt_cmp === "function") return leftValue.__lt_cmp(b);
+    const rightValue = b as any;
+    if (
+      typeof leftValue.__lt_order === "number" &&
+      rightValue !== null &&
+      typeof rightValue === "object" &&
+      typeof rightValue.__lt_order === "number"
+    ) {
+      if (leftValue.__lt_order !== rightValue.__lt_order) {
+        return leftValue.__lt_order < rightValue.__lt_order ? -1 : 1;
+      }
+      const leftItems = leftValue.values ?? [];
+      const rightItems = rightValue.values ?? [];
+      for (let index = 0; index < Math.min(leftItems.length, rightItems.length); index += 1) {
+        const step = cmp(leftItems[index], rightItems[index]);
+        if (step !== 0) return step;
+      }
+      return leftItems.length - rightItems.length;
+    }
+  }
   if (typeof a === "bigint" && typeof b === "bigint") return a < b ? -1 : a > b ? 1 : 0;
   if (typeof a === "number" && typeof b === "number") return a < b ? -1 : a > b ? 1 : 0;
   if (typeof a === "string" && typeof b === "string") return a < b ? -1 : a > b ? 1 : 0;
@@ -72,11 +94,12 @@ export const ineg = (a: bigint): bigint => BigInt.asIntN(64, -a);
 const noneValue: Opt<never> = {
   tag: "none",
   values: [],
+  __lt_order: 0,
   __lt_display: (value: any) => (value.tag === "none" ? "None" : `Some(${disp(value.values[0])})`),
 };
 
 export function Some<T>(value: T): Opt<T> {
-  return { tag: "some", values: [value], __lt_display: noneValue.__lt_display };
+  return { tag: "some", values: [value], __lt_order: 1, __lt_display: noneValue.__lt_display };
 }
 
 export function None<T>(): Opt<T> {
@@ -108,11 +131,11 @@ const resDisplay = (value: any): string =>
   value.tag === "ok" ? `Ok(${disp(value.values[0])})` : `Err(${disp(value.values[0])})`;
 
 export function Ok<T, E>(value: T): Res<T, E> {
-  return { tag: "ok", values: [value], __lt_display: resDisplay };
+  return { tag: "ok", values: [value], __lt_order: 0, __lt_display: resDisplay };
 }
 
 export function Err<T, E>(value: E): Res<T, E> {
-  return { tag: "err", values: [value], __lt_display: resDisplay };
+  return { tag: "err", values: [value], __lt_order: 1, __lt_display: resDisplay };
 }
 
 export const resIsOk = <T, E>(value: Res<T, E>): boolean => value.tag === "ok";

@@ -16,7 +16,7 @@ TypeScript; bila keduanya lulus, semantik inti terbukti portabel.
 | `Set<T>` | `lt.LSet` |
 | `Option<T>` | `lt.Opt` (`tag` = `"some"`/`"none"`, `values` tuple) |
 | `Result<T,E>` | `lt.Res` (`tag` = `"ok"`/`"err"`) |
-| `enum` | `@dataclass(frozen=True)` dengan `tag`/`values` + konstruktor `enum_variant(...)` |
+| `enum` | `@dataclass(frozen=True)` dengan `tag`/`values`/`order` + konstruktor `enum_variant(...)` |
 | `class` | `@dataclass(frozen=True)`; field jadi parameter konstruktor bernama |
 | `Display` | `lt.disp(value)` (memakai `to_display`) |
 | `Eq` | `lt.eq`, dataclass `__eq__` |

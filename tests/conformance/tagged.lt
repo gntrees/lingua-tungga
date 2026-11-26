@@ -1,0 +1,23 @@
+pub class Query {
+  text: Str
+}
+
+pub class Sql {
+  pub fn compose(parts: List<Str>, values: List<Str>) -> Query {
+    Query(text: `${parts.join("|")}::${values.join("|")}`)
+  }
+}
+
+test class TaggedTest {
+  test fn splits_parts_and_values() {
+    let id = 7
+    let name = "bo"
+    let query = Sql.compose`SELECT * FROM t WHERE id = ${id} AND name = ${name}`
+    Expect.equal(query.text, "SELECT * FROM t WHERE id = | AND name = |::7|bo")
+  }
+
+  test fn handles_empty_tail() {
+    let query = Sql.compose`x ${1}`
+    Expect.equal(query.text, "x |::1")
+  }
+}

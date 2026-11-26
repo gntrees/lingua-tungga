@@ -1,0 +1,45 @@
+pub class Loops {
+  static fn sum(xs: List<Int>) -> Int {
+    let mut total = 0
+    for x in xs {
+      total = total + x
+    }
+    total
+  }
+
+  static fn count_down(start: Int) -> Int {
+    let mut left = start
+    let mut steps = 0
+    while left > 0 {
+      left = left - 1
+      steps = steps + 1
+    }
+    steps
+  }
+
+  static fn first_negative(xs: List<Int>) -> Int {
+    for x in xs {
+      if x < 0 {
+        return x
+      }
+    }
+    0
+  }
+}
+
+test class LoopsTest {
+  test fn for_loop_accumulates() {
+    Expect.equal(Loops.sum([1, 2, 3]), 6)
+    Expect.equal(Loops.sum([]), 0)
+  }
+
+  test fn while_loop_counts() {
+    Expect.equal(Loops.count_down(3), 3)
+    Expect.equal(Loops.count_down(0), 0)
+  }
+
+  test fn early_return_inside_loop() {
+    Expect.equal(Loops.first_negative([1, -2, 3]), -2)
+    Expect.equal(Loops.first_negative([1, 2]), 0)
+  }
+}

@@ -2,12 +2,12 @@
 import * as lt from "../_lingua_rt";
 
 export type Role =
-  | { readonly tag: "Admin"; readonly values: readonly []; readonly __lt_display: (value: any) => string }
-  | { readonly tag: "Member"; readonly values: readonly [bigint]; readonly __lt_display: (value: any) => string }
+  | { readonly tag: "Admin"; readonly values: readonly []; readonly __lt_display: (value: any) => string; readonly __lt_order: number }
+  | { readonly tag: "Member"; readonly values: readonly [bigint]; readonly __lt_display: (value: any) => string; readonly __lt_order: number }
 
-export const Role_Admin: Role = { tag: "Admin", values: [], __lt_display: Role_display };
+export const Role_Admin: Role = { tag: "Admin", values: [], __lt_order: 0, __lt_display: Role_display };
 export function Role_Member(_0: bigint): Role {
-  return { tag: "Member", values: [_0], __lt_display: Role_display };
+  return { tag: "Member", values: [_0], __lt_order: 1, __lt_display: Role_display };
 }
 export function Role_display(value: Role): string {
   switch (value.tag) {
@@ -49,6 +49,16 @@ export class User {
   __lt_eq(other: unknown): boolean {
     if (!(other instanceof User)) return false;
     return lt.eq(this.name, (other as User).name) && lt.eq(this.role, (other as User).role);
+  }
+
+  __lt_cmp(other: unknown): number {
+    if (!(other instanceof User)) return 0;
+    const peer = other as User;
+    const nameResult = lt.cmp(this.name, peer.name);
+    if (nameResult !== 0) return nameResult;
+    const roleResult = lt.cmp(this.role, peer.role);
+    if (roleResult !== 0) return roleResult;
+    return 0;
   }
 
   __lt_to_string(): string {

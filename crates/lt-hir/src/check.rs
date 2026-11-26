@@ -510,18 +510,43 @@ fn check_bodies(
                 }
                 ast::Item::TestClass(decl) => {
                     let mut local = Vec::new();
+                    let mut helpers = Vec::new();
                     for helper in &decl.helpers {
+                        let params: Vec<Ty> = helper
+                            .params
+                            .iter()
+                            .map(|param| {
+                                resolve_type(program, module.id, &[], &param.ty, &mut local)
+                            })
+                            .collect();
+                        let ret = match &helper.ret {
+                            Some(ty) => resolve_type(program, module.id, &[], ty, &mut local),
+                            None => Ty::Unit,
+                        };
+                        helpers.push((helper.name.clone(), params, ret));
+                    }
+                    for (helper_index, helper) in decl.helpers.iter().enumerate() {
+                        let helper_ret = helpers
+                            .get(helper_index)
+                            .map(|(_, _, ret)| ret.clone())
+                            .unwrap_or(Ty::Unit);
                         let mut checker = Checker::new(program, module.id);
                         checker.in_test = true;
-                        checker.ret = Ty::Unit;
+                        checker.test_helpers = helpers.clone();
+                        checker.ret = helper_ret.clone();
                         checker.scopes.push(HashMap::new());
                         for param in &helper.params {
                             let ty =
                                 resolve_type(program, module.id, &[], &param.ty, &mut local);
                             checker.declare(&param.name, ty, false, param.span);
                         }
-                        let body_ty = checker.check_block(&helper.body, Some(&Ty::Unit));
-                        checker.expect(helper.body.span, &Ty::Unit, &body_ty, " as the method result");
+                        let body_ty = checker.check_block(&helper.body, Some(&helper_ret));
+                        checker.expect(
+                            helper.body.span,
+                            &helper_ret,
+                            &body_ty,
+                            " as the helper result",
+                        );
                         checker.scopes.pop();
                         for ((start, end), ty) in checker.types {
                             types.insert(module.id, (start, end), ty);
@@ -532,6 +557,7 @@ fn check_bodies(
                     for test in &decl.tests {
                         let mut checker = Checker::new(program, module.id);
                         checker.in_test = true;
+                        checker.test_helpers = helpers.clone();
                         checker.ret = Ty::Unit;
                         checker.scopes.push(HashMap::new());
                         let body_ty = checker.check_block(&test.body, Some(&Ty::Unit));
@@ -568,6 +594,7 @@ struct Checker<'a> {
     ret: Ty,
     in_test: bool,
     in_lambda: bool,
+    test_helpers: Vec<(String, Vec<Ty>, Ty)>,
     types: HashMap<(usize, usize), Ty>,
 }
 
@@ -586,6 +613,7 @@ impl<'a> Checker<'a> {
             ret: Ty::Unit,
             in_test: false,
             in_lambda: false,
+            test_helpers: Vec::new(),
             types: HashMap::new(),
         }
     }
@@ -1430,6 +1458,29 @@ impl<'a> Checker<'a> {
                         };
                     }
                     _ => {}
+                }
+                if let Some((_, params, ret)) =
+                    self.test_helpers.iter().find(|(helper, _, _)| helper == name).cloned()
+                {
+                    let Some(items) = self.positional(args, span, name) else {
+                        return Ty::Error;
+                    };
+                    if items.len() != params.len() {
+                        self.diag(
+                            span,
+                            format!(
+                                "`{name}` expects {} argument(s), found {}",
+                                params.len(),
+                                items.len()
+                            ),
+                        );
+                        return Ty::Error;
+                    }
+                    for (item, expected) in items.iter().zip(params.iter()) {
+                        let actual = self.check_expr(item, Some(expected));
+                        self.expect(item.span(), expected, &actual, " in this argument");
+                    }
+                    return ret;
                 }
                 if self.lookup_var(name).is_some() {
                     self.diag(span, format!("`{name}` is a value, not a function"));

@@ -13,8 +13,13 @@ import (
 
 type Variant struct {
 	Tag     string
+	Order   int
 	Values  []any
 	Display func(Variant) string
+}
+
+type Cmper interface {
+	LtCmp(any) int
 }
 
 func (v Variant) LtDisplay() string {
@@ -90,6 +95,26 @@ func Disp(value any) string {
 }
 
 func Cmp(a, b any) int {
+	if left, ok := a.(Cmper); ok {
+		return left.LtCmp(b)
+	}
+	if left, ok := a.(Variant); ok {
+		if right, ok := b.(Variant); ok {
+			if left.Order != right.Order {
+				return compareOrdered(left.Order < right.Order, left.Order > right.Order)
+			}
+			limit := len(left.Values)
+			if len(right.Values) < limit {
+				limit = len(right.Values)
+			}
+			for index := 0; index < limit; index++ {
+				if step := Cmp(left.Values[index], right.Values[index]); step != 0 {
+					return step
+				}
+			}
+			return len(left.Values) - len(right.Values)
+		}
+	}
 	switch left := a.(type) {
 	case int64:
 		if right, ok := b.(int64); ok {
@@ -143,11 +168,11 @@ func optDisplay(value Variant) string {
 }
 
 func Some[T any](value T) Variant {
-	return Variant{Tag: "some", Values: []any{value}, Display: optDisplay}
+	return Variant{Tag: "some", Order: 1, Values: []any{value}, Display: optDisplay}
 }
 
 func None() Variant {
-	return Variant{Tag: "none", Display: optDisplay}
+	return Variant{Tag: "none", Order: 0, Display: optDisplay}
 }
 
 func OptIsSome(value Variant) bool { return value.Tag == "some" }
@@ -191,11 +216,11 @@ func resDisplay(value Variant) string {
 }
 
 func Ok[T any](value T) Variant {
-	return Variant{Tag: "ok", Values: []any{value}, Display: resDisplay}
+	return Variant{Tag: "ok", Order: 0, Values: []any{value}, Display: resDisplay}
 }
 
 func Err[E any](value E) Variant {
-	return Variant{Tag: "err", Values: []any{value}, Display: resDisplay}
+	return Variant{Tag: "err", Order: 1, Values: []any{value}, Display: resDisplay}
 }
 
 func ResIsOk(value Variant) bool  { return value.Tag == "ok" }

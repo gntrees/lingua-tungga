@@ -169,6 +169,12 @@ pub enum IrExpr {
         args: Vec<IrExpr>,
         ty: Ty,
     },
+    /// Call to a function declared in a `test class` (helpers).
+    LocalCall {
+        name: String,
+        args: Vec<IrExpr>,
+        ty: Ty,
+    },
     StaticCall {
         module: ModuleId,
         class: String,

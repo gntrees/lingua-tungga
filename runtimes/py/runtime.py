@@ -90,6 +90,17 @@ def eq(a: Any, b: Any) -> bool:
 
 
 def cmp(a: Any, b: Any) -> int:
+    compare_method = getattr(a, "lt_cmp", None)
+    if callable(compare_method):
+        return compare_method(b)
+    if hasattr(a, "order") and hasattr(b, "order") and hasattr(a, "values") and hasattr(b, "values"):
+        if a.order != b.order:
+            return -1 if a.order < b.order else 1
+        for left, right in zip(a.values, b.values):
+            step = cmp(left, right)
+            if step != 0:
+                return step
+        return len(a.values) - len(b.values)
     if isinstance(a, bool) and isinstance(b, bool):
         return (a > b) - (a < b)
     if isinstance(a, (int, float)) and isinstance(b, (int, float)):
@@ -107,6 +118,7 @@ def cmp(a: Any, b: Any) -> int:
 class Opt:
     tag: str  # "some" | "none"
     values: tuple
+    order: int
 
     def to_display(self) -> str:
         if self.tag == "none":
@@ -115,11 +127,11 @@ class Opt:
 
 
 def Some(value: Any) -> Opt:
-    return Opt("some", (value,))
+    return Opt("some", (value,), 1)
 
 
-def None_( ) -> Opt:
-    return Opt("none", ())
+def None_() -> Opt:
+    return Opt("none", (), 0)
 
 
 def opt_is_some(value: Opt) -> bool:
@@ -152,6 +164,7 @@ def opt_and_then(value: Opt, f: Callable[[Any], Opt]) -> Opt:
 class Res:
     tag: str  # "ok" | "err"
     values: tuple
+    order: int
 
     def to_display(self) -> str:
         if self.tag == "ok":
@@ -160,11 +173,11 @@ class Res:
 
 
 def Ok(value: Any) -> Res:
-    return Res("ok", (value,))
+    return Res("ok", (value,), 0)
 
 
 def Err(value: Any) -> Res:
-    return Res("err", (value,))
+    return Res("err", (value,), 1)
 
 
 def res_is_ok(value: Res) -> bool:

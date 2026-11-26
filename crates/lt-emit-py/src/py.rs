@@ -244,15 +244,15 @@ impl<'a> Emitter<'a> {
         let mut out = String::new();
         out.push_str("@dataclass(frozen=True)\n");
         out.push_str(&format!("class {}:\n", decl.name));
-        out.push_str("    tag: str\n    values: tuple\n\n");
+        out.push_str("    tag: str\n    values: tuple\n    order: int\n\n");
         out.push_str("    def to_display(self) -> str:\n");
         out.push_str(&format!("        return _{}_display(self)\n\n", snake(&decl.name)));
 
-        for variant in &decl.variants {
+        for (order, variant) in decl.variants.iter().enumerate() {
             let name = member(&format!("{}_{}", decl.name, variant.name));
             if variant.payload.is_empty() {
                 out.push_str(&format!(
-                    "{} = {}({}, ())\n\n",
+                    "{} = {}({}, (), {order})\n\n",
                     name,
                     decl.name,
                     quote(&variant.name)
@@ -268,7 +268,7 @@ impl<'a> Emitter<'a> {
                     .map(|index| format!("_{index}"))
                     .collect();
                 out.push_str(&format!(
-                    "def {}({}) -> {}:\n    return {}({}, ({},))\n\n",
+                    "def {}({}) -> {}:\n    return {}({}, ({},), {order})\n\n",
                     name,
                     params.join(", "),
                     decl.name,
@@ -327,6 +327,15 @@ impl<'a> Emitter<'a> {
             out.push_str(&self.method_decl(method));
             out.push('\n');
         }
+
+        out.push_str(&format!("    def lt_cmp(self, other: \"{}\") -> int:\n", class.name));
+        for field in &class.fields {
+            let name = member(&field.name);
+            out.push_str(&format!(
+                "        step = lt.cmp(self.{name}, other.{name})\n        if step != 0:\n            return step\n"
+            ));
+        }
+        out.push_str("        return 0\n\n");
 
         out.push_str("    def to_display(self) -> str:\n");
         if class.fields.is_empty() {
@@ -758,6 +767,21 @@ impl<'a> Emitter<'a> {
                     }
                 };
                 Frag { prelude, code }
+            }
+            IrExpr::LocalCall { name, args, .. } => {
+                let mut prelude = Vec::new();
+                let rendered: Vec<String> = args
+                    .iter()
+                    .map(|arg| {
+                        let frag = self.expr(arg, level);
+                        prelude.extend(frag.prelude);
+                        frag.code
+                    })
+                    .collect();
+                Frag {
+                    prelude,
+                    code: format!("_{}({})", member(name), rendered.join(", ")),
+                }
             }
             IrExpr::StaticCall {
                 module,

@@ -192,6 +192,7 @@ test class UserTest {
 
 - `test class` tidak boleh `pub`.
 - Hanya `test fn` yang dieksekusi; `fn` biasa = helper.
+- `test fn` boleh memanggil helper di test class yang sama, dan helper boleh memanggil helper lain. Helper tidak terlihat dari luar test class.
 - `test fn` wajib tanpa parameter dan tanpa return type.
 
 ---
@@ -204,7 +205,7 @@ test class UserTest {
 
 **Lambda:** `fn(x) => expr` atau `fn(x) => { ... }`. Lambda tidak boleh `mut` menangkap variabel luar (tidak ada closure mutable). Lambda tidak boleh mengembalikan `Result` lalu memakai `?` di dalamnya.
 
-**`match`** wajib exhaustive. Pola: `_`, `None`, `Variant`, `Variant(p, ...)`. Tanpa guard, tanpa destructuring class, tanpa pola literal.
+**`match`** wajib exhaustive. Pola: `_`, `None`, `Variant`, `Variant(p, ...)`. Tanpa guard, tanpa destructuring class, tanpa pola literal. Pola bertingkat (mis. `Ok(Some(x))`) ditolak compiler di v1.
 
 ```lt
 match role {
@@ -256,15 +257,14 @@ Tiga trait yang dikenal compiler. Semuanya **di-derive otomatis**:
 | `Eq` | Perbandingan struktural seluruh field/varian. |
 | `Ord` | Lexicographic atas field sesuai urutan deklarasi; varian enum diurutkan sesuai urutan deklarasi. |
 
-Penimpaan manual lewat nama method khusus (tanpa sintaks interface):
+**v1: derive otomatis saja.** Penimpaan manual `to_string`/`equals`/`compare` belum
+didukung (direncanakan v2). `Ordering` adalah enum bawaan: `Less`, `Equal`, `Greater`,
+tetapi belum muncul di permukaan bahasa.
 
-| Trait | Method override |
-|---|---|
-| `Display` | `fn to_string(self) -> Str` |
-| `Eq` | `fn equals(self, other: User) -> Bool` |
-| `Ord` | `fn compare(self, other: User) -> Ordering` |
-
-`Ordering` adalah enum bawaan: `Less`, `Equal`, `Greater`.
+Ord dipakai oleh `sort`, `Map`, dan `Set`:
+- class: lexicographic atas field sesuai urutan deklarasi (dibandingkan rekursif dengan `Ord`).
+- enum: sesuai urutan deklarasi varian, lalu payload.
+- `Option`/`Result`: urutan internal tetap (`none < some`, `ok < err`) untuk stabilitas, bukan bagian dari kontrak publik.
 
 ---
 

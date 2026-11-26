@@ -15,7 +15,7 @@ Target pertama, dipakai untuk memvalidasi IR dan semantik.
 | `Set<T>` | `lt.LSet<T>` |
 | `Option<T>` | `lt.Opt<T>` = union `{tag:"some"|"none", values, __lt_display}` |
 | `Result<T,E>` | `lt.Res<T,E>` = union `{tag:"ok"|"err", …}` |
-| `enum` | discriminating union + konstruktor `Enum_Variant(...)` |
+| `enum` | discriminating union + konstruktor `Enum_Variant(...)`; setiap nilai membawa `__lt_order` (urutan varian) |
 | `class` | `class` dengan field `readonly`, konstruktor objek, `__lt_eq`, `__lt_to_string` |
 | `Display` | `lt.disp(value)` |
 | `Eq` | `lt.eq(a, b)` |

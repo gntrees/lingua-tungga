@@ -14,7 +14,7 @@ Target ketiga. Conformance suite yang sama (17 test) lulus di sini juga.
 | `Map<K,V>` | `lt.Map[K,V]` (entry terurut) |
 | `Set<T>` | `lt.Set[T]` |
 | `Option<T>` / `Result<T,E>` | `lt.Variant` (`Tag`, `Values []any`, `Display`) |
-| `enum` | `lt.Variant` + konstruktor `RoleMember(...)` / variabel `RoleAdmin` |
+| `enum` | `lt.Variant` (`Tag`/`Order`/`Values`) + konstruktor `RoleMember(...)` / variabel `RoleAdmin` |
 | `class` | `struct` dengan field exported + `NewUser(...)` |
 | method instance | method pada struct, receiver `self` |
 | method tanpa `self` | fungsi package `UserAnonymous()` |

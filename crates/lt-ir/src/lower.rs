@@ -27,6 +27,7 @@ pub fn lower(program: &Program, types: &TypeTable, names: Vec<String>) -> LowerO
             scopes: Vec::new(),
             self_ty: None,
             class_generics: Vec::new(),
+            test_helpers: Vec::new(),
         };
 
         let mut classes = Vec::new();
@@ -105,6 +106,7 @@ struct Lowerer<'a> {
     scopes: Vec<HashMap<String, Ty>>,
     self_ty: Option<Ty>,
     class_generics: Vec<String>,
+    test_helpers: Vec<(String, Vec<Ty>, Ty)>,
 }
 
 impl<'a> Lowerer<'a> {
@@ -312,8 +314,22 @@ impl<'a> Lowerer<'a> {
     }
 
     fn lower_test_class(&mut self, decl: &ast::TestClassDecl) -> IrTestClass {
-        let mut helpers = Vec::new();
+        let mut signatures: Vec<(String, Vec<Ty>, Ty)> = Vec::new();
         for helper in &decl.helpers {
+            let params: Vec<Ty> = helper
+                .params
+                .iter()
+                .map(|param| self.type_annotation(&param.ty))
+                .collect();
+            let ret = match &helper.ret {
+                Some(ty) => self.type_annotation(ty),
+                None => Ty::Unit,
+            };
+            signatures.push((helper.name.clone(), params, ret));
+        }
+        self.test_helpers = signatures.clone();
+        let mut helpers = Vec::new();
+        for (index, helper) in decl.helpers.iter().enumerate() {
             self.scopes.clear();
             self.scopes.push(HashMap::new());
             let params: Vec<IrParam> = helper
@@ -334,7 +350,10 @@ impl<'a> Lowerer<'a> {
                 is_pub: false,
                 is_static: true,
                 params,
-                ret: Ty::Unit,
+                ret: signatures
+                    .get(index)
+                    .map(|(_, _, ret)| ret.clone())
+                    .unwrap_or(Ty::Unit),
                 body,
             });
         }
@@ -350,6 +369,8 @@ impl<'a> Lowerer<'a> {
                 body,
             });
         }
+
+        self.test_helpers.clear();
 
         IrTestClass {
             name: decl.name.clone(),
@@ -616,6 +637,27 @@ impl<'a> Lowerer<'a> {
                         ty,
                     };
                 }
+                if let Some((helper_name, params, ret)) = self
+                    .test_helpers
+                    .iter()
+                    .find(|(helper, _, _)| helper == name)
+                    .cloned()
+                {
+                    let Some(items) = self.positional(args, span) else {
+                        return IrExpr::Var("undefined".to_string());
+                    };
+                    let lowered: Vec<IrExpr> = items
+                        .iter()
+                        .zip(params.iter())
+                        .map(|(item, _)| self.expr(item))
+                        .collect();
+                    return IrExpr::LocalCall {
+                        name: helper_name,
+                        args: lowered,
+                        ty: ret,
+                    };
+                }
+
                 if matches!(name.as_str(), "Some" | "Ok" | "Err") {
                     let Some(items) = self.positional(args, span) else {
                         return IrExpr::Var("undefined".to_string());

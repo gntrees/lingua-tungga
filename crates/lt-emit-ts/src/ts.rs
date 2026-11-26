@@ -300,20 +300,20 @@ impl<'a> Emitter<'a> {
             } else {
                 payload.join(", ")
             };
-            let _ = index;
             out.push_str(&format!(
-                "  | {{ readonly tag: {}; readonly values: readonly [{}]; readonly __lt_display: (value: any) => string }}\n",
+                "  | {{ readonly tag: {}; readonly values: readonly [{}]; readonly __lt_display: (value: any) => string; readonly __lt_order: number }}\n",
                 quote(&variant.name),
                 tuple
             ));
+            let _ = index;
         }
         out.push('\n');
 
-        for variant in &decl.variants {
+        for (order, variant) in decl.variants.iter().enumerate() {
             let constructor = format!("{}_{}", decl.name, variant.name);
             if variant.payload.is_empty() {
                 out.push_str(&format!(
-                    "export const {constructor}{generics}: {applied} = {{ tag: {}, values: [], __lt_display: {}_display }};\n",
+                    "export const {constructor}{generics}: {applied} = {{ tag: {}, values: [], __lt_order: {order}, __lt_display: {}_display }};\n",
                     quote(&variant.name),
                     decl.name
                 ));
@@ -328,7 +328,7 @@ impl<'a> Emitter<'a> {
                     .map(|index| format!("_{index}"))
                     .collect();
                 out.push_str(&format!(
-                    "export function {constructor}{generics}({}): {applied} {{\n  return {{ tag: {}, values: [{}], __lt_display: {}_display }};\n}}\n",
+                    "export function {constructor}{generics}({}): {applied} {{\n  return {{ tag: {}, values: [{}], __lt_order: {order}, __lt_display: {}_display }};\n}}\n",
                     params.join(", "),
                     quote(&variant.name),
                     values.join(", "),
@@ -422,6 +422,27 @@ impl<'a> Emitter<'a> {
             out.push_str(&format!("    return {};\n", checks.join(" && ")));
         }
         out.push_str("  }\n");
+
+        out.push_str("\n  __lt_cmp(other: unknown): number {\n");
+        let cast = if class.generics.is_empty() {
+            class.name.clone()
+        } else {
+            format!("{}<any>", class.name)
+        };
+        out.push_str(&format!("    if (!(other instanceof {})) return 0;\n", class.name));
+        out.push_str(&format!("    const peer = other as {cast};\n"));
+        for field in &class.fields {
+            let name = camel(&field.name);
+            out.push_str(&format!(
+                "    const {}Result = lt.cmp(this.{name}, peer.{name});\n",
+                name
+            ));
+            out.push_str(&format!(
+                "    if ({}Result !== 0) return {}Result;\n",
+                name, name
+            ));
+        }
+        out.push_str("    return 0;\n  }\n");
 
         out.push_str("\n  __lt_to_string(): string {\n");
         if class.fields.is_empty() {
@@ -851,6 +872,21 @@ impl<'a> Emitter<'a> {
                     }
                 };
                 Frag { prelude, code }
+            }
+            IrExpr::LocalCall { name, args, .. } => {
+                let mut prelude = Vec::new();
+                let rendered: Vec<String> = args
+                    .iter()
+                    .map(|arg| {
+                        let frag = self.expr(arg, level);
+                        prelude.extend(frag.prelude);
+                        frag.code
+                    })
+                    .collect();
+                Frag {
+                    prelude,
+                    code: format!("{}({})", camel(name), rendered.join(", ")),
+                }
             }
             IrExpr::StaticCall {
                 module,

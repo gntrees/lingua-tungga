@@ -314,11 +314,11 @@ impl<'a> Emitter<'a> {
 
     fn enum_decl(&mut self, decl: &IrEnum) -> String {
         let mut out = String::new();
-        for variant in &decl.variants {
+        for (order, variant) in decl.variants.iter().enumerate() {
             let name = export_name(&format!("{}_{}", decl.name, variant.name));
             if variant.payload.is_empty() {
                 out.push_str(&format!(
-                    "var {name} = lt.Variant{{Tag: {}, Display: {}Display}}\n\n",
+                    "var {name} = lt.Variant{{Tag: {}, Order: {order}, Display: {}Display}}\n\n",
                     quote(&variant.name),
                     decl.name
                 ));
@@ -333,7 +333,7 @@ impl<'a> Emitter<'a> {
                     .map(|index| format!("_{index}"))
                     .collect();
                 out.push_str(&format!(
-                    "func {name}({}) lt.Variant {{\n\treturn lt.Variant{{Tag: {}, Values: []any{{{}}}, Display: {}Display}}\n}}\n\n",
+                    "func {name}({}) lt.Variant {{\n\treturn lt.Variant{{Tag: {}, Order: {order}, Values: []any{{{}}}, Display: {}Display}}\n}}\n\n",
                     params.join(", "),
                     quote(&variant.name),
                     values.join(", "),
@@ -448,6 +448,25 @@ impl<'a> Emitter<'a> {
                 })
                 .collect();
             out.push_str(&format!("\treturn {}\n", checks.join(" &&\n\t\t")));
+        }
+        out.push_str("}\n\n");
+
+        out.push_str(&format!("func ({receiver}) LtCmp(other any) int {{\n"));
+        if class.fields.is_empty() {
+            out.push_str("\treturn 0\n");
+        } else {
+            out.push_str(&format!(
+                "\tpeer, ok := other.({}{})\n",
+                class.name, use_generics
+            ));
+            out.push_str("\tif !ok {\n\t\treturn 0\n\t}\n");
+            for field in &class.fields {
+                let name = export_name(&field.name);
+                out.push_str(&format!(
+                    "\tif step := lt.Cmp(self.{name}, peer.{name}); step != 0 {{\n\t\treturn step\n\t}}\n"
+                ));
+            }
+            out.push_str("\treturn 0\n");
         }
         out.push_str("}\n\n");
 
@@ -635,6 +654,7 @@ impl<'a> Emitter<'a> {
                     let is_call = matches!(
                         other,
                         IrExpr::InstanceCall { .. }
+                            | IrExpr::LocalCall { .. }
                             | IrExpr::StaticCall { .. }
                             | IrExpr::Builtin { .. }
                             | IrExpr::Math { .. }
@@ -909,6 +929,21 @@ impl<'a> Emitter<'a> {
                     }
                 };
                 Frag { prelude, code }
+            }
+            IrExpr::LocalCall { name, args, .. } => {
+                let mut prelude = Vec::new();
+                let rendered: Vec<String> = args
+                    .iter()
+                    .map(|arg| {
+                        let frag = self.expr(arg, level);
+                        prelude.extend(frag.prelude);
+                        frag.code
+                    })
+                    .collect();
+                Frag {
+                    prelude,
+                    code: format!("{}({})", export_name(name), rendered.join(", ")),
+                }
             }
             IrExpr::StaticCall {
                 module,
@@ -1381,7 +1416,7 @@ fn collect_expr(expr: &IrExpr, used: &mut HashSet<String>) {
                 collect_expr(arg, used);
             }
         }
-        IrExpr::StaticCall { args, .. } => {
+        IrExpr::LocalCall { args, .. } | IrExpr::StaticCall { args, .. } => {
             for arg in args {
                 collect_expr(arg, used);
             }

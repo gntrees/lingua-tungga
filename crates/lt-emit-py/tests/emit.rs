@@ -99,7 +99,7 @@ fn emits_a_python_package() {
     assert!(module.contains("import lt_runtime as lt"));
     assert!(module.contains("from dataclasses import dataclass"));
     assert!(module.contains("@dataclass(frozen=True)\nclass Role:"));
-    assert!(module.contains("role_admin = Role(\"Admin\", ())"));
+    assert!(module.contains("role_admin = Role(\"Admin\", (), 0)"));
     assert!(module.contains("def role_member(_0: int) -> Role:"));
     assert!(module.contains("@dataclass(frozen=True)\nclass User:"));
     assert!(module.contains("    name: str\n"));

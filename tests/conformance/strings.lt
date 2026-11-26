@@ -1,0 +1,43 @@
+test class StringTest {
+  test fn split_and_join_round_trip() {
+    Expect.equal("a,b,c".split(","), ["a", "b", "c"])
+    Expect.equal("a,b,c".split(",").join("-"), "a-b-c")
+  }
+
+  test fn replace_and_slice() {
+    Expect.equal("a-b".replace("-", "+"), "a+b")
+    Expect.equal("héllo".slice(1, 3), "él")
+  }
+
+  test fn predicates() {
+    Expect.true("hello".contains("ell"))
+    Expect.true("hello".starts_with("he"))
+    Expect.false("hello".ends_with("lo!"))
+  }
+
+  test fn case_and_trim() {
+    Expect.equal("  Hi  ".trim().lower(), "hi")
+    Expect.equal("abc".upper(), "ABC")
+  }
+
+  test fn chars_are_code_points() {
+    Expect.equal("ab".chars(), ["a", "b"])
+    Expect.equal("👍".chars().len(), 1)
+  }
+
+  test fn trim_indent_removes_common_indent() {
+    Expect.equal(
+      `
+  a
+  b
+`.trim_indent(),
+      "a\nb",
+    )
+  }
+
+  test fn parse_helpers() {
+    Expect.equal(" 42 ".parse_int(), Some(42))
+    Expect.equal("nope".parse_int(), None)
+    Expect.equal("1.5".parse_float(), Some(1.5))
+  }
+}
