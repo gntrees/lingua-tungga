@@ -12,3 +12,4 @@ path = "src/main.rs"
 
 [dependencies]
 lt-syntax = { path = "../lt-syntax" }
+lt-hir = { path = "../lt-hir" }

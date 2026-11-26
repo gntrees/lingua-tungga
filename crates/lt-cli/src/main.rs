@@ -4,6 +4,9 @@ use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::exit;
 
+use std::collections::HashMap;
+
+use lt_hir::{check_entries, FsLoader};
 use lt_syntax::{format_file, parse, span::line_col_at, tokenize_full, Diagnostic};
 
 fn main() {
@@ -103,26 +106,31 @@ fn cmd_check(inputs: &[String]) -> i32 {
         return 2;
     }
 
-    let mut failed = false;
-    for path in &paths {
-        let src = match read_source(path) {
-            Ok(src) => src,
-            Err(code) => return code,
-        };
-        let out = parse(&src);
-        if out.diagnostics.is_empty() {
+    let mut loader = FsLoader;
+    let out = check_entries(&paths, &mut loader);
+
+    if out.diagnostics.is_empty() {
+        for path in &paths {
             println!("ok  {}", path.display());
-        } else {
-            failed = true;
-            report(path, &src, &out.diagnostics);
         }
+        return 0;
     }
 
-    if failed {
-        1
-    } else {
-        0
+    let sources: HashMap<PathBuf, &str> = out
+        .program
+        .modules
+        .iter()
+        .map(|module| (module.path.clone(), module.source.as_str()))
+        .collect();
+
+    for file in &out.diagnostics {
+        let name = file.path.display().to_string();
+        match sources.get(&file.path) {
+            Some(source) => eprintln!("{}", file.diagnostic.render(&name, source)),
+            None => eprintln!("error: {}: {}", name, file.diagnostic.message),
+        }
     }
+    1
 }
 
 fn cmd_ast(inputs: &[String]) -> i32 {

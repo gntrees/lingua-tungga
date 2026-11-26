@@ -1,0 +1,10 @@
+[package]
+name = "lt-hir"
+description = "Module resolution, symbol tables, and type checking for Lingua Tungga"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+lt-syntax = { path = "../lt-syntax" }

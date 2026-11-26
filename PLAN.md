@@ -167,7 +167,7 @@ pub class Validator {
     Ok(u)
   }
 
-  pub fn check_all(users: List<User>) -> Result<List<User>, Str> {
+  pub fn check_all(users: List<User>) -> List<Result<User, Str>> {
     users.map(fn(u) => Validator.check(u))
   }
 }

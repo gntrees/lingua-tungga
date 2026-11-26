@@ -6,6 +6,14 @@ version = 4
 name = "lt-cli"
 version = "0.1.0"
 dependencies = [
+ "lt-hir",
+ "lt-syntax",
+]
+
+[[package]]
+name = "lt-hir"
+version = "0.1.0"
+dependencies = [
  "lt-syntax",
 ]
 

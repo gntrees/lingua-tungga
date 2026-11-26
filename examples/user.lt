@@ -1,5 +1,3 @@
-import User from "./user.lt"
-
 pub enum Role {
   Admin
   Member(Int)

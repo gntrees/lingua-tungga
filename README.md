@@ -23,7 +23,7 @@ lt test -t go       # jalankan conformance suite di target Go
 Hari ini yang sudah bisa dipakai:
 
 ```sh
-lt check src/       # parse + diagnostik
+lt check src/       # resolve import + typecheck seluruh graf
 lt fmt src/         # format kanonik (idempoten)
 lt fmt --check src/ # exit 1 kalau ada file belum terformat
 lt ast src/a.lt     # dump AST untuk debugging
@@ -37,7 +37,7 @@ Lingua Tungga tidak punya runtime sendiri, tidak punya UI, tidak punya `main`, d
 
 | | |
 |---|---|
-| Fase | M1 — frontend (`lt-syntax`) |
+| Fase | M2 — resolusi modul + typechecker (`lt-hir`) |
 | Bahasa | ekstensi `.lt` |
 | Compiler | Rust, binary `lt` |
 | Target | TypeScript, Python, Go (100% conformance) |
@@ -56,4 +56,4 @@ cargo test
 cargo clippy --all-targets -- -D warnings
 ```
 
-Struktur saat ini: `crates/lt-syntax` — lexer, AST, parser, diagnostik (57 test). Formatter, typechecker, IR, dan emitter menyusul sesuai milestone di `PLAN.md`.
+Struktur saat ini: `crates/lt-syntax` (lexer, AST, parser, formatter, diagnostik) dan `crates/lt-hir` (loader modul, tabel simbol, typechecker). `crates/lt-cli` menyediakan binary `lt`. Total 109 test. IR dan emitter menyusul sesuai milestone di `PLAN.md`.

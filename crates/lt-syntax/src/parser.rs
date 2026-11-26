@@ -167,6 +167,30 @@ impl<'a> Parser<'a> {
         }
     }
 
+    /// Member names after `.` may collide with `true`/`false` (e.g. `Expect.true`).
+    fn expect_member_name(&mut self, ctx: &str) -> Option<(String, Span)> {
+        let token = self.peek().clone();
+        let name = match &token.kind {
+            TokenKind::Ident(name) => name.clone(),
+            TokenKind::True => "true".to_string(),
+            TokenKind::False => "false".to_string(),
+            _ => {
+                self.error(
+                    format!(
+                        "expected a member name {ctx}, found {}",
+                        token.kind.describe()
+                    ),
+                    token.span,
+                    token.line,
+                    token.col,
+                );
+                return None;
+            }
+        };
+        self.bump();
+        Some((name, token.span))
+    }
+
     fn error(&mut self, message: impl Into<String>, span: Span, line: u32, col: u32) {
         self.errors
             .push(Diagnostic::error(message, span, line, col));
@@ -796,7 +820,7 @@ impl<'a> Parser<'a> {
             match token.kind {
                 TokenKind::Dot => {
                     self.bump();
-                    let (name, _) = self.expect_ident("after `.`")?;
+                    let (name, _) = self.expect_member_name("after `.`")?;
                     let span = Span::new(expr.span().start, self.last_end);
                     expr = Expr::Field {
                         base: Box::new(expr),

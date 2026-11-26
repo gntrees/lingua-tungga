@@ -118,3 +118,19 @@ fn ast_dumps_without_error() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("ClassDecl"), "{stdout}");
 }
+
+#[test]
+fn examples_typecheck() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples");
+    let output = Command::new(bin())
+        .arg("check")
+        .arg(&root)
+        .output()
+        .unwrap();
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}

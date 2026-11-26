@@ -150,7 +150,7 @@ Aturan:
 - Konstruksi **wajib named args**, semua field wajib diisi, urutan bebas:
   `User(name: "Ana", age: 30, address: None)`.
 - Tanpa inheritance, tanpa `override`, tanpa `abstract`.
-- Method dengan `self` = instance method; tanpa `self` = static (wajib murni, tidak boleh menyimpan state).
+- Method dengan `self` = instance method; tanpa `self` = static (wajib murni, tidak boleh menyimpan state). Kata kunci `static` opsional: `fn f()` tanpa `self` sudah static. Static method tidak boleh memakai type parameter class.
 - `pub` menentukan bagian dari API. Tanpa `pub` = private ke file.
 - Parameter hanya boleh punya tipe nominal/primitive; tidak ada varargs, tidak ada default value di v1.
 
@@ -318,6 +318,7 @@ import Post from "https://raw.githubusercontent.com/foo/bar/v1.2.0/src/post.lt"
 
 ### Lockfile
 
+- **Status saat ini (M2):** hanya import relatif yang jalan; URL remote menghasilkan compile error yang menyebut package manager (M7). File di `vendor/` bisa di-import dengan path relatif.
 - Build pertama menulis `lt.lock`: URL, commit SHA, sha256 per file.
 - `lt.lock` wajib di-commit. Build berikutnya nol network dan memverifikasi checksum.
 - URL menunjuk branch = warning; lock tetap melindungi.
@@ -363,15 +364,16 @@ Trap dipetakan ke mekanisme native target (panic/exception) tetapi **tidak perna
 
 | Permukaan | Isi |
 |---|---|
-| Method `Str` | `len`, `trim`, `trim_indent`, `lower`, `upper`, `split`, `join`, `starts_with`, `ends_with`, `contains`, `replace`, `slice`, `chars`, `parse_int`, `parse_float` |
-| Method `List<T>` | `len`, `get(Int) -> T?`, `push`, `pop`, `map`, `filter`, `fold`, `any`, `all`, `sort`, `reverse`, `concat`, `contains`, `index_of` |
-| Method `Map<K,V>` | `len`, `get(K) -> V?`, `insert`, `remove`, `keys`, `values`, `entries`, `contains_key` |
+| Method `Str` | `len`, `trim`, `trim_indent`, `lower`, `upper`, `split`, `starts_with`, `ends_with`, `contains`, `replace`, `slice`, `chars`, `parse_int`, `parse_float` |
+| Method `List<T>` | `len`, `get(Int) -> T?`, `push`, `pop`, `map`, `filter`, `fold`, `any`, `all`, `sort`, `reverse`, `concat`, `contains`, `index_of`, `join(Str) -> Str` (khusus `List<Str>`) |
+| Method `Map<K,V>` | `len`, `get(K) -> V?`, `insert`, `remove`, `keys`, `values`, `contains_key` |
 | Method `Set<T>` | `len`, `insert`, `remove`, `contains`, `union`, `intersect`, `difference` |
 | Method `Option<T>` | `is_some`, `is_none`, `unwrap`, `unwrap_or`, `map`, `and_then` |
 | Method `Result<T,E>` | `is_ok`, `is_err`, `unwrap`, `unwrap_or`, `map`, `map_err`, `and_then` |
-| Class `Math` | `abs`, `min`, `max`, `floor`, `ceil`, `round`, `sqrt`, `pow`, `pi` |
-| Class `Json` | `encode<T: Display>` tidak dipakai — hanya `Json.encode_value(...)` dan `Json.decode_value(...)` untuk enum `Value` |
+| Class `Math` | `abs`, `min`, `max`, `floor`, `ceil`, `round`, `sqrt`, `pow`, `pi` — semuanya `Float` (tanpa overloading) |
+| Class `Json` | **belum ada di v1**; menunggu enum `Value` dan runtime per target (M7) |
 | Class `Expect` | `equal`, `not_equal`, `true`, `false` (hanya boleh dipakai di `test class`) |
-| Enum `Value` | `Null`, `Bool`, `Int`, `Float`, `Str`, `List`, `Map` — untuk data heterogen |
+| Enum `Value` | **belum ada di v1**; rencananya `Null`, `Bool`, `Int`, `Float`, `Str`, `List`, `Map` |
+| Enum `Ordering` | `Less`, `Equal`, `Greater` |
 
 Perubahan stdlib bukan breaking change selama signature lama dipertahankan.

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/lt-syntax", "crates/lt-cli"]
+members = ["crates/lt-syntax", "crates/lt-hir", "crates/lt-cli"]
 
 [workspace.package]
 version = "0.1.0"
