@@ -68,6 +68,11 @@ fn package_name(module_name: &str) -> String {
     if RESERVED.contains(&out.as_str()) {
         out.push('_');
     }
+    // Go reserves the `_test` suffix for external test packages; a real package
+    // named `foo_test` collides with its own external tests.
+    if out.ends_with("_test") {
+        out.push_str("_pkg");
+    }
     out
 }
 

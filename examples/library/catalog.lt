@@ -1,0 +1,36 @@
+import Book from "./book.lt"
+
+pub class Catalog {
+  books: List<Book>
+
+  static fn empty() -> Catalog {
+    Catalog(books: [])
+  }
+
+  pub fn add(self, book: Book) -> Catalog {
+    Catalog(books: self.books.push(book))
+  }
+
+  pub fn size(self) -> Int {
+    self.books.len()
+  }
+
+  pub fn find_by_author(self, author: Str) -> List<Book> {
+    self.books.filter(fn(book) => book.author == author)
+  }
+
+  pub fn newest(self) -> Option<Book> {
+    let mut best: Option<Book> = None
+    for book in self.books {
+      best = match best {
+        None => Some(book)
+        Some(current) => if book.year > current.year {
+          Some(book)
+        } else {
+          best
+        }
+      }
+    }
+    best
+  }
+}

@@ -365,7 +365,7 @@ Trap dipetakan ke mekanisme native target (panic/exception) tetapi **tidak perna
 - Nama file output tetap `snake_case`. Identitas class/enum tetap `PascalCase`. Method/field diubah sesuai konvensi target oleh emitter (`snake_case` untuk Python/Go, `camelCase` untuk TypeScript).
 - Setiap paket output punya satu file runtime inline (`_lingua_rt.ts`, `_lingua_rt.py`, `rt.go`).
 - Tabel pemetaan tipe & konstruksi: lihat [PLAN.md §5](../PLAN.md).
-- Kode user wajib lulus `tsc --strict`, `ruff` + `mypy --strict`, `go vet` + `gofmt -l`.
+- Kode user wajib lulus `tsc --strict`, `mypy --strict` (Python), serta `go vet` dan `go test` (Go). Formatter kanonik: `lt fmt`.
 - Pemetaan konkret per backend: [`backends/typescript.md`](backends/typescript.md), [`backends/python.md`](backends/python.md), [`backends/go.md`](backends/go.md). Batasan backend v1 (mis. pola `match` bertingkat) didokumentasikan di sana dan selalu muncul sebagai compile error, bukan perbedaan perilaku.
 
 ---

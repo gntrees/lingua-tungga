@@ -119,10 +119,22 @@ fn cmd_check(inputs: &[String]) -> i32 {
         return 2;
     }
 
-    let (out, _ir, _manager) = match prepare(&paths, Mode::Locked) {
-        Ok(prepared) => prepared,
-        Err(code) => return code,
-    };
+    // `check` accepts unrelated directories, so it does not need a single
+    // project root (that is only required for output naming).
+    let root = normalize(
+        paths
+            .first()
+            .and_then(|path| path.parent())
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| PathBuf::from(".")),
+    );
+    let mut manager = Manager::new(if root == Path::new(".") { Path::new("") } else { &root }, Mode::Locked);
+    let mut loader = FsLoader;
+    let out = check_entries_with_remote(&paths, &mut loader, &mut manager);
+    if let Err(error) = manager.save() {
+        eprintln!("lt: {error}");
+        return 1;
+    }
 
     if out.diagnostics.is_empty() {
         for path in &paths {

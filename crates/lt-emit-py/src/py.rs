@@ -202,11 +202,17 @@ impl<'a> Emitter<'a> {
             Ty::Bool => "bool".to_string(),
             Ty::Str => "str".to_string(),
             Ty::Unit => "None".to_string(),
-            Ty::List(_) => "lt.LList".to_string(),
-            Ty::Set(_) => "lt.LSet".to_string(),
-            Ty::Map(_, _) => "lt.LMap".to_string(),
-            Ty::Option(_) => "lt.Opt".to_string(),
-            Ty::Result(_, _) => "lt.Res".to_string(),
+            Ty::List(inner) => format!("lt.LList[{}]", self.type_ref(inner)),
+            Ty::Set(inner) => format!("lt.LSet[{}]", self.type_ref(inner)),
+            Ty::Map(key, value) => format!(
+                "lt.LMap[{}, {}]",
+                self.type_ref(key),
+                self.type_ref(value)
+            ),
+            Ty::Option(inner) => format!("lt.Opt[{}]", self.type_ref(inner)),
+            Ty::Result(ok, err) => {
+                format!("lt.Res[{}, {}]", self.type_ref(ok), self.type_ref(err))
+            }
             Ty::Named(name, _) => {
                 self.use_module(name.module);
                 if self.is_local(name.module) {
@@ -244,7 +250,7 @@ impl<'a> Emitter<'a> {
         let mut out = String::new();
         out.push_str("@dataclass(frozen=True)\n");
         out.push_str(&format!("class {}:\n", decl.name));
-        out.push_str("    tag: str\n    values: tuple\n    order: int\n\n");
+        out.push_str("    tag: str\n    values: tuple[Any, ...]\n    order: int\n\n");
         out.push_str("    def to_display(self) -> str:\n");
         out.push_str(&format!("        return _{}_display(self)\n\n", snake(&decl.name)));
 

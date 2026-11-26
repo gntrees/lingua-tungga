@@ -6,7 +6,15 @@ import math
 import textwrap
 from dataclasses import dataclass
 from functools import cmp_to_key
-from typing import Any, Callable, Iterable, Sequence
+from typing import Any, Callable, Generic, Iterable, Sequence, TypeVar, cast
+
+T = TypeVar("T")
+U = TypeVar("U")
+A = TypeVar("A")
+K = TypeVar("K")
+V = TypeVar("V")
+E = TypeVar("E")
+F = TypeVar("F")
 
 # --- Int: i64 with wrapping overflow ---------------------------------------
 
@@ -79,20 +87,20 @@ def disp(value: Any) -> str:
         return "None"
     display = getattr(value, "to_display", None)
     if callable(display):
-        return display()
+        return cast(str, display())
     return str(value)
 
 
 def eq(a: Any, b: Any) -> bool:
     if isinstance(a, float) and isinstance(b, float) and math.isnan(a) and math.isnan(b):
         return False
-    return a == b
+    return bool(a == b)
 
 
 def cmp(a: Any, b: Any) -> int:
     compare_method = getattr(a, "lt_cmp", None)
     if callable(compare_method):
-        return compare_method(b)
+        return cast(int, compare_method(b))
     if hasattr(a, "order") and hasattr(b, "order") and hasattr(a, "values") and hasattr(b, "values"):
         if a.order != b.order:
             return -1 if a.order < b.order else 1
@@ -115,9 +123,9 @@ def cmp(a: Any, b: Any) -> int:
 
 
 @dataclass(frozen=True)
-class Opt:
+class Opt(Generic[T]):
     tag: str  # "some" | "none"
-    values: tuple
+    values: tuple[Any, ...]
     order: int
 
     def to_display(self) -> str:
@@ -126,44 +134,44 @@ class Opt:
         return f"Some({disp(self.values[0])})"
 
 
-def Some(value: Any) -> Opt:
+def Some(value: T) -> Opt[T]:
     return Opt("some", (value,), 1)
 
 
-def None_() -> Opt:
+def None_() -> Opt[Any]:
     return Opt("none", (), 0)
 
 
-def opt_is_some(value: Opt) -> bool:
+def opt_is_some(value: Opt[Any]) -> bool:
     return value.tag == "some"
 
 
-def opt_is_none(value: Opt) -> bool:
+def opt_is_none(value: Opt[Any]) -> bool:
     return value.tag == "none"
 
 
-def opt_unwrap(value: Opt) -> Any:
+def opt_unwrap(value: Opt[T]) -> T:
     if value.tag == "none":
         raise ValueError("unwrap on None")
-    return value.values[0]
+    return cast(T, value.values[0])
 
 
-def opt_unwrap_or(value: Opt, fallback: Any) -> Any:
-    return value.values[0] if value.tag == "some" else fallback
+def opt_unwrap_or(value: Opt[T], fallback: T) -> T:
+    return cast(T, value.values[0]) if value.tag == "some" else fallback
 
 
-def opt_map(value: Opt, f: Callable[[Any], Any]) -> Opt:
-    return Some(f(value.values[0])) if value.tag == "some" else None_()
+def opt_map(value: Opt[T], f: Callable[[T], U]) -> Opt[U]:
+    return Some(f(cast(T, value.values[0]))) if value.tag == "some" else None_()
 
 
-def opt_and_then(value: Opt, f: Callable[[Any], Opt]) -> Opt:
-    return f(value.values[0]) if value.tag == "some" else None_()
+def opt_and_then(value: Opt[T], f: Callable[[T], Opt[U]]) -> Opt[U]:
+    return f(cast(T, value.values[0])) if value.tag == "some" else None_()
 
 
 @dataclass(frozen=True)
-class Res:
+class Res(Generic[T, E]):
     tag: str  # "ok" | "err"
-    values: tuple
+    values: tuple[Any, ...]
     order: int
 
     def to_display(self) -> str:
@@ -172,98 +180,110 @@ class Res:
         return f"Err({disp(self.values[0])})"
 
 
-def Ok(value: Any) -> Res:
+def Ok(value: T) -> Res[T, Any]:
     return Res("ok", (value,), 0)
 
 
-def Err(value: Any) -> Res:
+def Err(value: E) -> Res[Any, E]:
     return Res("err", (value,), 1)
 
 
-def res_is_ok(value: Res) -> bool:
+def res_is_ok(value: Res[Any, Any]) -> bool:
     return value.tag == "ok"
 
 
-def res_is_err(value: Res) -> bool:
+def res_is_err(value: Res[Any, Any]) -> bool:
     return value.tag == "err"
 
 
-def res_unwrap(value: Res) -> Any:
+def res_unwrap(value: Res[T, E]) -> T:
     if value.tag == "err":
         raise ValueError(f"unwrap on Err({disp(value.values[0])})")
-    return value.values[0]
+    return cast(T, value.values[0])
 
 
-def res_unwrap_or(value: Res, fallback: Any) -> Any:
-    return value.values[0] if value.tag == "ok" else fallback
+def res_unwrap_or(value: Res[T, E], fallback: T) -> T:
+    return cast(T, value.values[0]) if value.tag == "ok" else fallback
 
 
-def res_map(value: Res, f: Callable[[Any], Any]) -> Res:
-    return Ok(f(value.values[0])) if value.tag == "ok" else Err(value.values[0])
+def res_map(value: Res[T, E], f: Callable[[T], U]) -> Res[U, E]:
+    return (
+        Ok(f(cast(T, value.values[0])))
+        if value.tag == "ok"
+        else Err(cast(E, value.values[0]))
+    )
 
 
-def res_map_err(value: Res, f: Callable[[Any], Any]) -> Res:
-    return Ok(value.values[0]) if value.tag == "ok" else Err(f(value.values[0]))
+def res_map_err(value: Res[T, E], f: Callable[[E], F]) -> Res[T, F]:
+    return (
+        Ok(cast(T, value.values[0]))
+        if value.tag == "ok"
+        else Err(f(cast(E, value.values[0])))
+    )
 
 
-def res_and_then(value: Res, f: Callable[[Any], Res]) -> Res:
-    return f(value.values[0]) if value.tag == "ok" else Err(value.values[0])
+def res_and_then(value: Res[T, E], f: Callable[[T], Res[U, E]]) -> Res[U, E]:
+    return (
+        f(cast(T, value.values[0]))
+        if value.tag == "ok"
+        else Err(cast(E, value.values[0]))
+    )
 
 
 # --- Immutable collections --------------------------------------------------
 
 
 @dataclass(frozen=True)
-class LList:
-    items: tuple
+class LList(Generic[T]):
+    items: tuple[T, ...]
 
     def len(self) -> int:
         return len(self.items)
 
-    def get(self, index: int) -> Opt:
+    def get(self, index: int) -> Opt[T]:
         if index < 0 or index >= len(self.items):
             return None_()
         return Some(self.items[index])
 
-    def push(self, value: Any) -> "LList":
+    def push(self, value: T) -> "LList[T]":
         return LList(self.items + (value,))
 
-    def pop(self) -> Opt:
+    def pop(self) -> Opt[T]:
         if not self.items:
             return None_()
         return Some(self.items[-1])
 
-    def map(self, f: Callable[[Any], Any]) -> "LList":
+    def map(self, f: Callable[[T], U]) -> "LList[U]":
         return LList(tuple(f(item) for item in self.items))
 
-    def filter(self, f: Callable[[Any], bool]) -> "LList":
+    def filter(self, f: Callable[[T], bool]) -> "LList[T]":
         return LList(tuple(item for item in self.items if f(item)))
 
-    def fold(self, init: Any, f: Callable[[Any, Any], Any]) -> Any:
+    def fold(self, init: A, f: Callable[[A, T], A]) -> A:
         result = init
         for item in self.items:
             result = f(result, item)
         return result
 
-    def any(self, f: Callable[[Any], bool]) -> bool:
+    def any(self, f: Callable[[T], bool]) -> bool:
         return any(f(item) for item in self.items)
 
-    def all(self, f: Callable[[Any], bool]) -> bool:
+    def all(self, f: Callable[[T], bool]) -> bool:
         return all(f(item) for item in self.items)
 
-    def sort(self) -> "LList":
+    def sort(self) -> "LList[T]":
         return LList(tuple(sorted(self.items, key=cmp_to_key(cmp))))
 
-    def reverse(self) -> "LList":
+    def reverse(self) -> "LList[T]":
         return LList(tuple(reversed(self.items)))
 
-    def concat(self, other: "LList") -> "LList":
+    def concat(self, other: "LList[T]") -> "LList[T]":
         return LList(self.items + other.items)
 
-    def contains(self, value: Any) -> bool:
+    def contains(self, value: T) -> bool:
         return any(eq(item, value) for item in self.items)
 
-    def index_of(self, value: Any) -> Opt:
+    def index_of(self, value: T) -> Opt[int]:
         for index, item in enumerate(self.items):
             if eq(item, value):
                 return Some(index)
@@ -277,14 +297,14 @@ class LList:
 
 
 @dataclass(frozen=True)
-class LSet:
-    items: tuple
+class LSet(Generic[T]):
+    items: tuple[T, ...]
 
     @staticmethod
-    def empty() -> "LSet":
+    def empty() -> "LSet[Any]":
         return LSet(())
 
-    def _from(self, values: Iterable[Any]) -> "LSet":
+    def _from(self, values: Iterable[T]) -> "LSet[T]":
         unique: list[Any] = []
         for value in values:
             if not any(eq(existing, value) for existing in unique):
@@ -293,28 +313,28 @@ class LSet:
         return LSet(tuple(unique))
 
     @staticmethod
-    def create(values: Iterable[Any]) -> "LSet":
-        return LSet.empty()._from(values)
+    def create(values: Iterable[T]) -> "LSet[T]":
+        return LSet[T](())._from(values)
 
     def len(self) -> int:
         return len(self.items)
 
-    def insert(self, value: Any) -> "LSet":
+    def insert(self, value: T) -> "LSet[T]":
         return self._from((*self.items, value))
 
-    def remove(self, value: Any) -> "LSet":
+    def remove(self, value: T) -> "LSet[T]":
         return self._from(item for item in self.items if not eq(item, value))
 
-    def contains(self, value: Any) -> bool:
+    def contains(self, value: T) -> bool:
         return any(eq(item, value) for item in self.items)
 
-    def union(self, other: "LSet") -> "LSet":
+    def union(self, other: "LSet[T]") -> "LSet[T]":
         return self._from((*self.items, *other.items))
 
-    def intersect(self, other: "LSet") -> "LSet":
+    def intersect(self, other: "LSet[T]") -> "LSet[T]":
         return self._from(item for item in self.items if other.contains(item))
 
-    def difference(self, other: "LSet") -> "LSet":
+    def difference(self, other: "LSet[T]") -> "LSet[T]":
         return self._from(item for item in self.items if not other.contains(item))
 
     def to_display(self) -> str:
@@ -322,16 +342,19 @@ class LSet:
 
 
 @dataclass(frozen=True)
-class LMap:
-    entries: tuple
+class LMap(Generic[K, V]):
+    entries: tuple[tuple[K, V], ...]
 
     @staticmethod
-    def empty() -> "LMap":
+    def empty() -> "LMap[Any, Any]":
         return LMap(())
 
-    def _from(self, entries: Iterable[tuple]) -> "LMap":
-        sorted_entries = sorted(entries, key=cmp_to_key(lambda a, b: cmp(a[0], b[0])))
-        unique: list[tuple] = []
+    def _from(self, entries: Iterable[tuple[K, V]]) -> "LMap[K, V]":
+        def compare_entries(left: tuple[K, V], right: tuple[K, V]) -> int:
+            return cmp(left[0], right[0])
+
+        sorted_entries = sorted(entries, key=cmp_to_key(compare_entries))
+        unique: list[tuple[K, V]] = []
         for entry in sorted_entries:
             replaced = False
             for index, existing in enumerate(unique):
@@ -344,31 +367,31 @@ class LMap:
         return LMap(tuple(unique))
 
     @staticmethod
-    def create(entries: Iterable[tuple]) -> "LMap":
-        return LMap.empty()._from(entries)
+    def create(entries: Iterable[tuple[K, V]]) -> "LMap[K, V]":
+        return LMap[K, V](())._from(entries)
 
     def len(self) -> int:
         return len(self.entries)
 
-    def get(self, key: Any) -> Opt:
+    def get(self, key: K) -> Opt[V]:
         for entry_key, entry_value in self.entries:
             if eq(entry_key, key):
                 return Some(entry_value)
         return None_()
 
-    def insert(self, key: Any, value: Any) -> "LMap":
+    def insert(self, key: K, value: V) -> "LMap[K, V]":
         return self._from((*self.entries, (key, value)))
 
-    def remove(self, key: Any) -> "LMap":
+    def remove(self, key: K) -> "LMap[K, V]":
         return self._from(entry for entry in self.entries if not eq(entry[0], key))
 
-    def keys(self) -> LList:
+    def keys(self) -> LList[K]:
         return LList(tuple(entry[0] for entry in self.entries))
 
-    def values(self) -> LList:
+    def values(self) -> LList[V]:
         return LList(tuple(entry[1] for entry in self.entries))
 
-    def contains_key(self, key: Any) -> bool:
+    def contains_key(self, key: K) -> bool:
         return any(eq(entry[0], key) for entry in self.entries)
 
     def to_display(self) -> str:
@@ -390,7 +413,7 @@ def str_slice(value: str, start: int, end: int) -> str:
     return value[start:end]
 
 
-def str_chars(value: str) -> LList:
+def str_chars(value: str) -> LList[str]:
     return LList(tuple(value))
 
 
@@ -398,7 +421,7 @@ def str_trim_indent(value: str) -> str:
     return textwrap.dedent(value).strip("\n")
 
 
-def str_split(value: str, separator: str) -> LList:
+def str_split(value: str, separator: str) -> LList[str]:
     return LList(tuple(value.split(separator)))
 
 
@@ -406,7 +429,7 @@ def str_replace(value: str, old: str, new: str) -> str:
     return value.replace(old, new) if old else value
 
 
-def str_parse_int(value: str) -> Opt:
+def str_parse_int(value: str) -> Opt[int]:
     text = value.strip()
     digits = text[1:] if text[:1] in ("+", "-") else text
     if not digits.isdigit():
@@ -417,7 +440,7 @@ def str_parse_int(value: str) -> Opt:
     return Some(parsed)
 
 
-def str_parse_float(value: str) -> Opt:
+def str_parse_float(value: str) -> Opt[float]:
     text = value.strip()
     if not text:
         return None_()

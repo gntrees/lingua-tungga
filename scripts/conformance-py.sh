@@ -11,6 +11,7 @@ cargo run -q --manifest-path "$root/Cargo.toml" --bin lt -- \
 cd "$out/py"
 if [ ! -x .venv/bin/python ]; then
   python3 -m venv .venv
-  .venv/bin/pip -q install pytest
 fi
+.venv/bin/pip -q install pytest mypy
+.venv/bin/python -m mypy --strict .
 .venv/bin/python -m pytest -q

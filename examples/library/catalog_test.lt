@@ -1,0 +1,33 @@
+import Book from "./book.lt"
+import Genre from "./book.lt"
+import Catalog from "./catalog.lt"
+
+test class CatalogTest {
+  fn sample() -> Catalog {
+    let first = Book(title: "Dune", author: "Frank", genre: Genre.Fiction, year: 1965)
+    let second = Book(title: "Code", author: "Ada", genre: Genre.Reference, year: 2020)
+    Catalog.empty().add(first).add(second)
+  }
+
+  test fn describes_a_book() {
+    let book = Book(title: "Dune", author: "Frank", genre: Genre.Fiction, year: 1965)
+    Expect.equal(book.describe(), "\"Dune\" by Frank (1965, fiction)")
+  }
+
+  test fn adds_books() {
+    Expect.equal(sample().size(), 2)
+  }
+
+  test fn filters_by_author() {
+    Expect.equal(sample().find_by_author("Ada").len(), 1)
+    Expect.equal(sample().find_by_author("Nobody").len(), 0)
+  }
+
+  test fn newest_uses_year() {
+    Expect.equal(sample().newest().map(fn(book) => book.title), Some("Code"))
+  }
+
+  test fn empty_catalog_has_no_newest() {
+    Expect.equal(Catalog.empty().newest(), None)
+  }
+}
