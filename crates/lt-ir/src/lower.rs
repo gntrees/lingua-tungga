@@ -715,6 +715,7 @@ impl<'a> Lowerer<'a> {
                     return IrExpr::Builtin {
                         kind,
                         receiver: Box::new(receiver),
+                        recv_ty: receiver_ty,
                         args: lowered,
                         ty,
                     };
@@ -761,7 +762,8 @@ impl<'a> Lowerer<'a> {
         };
 
         self.scopes.pop();
-        IrExpr::Lambda { params, body }
+        let ret = self.ty_of(expr);
+        IrExpr::Lambda { params, ret, body }
     }
 
     fn match_expr(

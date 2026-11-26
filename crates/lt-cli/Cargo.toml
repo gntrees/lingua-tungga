@@ -16,3 +16,4 @@ lt-hir = { path = "../lt-hir" }
 lt-ir = { path = "../lt-ir" }
 lt-emit-ts = { path = "../lt-emit-ts" }
 lt-emit-py = { path = "../lt-emit-py" }
+lt-emit-go = { path = "../lt-emit-go" }

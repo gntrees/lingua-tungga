@@ -948,7 +948,7 @@ impl<'a> Emitter<'a> {
                     code,
                 }
             }
-            IrExpr::Lambda { params, body } => {
+            IrExpr::Lambda { params, body, .. } => {
                 let rendered: Vec<String> = params
                     .iter()
                     .map(|param| member(&param.name))

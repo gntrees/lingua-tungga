@@ -185,6 +185,8 @@ pub enum IrExpr {
     Builtin {
         kind: Builtin,
         receiver: Box<IrExpr>,
+        /// Type of the receiver, needed for explicit type arguments in Go.
+        recv_ty: Ty,
         args: Vec<IrExpr>,
         ty: Ty,
     },
@@ -236,6 +238,7 @@ pub enum IrExpr {
     },
     Lambda {
         params: Vec<IrParam>,
+        ret: Ty,
         body: IrLambdaBody,
     },
 }

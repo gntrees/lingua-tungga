@@ -48,8 +48,8 @@ usage:
   lt check <path>...        resolve imports and type check
   lt fmt [--check] <path>   format files in place (or check formatting)
   lt ast <path>             parse and dump the AST (debugging)
-  lt build -t ts|py <entry>    compile to a package (default out/<target>)
-  lt test -t ts|py <entry>...  emit + run the conformance suite
+  lt build -t ts|py|go <entry>    compile to a package (default out/<target>)
+  lt test -t ts|py|go <entry>...  emit + run the conformance suite
   lt ir <entry>             lower to IR and dump it (debugging)
 
 paths may be files or directories (searched recursively for *.lt)"
@@ -149,6 +149,16 @@ fn emitted_files(
                 lt_emit_py::emit_package_with_tests(ir)
             } else {
                 lt_emit_py::emit_package(ir)
+            }
+            .into_iter()
+            .map(|file| (file.path, file.contents))
+            .collect()
+        }
+        "go" => {
+            if with_tests {
+                lt_emit_go::emit_package_with_tests(ir)
+            } else {
+                lt_emit_go::emit_package(ir)
             }
             .into_iter()
             .map(|file| (file.path, file.contents))
@@ -261,8 +271,8 @@ fn cmd_test(args: &[String]) -> i32 {
         index += 1;
     }
 
-    if !matches!(target.as_str(), "ts" | "py") {
-        eprintln!("lt: unknown target `{target}`; available: ts, py");
+    if !matches!(target.as_str(), "ts" | "py" | "go") {
+        eprintln!("lt: unknown target `{target}`; available: ts, py, go");
         return 2;
     }
     if entries.is_empty() {
@@ -296,16 +306,22 @@ fn cmd_test(args: &[String]) -> i32 {
     println!("emitted tests to {}", out_dir.display());
 
     if !run {
-        let hint = if target == "ts" {
-            format!("cd {} && npm install && npm test", out_dir.display())
-        } else {
-            format!("cd {} && pytest", out_dir.display())
+        let hint = match target.as_str() {
+            "ts" => format!("cd {} && npm install && npm test", out_dir.display()),
+            "py" => format!("cd {} && pytest", out_dir.display()),
+            _ => format!("cd {} && go test ./...", out_dir.display()),
         };
         println!("run with: {hint}");
         return 0;
     }
 
-    let status = if target == "ts" {
+    let status = if target == "go" {
+        std::process::Command::new("go")
+            .arg("test")
+            .arg("./...")
+            .current_dir(&out_dir)
+            .status()
+    } else if target == "ts" {
         let local = out_dir.join("node_modules/.bin/vitest");
         if local.is_file() {
             std::process::Command::new(&local)
@@ -381,8 +397,8 @@ fn cmd_build(args: &[String]) -> i32 {
         index += 1;
     }
 
-    if !matches!(target.as_str(), "ts" | "py") {
-        eprintln!("lt: unknown target `{target}`; available: ts, py");
+    if !matches!(target.as_str(), "ts" | "py" | "go") {
+        eprintln!("lt: unknown target `{target}`; available: ts, py, go");
         return 2;
     }
 

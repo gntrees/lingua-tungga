@@ -1043,7 +1043,7 @@ impl<'a> Emitter<'a> {
                     code,
                 }
             }
-            IrExpr::Lambda { params, body } => {
+            IrExpr::Lambda { params, body, .. } => {
                 let params: Vec<String> = params
                     .iter()
                     .map(|param| format!("{}: {}", camel(&param.name), self.type_ref(&param.ty)))

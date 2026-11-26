@@ -6,11 +6,20 @@ version = 4
 name = "lt-cli"
 version = "0.1.0"
 dependencies = [
+ "lt-emit-go",
  "lt-emit-py",
  "lt-emit-ts",
  "lt-hir",
  "lt-ir",
  "lt-syntax",
+]
+
+[[package]]
+name = "lt-emit-go"
+version = "0.1.0"
+dependencies = [
+ "lt-hir",
+ "lt-ir",
 ]
 
 [[package]]

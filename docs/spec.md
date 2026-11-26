@@ -359,7 +359,7 @@ Trap dipetakan ke mekanisme native target (panic/exception) tetapi **tidak perna
 - Setiap paket output punya satu file runtime inline (`_lingua_rt.ts`, `_lingua_rt.py`, `rt.go`).
 - Tabel pemetaan tipe & konstruksi: lihat [PLAN.md §5](../PLAN.md).
 - Kode user wajib lulus `tsc --strict`, `ruff` + `mypy --strict`, `go vet` + `gofmt -l`.
-- Pemetaan konkret per backend: [`backends/typescript.md`](backends/typescript.md) dan [`backends/python.md`](backends/python.md). Batasan backend v1 (mis. pola `match` bertingkat) didokumentasikan di sana dan selalu muncul sebagai compile error, bukan perbedaan perilaku.
+- Pemetaan konkret per backend: [`backends/typescript.md`](backends/typescript.md), [`backends/python.md`](backends/python.md), [`backends/go.md`](backends/go.md). Batasan backend v1 (mis. pola `match` bertingkat) didokumentasikan di sana dan selalu muncul sebagai compile error, bukan perbedaan perilaku.
 
 ---
 

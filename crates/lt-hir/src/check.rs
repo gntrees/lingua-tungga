@@ -2547,6 +2547,7 @@ impl<'a> Checker<'a> {
             LambdaBody::Block(block) => self.check_block(block, None),
         };
         self.in_lambda = previous;
+        self.record_type(expr, &result);
         self.scopes.pop();
         Some(result)
     }
