@@ -287,3 +287,65 @@ fn build_does_not_emit_tests() {
     assert_eq!(output.status.code(), Some(0));
     assert!(!out.join("ts/tests/suite.test.ts").exists());
 }
+
+#[test]
+fn build_python_package() {
+    let dir = temp_dir("build-py");
+    let entry = dir.join("user.lt");
+    std::fs::write(
+        &entry,
+        "pub class User {\n  name: Str\n  pub fn greet(self) -> Str { `hi ${self.name}` }\n}\n",
+    )
+    .unwrap();
+
+    let out = dir.join("out");
+    let output = Command::new(bin())
+        .arg("build")
+        .arg("-t")
+        .arg("py")
+        .arg(&entry)
+        .arg("--out")
+        .arg(&out)
+        .output()
+        .unwrap();
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    assert!(out.join("py/lt_runtime.py").is_file());
+    assert!(out.join("py/gen/__init__.py").is_file());
+    let module = std::fs::read_to_string(out.join("py/gen/user.py")).unwrap();
+    assert!(module.contains("class User:"), "{module}");
+    assert!(module.contains("import lt_runtime as lt"), "{module}");
+    assert!(!out.join("py/tests/test_user.py").exists());
+}
+
+#[test]
+fn test_command_emits_pytest_files_for_python() {
+    let dir = temp_dir("test-emit-py");
+    let entry = dir.join("suite.lt");
+    std::fs::write(
+        &entry,
+        "pub class Adder {\n  static fn add(a: Int, b: Int) -> Int { a + b }\n}\n\ntest class AdderTest {\n  test fn adds() {\n    Expect.equal(Adder.add(1, 2), 3)\n  }\n}\n",
+    )
+    .unwrap();
+
+    let out = dir.join("out");
+    let output = Command::new(bin())
+        .arg("test")
+        .arg("-t")
+        .arg("py")
+        .arg(&entry)
+        .arg("--out")
+        .arg(&out)
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(0));
+
+    let tests = std::fs::read_to_string(out.join("py/tests/test_suite.py")).unwrap();
+    assert!(tests.contains("def test_adds() -> None:"), "{tests}");
+    assert!(tests.contains("import gen.suite as m0"), "{tests}");
+}

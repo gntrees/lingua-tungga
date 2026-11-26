@@ -8,6 +8,7 @@ use std::collections::HashMap;
 
 use lt_hir::{check_entries, FsLoader};
 use lt_ir::lower_program;
+use lt_ir::IrProgram;
 use lt_syntax::{format_file, parse, span::line_col_at, tokenize_full, Diagnostic};
 
 fn main() {
@@ -47,8 +48,8 @@ usage:
   lt check <path>...        resolve imports and type check
   lt fmt [--check] <path>   format files in place (or check formatting)
   lt ast <path>             parse and dump the AST (debugging)
-  lt build -t ts <entry>    compile to a TypeScript package (default out/ts)
-  lt test -t ts <entry>...  emit + run the conformance suite (vitest)
+  lt build -t ts|py <entry>    compile to a package (default out/<target>)
+  lt test -t ts|py <entry>...  emit + run the conformance suite
   lt ir <entry>             lower to IR and dump it (debugging)
 
 paths may be files or directories (searched recursively for *.lt)"
@@ -125,6 +126,37 @@ fn cmd_check(inputs: &[String]) -> i32 {
 
     print_file_diagnostics(&out);
     1
+}
+
+fn emitted_files(
+    target: &str,
+    ir: &IrProgram,
+    with_tests: bool,
+) -> Option<Vec<(PathBuf, String)>> {
+    let files = match target {
+        "ts" => {
+            if with_tests {
+                lt_emit_ts::emit_package_with_tests(ir)
+            } else {
+                lt_emit_ts::emit_package(ir)
+            }
+            .into_iter()
+            .map(|file| (file.path, file.contents))
+            .collect()
+        }
+        "py" => {
+            if with_tests {
+                lt_emit_py::emit_package_with_tests(ir)
+            } else {
+                lt_emit_py::emit_package(ir)
+            }
+            .into_iter()
+            .map(|file| (file.path, file.contents))
+            .collect()
+        }
+        _ => return None,
+    };
+    Some(files)
 }
 
 fn prepare(entries: &[PathBuf]) -> Result<(lt_hir::CheckOutput, lt_ir::IrProgram), i32> {
@@ -229,8 +261,8 @@ fn cmd_test(args: &[String]) -> i32 {
         index += 1;
     }
 
-    if target != "ts" {
-        eprintln!("lt: unknown target `{target}`; available: ts");
+    if !matches!(target.as_str(), "ts" | "py") {
+        eprintln!("lt: unknown target `{target}`; available: ts, py");
         return 2;
     }
     if entries.is_empty() {
@@ -244,15 +276,19 @@ fn cmd_test(args: &[String]) -> i32 {
     };
 
     let out_dir = out_dir.join(&target);
-    for file in lt_emit_ts::emit_package_with_tests(&ir) {
-        let path = out_dir.join(&file.path);
+    let Some(files) = emitted_files(&target, &ir, true) else {
+        eprintln!("lt: unknown target `{target}`");
+        return 2;
+    };
+    for (relative, contents) in &files {
+        let path = out_dir.join(relative);
         if let Some(parent) = path.parent() {
             if let Err(error) = std::fs::create_dir_all(parent) {
                 eprintln!("lt: {}: {error}", parent.display());
                 return 1;
             }
         }
-        if let Err(error) = std::fs::write(&path, &file.contents) {
+        if let Err(error) = std::fs::write(&path, contents) {
             eprintln!("lt: {}: {error}", path.display());
             return 1;
         }
@@ -260,21 +296,35 @@ fn cmd_test(args: &[String]) -> i32 {
     println!("emitted tests to {}", out_dir.display());
 
     if !run {
-        println!("run with: cd {} && npm install && npm test", out_dir.display());
+        let hint = if target == "ts" {
+            format!("cd {} && npm install && npm test", out_dir.display())
+        } else {
+            format!("cd {} && pytest", out_dir.display())
+        };
+        println!("run with: {hint}");
         return 0;
     }
 
-    let local = out_dir.join("node_modules/.bin/vitest");
-    let status = if local.is_file() {
-        std::process::Command::new(&local)
-            .arg("run")
-            .current_dir(&out_dir)
-            .status()
+    let status = if target == "ts" {
+        let local = out_dir.join("node_modules/.bin/vitest");
+        if local.is_file() {
+            std::process::Command::new(&local)
+                .arg("run")
+                .current_dir(&out_dir)
+                .status()
+        } else {
+            std::process::Command::new("npx")
+                .arg("--no-install")
+                .arg("vitest")
+                .arg("run")
+                .current_dir(&out_dir)
+                .status()
+        }
     } else {
-        std::process::Command::new("npx")
-            .arg("--no-install")
-            .arg("vitest")
-            .arg("run")
+        std::process::Command::new("python3")
+            .arg("-m")
+            .arg("pytest")
+            .arg("-q")
             .current_dir(&out_dir)
             .status()
     };
@@ -282,7 +332,7 @@ fn cmd_test(args: &[String]) -> i32 {
         Ok(status) if status.success() => 0,
         Ok(_) => 1,
         Err(error) => {
-            eprintln!("lt: cannot run vitest ({error}); run `npm install` in {}", out_dir.display());
+            eprintln!("lt: cannot run the test runner ({error})");
             1
         }
     }
@@ -331,8 +381,8 @@ fn cmd_build(args: &[String]) -> i32 {
         index += 1;
     }
 
-    if target != "ts" {
-        eprintln!("lt: unknown target `{target}`; available: ts");
+    if !matches!(target.as_str(), "ts" | "py") {
+        eprintln!("lt: unknown target `{target}`; available: ts, py");
         return 2;
     }
 
@@ -347,16 +397,19 @@ fn cmd_build(args: &[String]) -> i32 {
     };
 
     let out_dir = out_dir.join(&target);
-    let files = lt_emit_ts::emit_package(&ir);
-    for file in &files {
-        let path = out_dir.join(&file.path);
+    let Some(files) = emitted_files(&target, &ir, false) else {
+        eprintln!("lt: unknown target `{target}`");
+        return 2;
+    };
+    for (relative, contents) in &files {
+        let path = out_dir.join(relative);
         if let Some(parent) = path.parent() {
             if let Err(error) = std::fs::create_dir_all(parent) {
                 eprintln!("lt: {}: {error}", parent.display());
                 return 1;
             }
         }
-        if let Err(error) = std::fs::write(&path, &file.contents) {
+        if let Err(error) = std::fs::write(&path, contents) {
             eprintln!("lt: {}: {error}", path.display());
             return 1;
         }

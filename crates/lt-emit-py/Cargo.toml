@@ -1,0 +1,11 @@
+[package]
+name = "lt-emit-py"
+description = "Python backend for Lingua Tungga"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+lt-hir = { path = "../lt-hir" }
+lt-ir = { path = "../lt-ir" }
