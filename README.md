@@ -58,4 +58,8 @@ cargo test
 cargo clippy --all-targets -- -D warnings
 ```
 
+Build memakai compiler cache [Kache](docs/kache.md) yang datanya disimpan di drive
+ADATA. `cargo build`/`cargo test` tidak butuh langkah tambahan; untuk CLI Kache
+lihat [docs/kache.md](docs/kache.md).
+
 Struktur saat ini: `lt-syntax` (lexer, AST, parser, formatter), `lt-hir` (loader modul, tabel simbol, typechecker), `lt-ir` (typed IR + lowering), `lt-emit-ts` (backend TypeScript + runtime inline), dan `lt-cli` (binary `lt`). Total 119 test. Backend Python dan Go menyusul sesuai milestone di `PLAN.md`.
