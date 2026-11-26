@@ -2,11 +2,17 @@
 //!
 //! M1 scope: lexer first. Parser and AST land on top of the token stream.
 
+pub mod ast;
+pub mod diagnostics;
 pub mod lexer;
+pub mod parser;
 pub mod span;
 pub mod token;
 
+pub use ast::*;
+pub use diagnostics::{Diagnostic, Severity};
 pub use lexer::Lexer;
+pub use parser::{parse, ParseOutput};
 pub use span::Span;
 pub use token::{LexError, Token, TokenKind};
 

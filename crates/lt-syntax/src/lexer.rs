@@ -136,12 +136,12 @@ impl<'a> Lexer<'a> {
     }
 
     fn error_at(&mut self, mark: Mark, message: impl Into<String>) {
-        self.errors.push(LexError {
-            message: message.into(),
-            span: Span::new(mark.pos, self.pos.max(mark.pos)),
-            line: mark.line,
-            col: mark.col,
-        });
+        self.errors.push(LexError::error(
+            message,
+            Span::new(mark.pos, self.pos.max(mark.pos)),
+            mark.line,
+            mark.col,
+        ));
     }
 
     // ----------------------------------------------------------- trivia

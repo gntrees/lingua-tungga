@@ -170,27 +170,5 @@ pub struct Token {
     pub col: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LexError {
-    pub message: String,
-    pub span: Span,
-    pub line: u32,
-    pub col: u32,
-}
-
-impl LexError {
-    /// Render as a `file:line:col` diagnostic with a source snippet and caret.
-    pub fn render(&self, file: &str, src: &str) -> String {
-        let line_text = src.lines().nth(self.line as usize - 1).unwrap_or("");
-        let mut caret_pad = String::new();
-        for _ in 1..self.col {
-            caret_pad.push(' ');
-        }
-        let width = self.span.len().max(1);
-        let caret = "^".repeat(width.min(line_text.chars().count().max(1)));
-        format!(
-            "error: {}\n  --> {}:{}:{}\n   |\n{:>3} | {}\n   | {}{}",
-            self.message, file, self.line, self.col, self.line, line_text, caret_pad, caret
-        )
-    }
-}
+/// Lexing errors are ordinary diagnostics.
+pub type LexError = crate::diagnostics::Diagnostic;

@@ -47,4 +47,4 @@ cargo test
 cargo clippy --all-targets -- -D warnings
 ```
 
-Struktur saat ini: `crates/lt-syntax` (lexer + diagnostik). Parser, typechecker, IR, dan emitter menyusul sesuai milestone di `PLAN.md`.
+Struktur saat ini: `crates/lt-syntax` — lexer, AST, parser, diagnostik (57 test). Formatter, typechecker, IR, dan emitter menyusul sesuai milestone di `PLAN.md`.

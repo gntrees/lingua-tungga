@@ -76,7 +76,9 @@ ExprStmt       = Expr ;
 
 Expr           = Lambda | OrExpr ;
 
-Lambda         = "fn" , "(" , [ ParamList ] , ")" , "=>" , ( Expr | Block ) ;
+Lambda         = "fn" , "(" , [ LambdaParams ] , ")" , "=>" , ( Expr | Block ) ;
+
+LambdaParams   = Identifier , { "," , Identifier } ;   (* tipe parameter lambda diinferensi *)
 
 OrExpr         = AndExpr , { "||" , AndExpr } ;
 
