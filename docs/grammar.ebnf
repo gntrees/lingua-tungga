@@ -1,0 +1,170 @@
+(* =====================================================================
+   Lingua Tungga — Grammar v0.1
+   Cakupan: v1 (lihat docs/spec.md). Ditulis sebelum parser (M1).
+   Notasi: EBNF, `,` = urutan, `[ ]` = opsional, `{ }` = nol atau lebih,
+           `|` = alternatif.
+   ===================================================================== *)
+
+(* ---------- Program ---------- *)
+
+Program        = { Import } , { Item } , EOF ;
+
+Import         = "import" , Identifier , "from" , StringLit ;
+
+Item           = ClassDecl | TestClassDecl | EnumDecl ;
+
+(* ---------- Deklarasi ---------- *)
+
+ClassDecl      = [ "pub" ] , "class" , Identifier , [ Generics ] ,
+                 "{" , { Member } , "}" ;
+
+TestClassDecl  = "test" , "class" , Identifier , "{" , { TestFn | Member } , "}" ;
+
+Member         = FieldDecl | MethodDecl ;
+
+FieldDecl      = Identifier , ":" , Type ;
+
+MethodDecl     = [ "pub" ] , [ "static" ] , "fn" , Identifier ,
+                 "(" , [ SelfParam , [ "," , ParamList ] ] , ")" ,
+                 [ "->" , Type ] , Block ;
+
+SelfParam      = "self" ;
+
+ParamList      = Param , { "," , Param } ;
+
+Param          = Identifier , ":" , Type ;
+
+TestFn         = "test" , "fn" , Identifier , "(" , ")" , Block ;
+
+EnumDecl       = [ "pub" ] , "enum" , Identifier , [ Generics ] ,
+                 "{" , { Variant } , "}" ;
+
+Variant        = Identifier , [ "(" , Type , { "," , Type } , ")" ] ;
+
+(* ---------- Tipe ---------- *)
+
+Type           = TypePath , [ Generics ] , [ "?" ] ;
+
+TypePath       = Identifier , { "." , Identifier } ;
+
+Generics       = "<" , Type , { "," , Type } , ">" ;
+
+(* ---------- Statement ---------- *)
+
+Block          = "{" , { Stmt } , "}" ;
+
+Stmt           = LetStmt | AssignStmt | ReturnStmt
+               | IfStmt | ForStmt | WhileStmt | ExprStmt ;
+
+LetStmt        = "let" , [ "mut" ] , Identifier , [ ":" , Type ] , "=" , Expr ;
+
+AssignStmt     = Identifier , "=" , Expr ;
+
+ReturnStmt     = "return" , [ Expr ] ;
+
+IfStmt         = "if" , Expr , Block , [ "else" , ( IfStmt | Block ) ] ;
+
+ForStmt        = "for" , Identifier , "in" , Expr , Block ;
+
+WhileStmt      = "while" , Expr , Block ;
+
+ExprStmt       = Expr ;
+
+(* ---------- Ekspresi ----------
+   `if` dan `match` adalah ekspresi; sebagai statement-nya boleh diikuti
+   tanpa titik koma karena statement dipisah newline.  *)
+
+Expr           = Lambda | OrExpr ;
+
+Lambda         = "fn" , "(" , [ ParamList ] , ")" , "=>" , ( Expr | Block ) ;
+
+OrExpr         = AndExpr , { "||" , AndExpr } ;
+
+AndExpr        = EqExpr , { "&&" , EqExpr } ;
+
+EqExpr         = RelExpr , [ ( "==" | "!=" ) , RelExpr ] ;
+
+RelExpr        = AddExpr , [ ( "<" | "<=" | ">" | ">=" ) , AddExpr ] ;
+
+AddExpr        = MulExpr , { ( "+" | "-" ) , MulExpr } ;
+
+MulExpr        = UnaryExpr , { ( "*" | "/" | "%" ) , UnaryExpr } ;
+
+UnaryExpr      = [ ( "!" | "-" ) ] , PostfixExpr ;
+
+PostfixExpr    = Primary , { PostfixOp } ;
+
+PostfixOp      = "." , Identifier
+               | "(" , [ ArgList ] , ")"
+               | "?" ;
+
+ArgList        = NamedArg , { "," , NamedArg }
+               | Expr , { "," , Expr } ;      (* tidak boleh dicampur *)
+
+NamedArg       = Identifier , ":" , Expr ;    (* hanya sah pada konstruksi class / JSX *)
+
+Primary        = IntLit | FloatLit | StringLit | BoolLit
+               | "None"
+               | Identifier , [ Generics ]      (* referensi variabel / tipe *)
+               | ListLit
+               | Template
+               | TaggedTemplate
+               | Jsx
+               | IfExpr
+               | MatchExpr
+               | "(" , Expr , ")" ;
+
+IfExpr         = "if" , Expr , Block , [ "else" , ( IfExpr | Block ) ] ;
+
+MatchExpr      = "match" , Expr , "{" , { MatchArm } , "}" ;
+
+MatchArm       = Pattern , "=>" , ( Expr | Block ) ;
+
+Pattern        = "_"
+               | "None"
+               | TypePath , [ "(" , [ Pattern , { "," , Pattern } ] , ")" ] ;
+
+ListLit        = "[" , [ Expr , { "," , Expr } ] , "]" ;
+
+(* ---------- Template ---------- *)
+
+Template       = "`" , { TemplatePart } , "`" ;
+
+TemplatePart   = Text , [ "${" , Expr , "}" ] ;
+
+TaggedTemplate = TypePath , Template ;
+
+(* ---------- JSX ---------- *)
+
+Jsx            = "<" , TypePath , { JsxAttr } , ( "/>" | ">" , { JsxChild } , "</" , TypePath , ">" ) ;
+
+JsxAttr        = Identifier , "=" , ( StringLit | "{" , Expr , "}" ) ;
+
+JsxChild       = Jsx | JsxText | "{" , Expr , "}" ;
+
+JsxText        = { Character - ( "<" | "{" ) } ;
+
+(* ---------- Leksikal ---------- *)
+
+Identifier     = letter , { letter | digit | "_" } ;
+
+IntLit         = digit , { digit | "_" } ;
+
+FloatLit       = digit , { digit | "_" } , "." , digit , { digit | "_" } ,
+                 [ ( "e" | "E" ) , [ "+" | "-" ] , digit , { digit } ] ;
+
+BoolLit        = "true" | "false" ;
+
+StringLit      = '"' , { StringChar } , '"' ;
+
+StringChar     = ordinary_char | Escape ;
+
+Escape         = "\\" , ( "n" | "t" | "r" | "\\" | '"' | "`" | "$" )
+               | "\\u{" , hex , { hex } , "}" ;
+
+Comment        = "//" , { any - newline } , newline
+               | "/*" , { any - "*/" } , "*/" ;     (* tidak bersarang *)
+
+(* ---------- Kata kunci (dicadangkan) ---------- *)
+(* pub class test enum fn static self let mut return if else
+   for in while match import from true false None _  *)
