@@ -1,0 +1,24 @@
+import User from "./user.lt"
+
+pub class Validator {
+  pub fn check(u: User) -> Result<User, Str> {
+    if u.age < 0 {
+      return Err("age must be >= 0")
+    }
+    if u.name.len() == 0 {
+      return Err("name required")
+    }
+    Ok(u)
+  }
+
+  pub fn check_all(users: List<User>) -> Result<List<User>, Str> {
+    users.map(fn(u) => Validator.check(u))
+  }
+
+  pub fn describe(u: User) -> Str {
+    match Validator.check(u) {
+      Ok(valid) => valid.greet()
+      Err(message) => `invalid: ${message}`
+    }
+  }
+}

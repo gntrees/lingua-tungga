@@ -20,6 +20,15 @@ lt build -t ts      # → out/ts, siap di-import proyek TypeScript
 lt test -t go       # jalankan conformance suite di target Go
 ```
 
+Hari ini yang sudah bisa dipakai:
+
+```sh
+lt check src/       # parse + diagnostik
+lt fmt src/         # format kanonik (idempoten)
+lt fmt --check src/ # exit 1 kalau ada file belum terformat
+lt ast src/a.lt     # dump AST untuk debugging
+```
+
 ## Bukan Haxe
 
 Lingua Tungga tidak punya runtime sendiri, tidak punya UI, tidak punya `main`, dan tidak punya IO. Outputnya adalah **library** untuk bahasa host. Tujuannya satu: aturan bisnis dan algoritma yang sama, tanpa ditulis tiga kali dan tanpa drift perilaku.

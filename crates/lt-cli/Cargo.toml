@@ -1,0 +1,14 @@
+[package]
+name = "lt-cli"
+description = "Command line interface for Lingua Tungga"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "lt"
+path = "src/main.rs"
+
+[dependencies]
+lt-syntax = { path = "../lt-syntax" }

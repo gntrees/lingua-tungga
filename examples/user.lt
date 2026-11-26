@@ -1,0 +1,29 @@
+import User from "./user.lt"
+
+pub enum Role {
+  Admin
+  Member(Int)
+  Guest
+}
+
+pub class User {
+  name: Str
+  age: Int
+  role: Role
+
+  pub fn greet(self) -> Str {
+    `Hi ${self.name}, you are ${self.age}`
+  }
+
+  pub fn label(self) -> Str {
+    match self.role {
+      Role.Admin => "admin"
+      Role.Member(n) => `member-${n}`
+      Role.Guest => "guest"
+    }
+  }
+
+  static fn anonymous() -> User {
+    User(name: "?", age: 0, role: Role.Guest)
+  }
+}

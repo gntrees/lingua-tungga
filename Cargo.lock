@@ -3,5 +3,12 @@
 version = 4
 
 [[package]]
+name = "lt-cli"
+version = "0.1.0"
+dependencies = [
+ "lt-syntax",
+]
+
+[[package]]
 name = "lt-syntax"
 version = "0.1.0"

@@ -69,13 +69,16 @@ Compiler **menolak** pelanggaran penamaan (bukan warning):
 Formatter (`lt fmt`) menghasilkan bentuk kanonik:
 
 - Indentasi 2 spasi, tanpa tab.
-- Lebar maksimum 100 kolom.
-- Trailing comma pada list/tuple/argumen yang multiline.
-- Satu baris kosong antar member class/enum dan antar import.
+- Lebar maksimum 100 kolom; container yang melebihi batas dipecah satu item per baris.
+- Trailing comma pada argumen/list yang multiline.
+- Satu baris kosong antar member class dan antar import; varian enum ditulis rapat.
 - Kurung kurawal selalu di baris yang sama dengan header (`fn f() {`).
+- Body kosong ditulis `{}`.
 - Baris kosong berlebih dikolaps menjadi satu.
 
 `lt fmt` wajib idempoten: `fmt(fmt(x)) == fmt(x)`.
+
+**Batasan sementara:** lexer membuang komentar, jadi `lt fmt` menolak memformat file yang mengandung komentar (dengan pesan jelas) alih-alih menghapusnya diam-diam. Dukungan komentar menunggu desain *trivia attachment* di AST.
 
 ---
 

@@ -43,6 +43,14 @@ pub struct Lexer<'a> {
     modes: Vec<Mode>,
     prev_sig: Option<TokenKind>,
     errors: Vec<LexError>,
+    comments: Vec<Span>,
+}
+
+/// Full lexer output, including the spans of skipped comments.
+pub struct LexOutput {
+    pub tokens: Vec<Token>,
+    pub errors: Vec<LexError>,
+    pub comments: Vec<Span>,
 }
 
 impl<'a> Lexer<'a> {
@@ -55,10 +63,16 @@ impl<'a> Lexer<'a> {
             modes: Vec::new(),
             prev_sig: None,
             errors: Vec::new(),
+            comments: Vec::new(),
         }
     }
 
-    pub fn run(mut self) -> (Vec<Token>, Vec<LexError>) {
+    pub fn run(self) -> (Vec<Token>, Vec<LexError>) {
+        let output = self.run_full();
+        (output.tokens, output.errors)
+    }
+
+    pub fn run_full(mut self) -> LexOutput {
         let mut tokens = Vec::new();
         loop {
             let token = self.next_token();
@@ -71,7 +85,11 @@ impl<'a> Lexer<'a> {
                 break;
             }
         }
-        (tokens, self.errors)
+        LexOutput {
+            tokens,
+            errors: self.errors,
+            comments: self.comments,
+        }
     }
 
     // ---------------------------------------------------------------- modes
@@ -154,12 +172,14 @@ impl<'a> Lexer<'a> {
                     self.bump();
                 }
                 Some('/') if self.peek_at(1) == Some('/') => {
+                    let start = self.mark();
                     while let Some(c) = self.peek() {
                         if c == '\n' {
                             break;
                         }
                         self.bump();
                     }
+                    self.comments.push(Span::new(start.pos, self.pos));
                 }
                 Some('/') if self.peek_at(1) == Some('*') => {
                     let start = self.mark();
@@ -179,6 +199,7 @@ impl<'a> Lexer<'a> {
                             }
                         }
                     }
+                    self.comments.push(Span::new(start.pos, self.pos));
                 }
                 _ => return self.peek().is_some(),
             }
