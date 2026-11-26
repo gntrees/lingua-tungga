@@ -10,7 +10,7 @@ use lt_hir::{check_entries_with_remote, normalize, FsLoader};
 use lt_pkg::{Manager, Mode};
 use lt_ir::lower_program;
 use lt_ir::IrProgram;
-use lt_syntax::{format_file, parse, span::line_col_at, tokenize_full, Diagnostic};
+use lt_syntax::{format_file_with_comments, parse, tokenize_full, Diagnostic};
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -620,21 +620,20 @@ fn cmd_fmt(args: &[String]) -> i32 {
             continue;
         }
 
-        // Comments are dropped by the token stream, so formatting would delete
-        // them. Refuse instead of losing data silently.
-        if let Some(span) = lexed.comments.first() {
-            let loc = line_col_at(&src, span.start);
-            eprintln!(
-                "error: `lt fmt` cannot preserve comments yet; refusing to reformat so nothing is lost\n  --> {}:{}:{}",
-                path.display(),
-                loc.line,
-                loc.col
-            );
-            failed = true;
-            continue;
-        }
-
-        let formatted = format_file(&out.file);
+        let formatted = match format_file_with_comments(&out.file, &src, &lexed.comments) {
+            Ok(text) => text,
+            Err(error) => {
+                eprintln!(
+                    "error: {}\n  --> {}:{}:{}",
+                    error.message,
+                    path.display(),
+                    error.line,
+                    error.col
+                );
+                failed = true;
+                continue;
+            }
+        };
         if check {
             if src != formatted {
                 eprintln!("would reformat {}", path.display());

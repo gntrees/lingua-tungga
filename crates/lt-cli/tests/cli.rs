@@ -59,17 +59,40 @@ fn fmt_check_reports_unformatted_file_without_touching_it() {
 }
 
 #[test]
-fn fmt_refuses_to_delete_comments() {
+fn fmt_preserves_comments() {
     let dir = temp_dir("comments");
     let file = dir.join("a.lt");
     let original = "// keep me\npub class A{name:Str}\n";
     std::fs::write(&file, original).unwrap();
 
     let output = Command::new(bin()).arg("fmt").arg(&file).output().unwrap();
+    assert_eq!(output.status.code(), Some(0));
+    let formatted = std::fs::read_to_string(&file).unwrap();
+    assert!(formatted.starts_with("// keep me\n"), "{formatted}");
+    assert!(formatted.contains("pub class A {"), "{formatted}");
+
+    // Idempotent with comments.
+    let output = Command::new(bin())
+        .arg("fmt")
+        .arg("--check")
+        .arg(&file)
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(0));
+}
+
+#[test]
+fn fmt_rejects_inline_comments() {
+    let dir = temp_dir("inline-comment");
+    let file = dir.join("a.lt");
+    let original = "pub class A { x: Int } // trailing\n";
+    std::fs::write(&file, original).unwrap();
+
+    let output = Command::new(bin()).arg("fmt").arg(&file).output().unwrap();
     assert_eq!(output.status.code(), Some(1));
     assert_eq!(std::fs::read_to_string(&file).unwrap(), original);
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("cannot preserve comments"), "{stderr}");
+    assert!(stderr.contains("inline comments"), "{stderr}");
 }
 
 #[test]

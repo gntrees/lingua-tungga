@@ -185,3 +185,114 @@ fn comments_are_reported_by_the_lexer() {
     let span = out.comments[0];
     assert_eq!(span.text("// hello\npub class A { x: Int }\n"), "// hello");
 }
+
+fn fmt_comments(src: &str) -> String {
+    let lexed = lt_syntax::tokenize_full(src);
+    assert!(lexed.errors.is_empty(), "{:#?}", lexed.errors);
+    let out = parse(src);
+    assert!(out.diagnostics.is_empty(), "{:#?}", out.diagnostics);
+    lt_syntax::format_file_with_comments(&out.file, src, &lexed.comments)
+        .unwrap_or_else(|error| panic!("{} at {}:{}", error.message, error.line, error.col))
+}
+
+#[test]
+fn keeps_comments_on_items_and_members() {
+    let src = "\
+// file header
+import B from \"./b.lt\" // inline is rejected later, keep out
+
+// the class
+pub class A {
+  // a field
+  x: Int
+
+  // a method
+  pub fn f(self) -> Int {
+    // body comment
+    self.x
+  }
+}
+";
+    let src = src.replace("import B from \"./b.lt\" // inline is rejected later, keep out", "import B from \"./b.lt\"");
+    let once = fmt_comments(&src);
+    assert!(once.contains("// file header"), "{once}");
+    assert!(once.contains("// the class"), "{once}");
+    assert!(once.contains("  // a field"), "{once}");
+    assert!(once.contains("  // a method"), "{once}");
+    assert!(once.contains("    // body comment"), "{once}");
+    assert_eq!(once, fmt_comments(&once), "comment formatting must be idempotent");
+}
+
+#[test]
+fn keeps_comments_before_enum_variants_and_match_arms() {
+    let src = "\
+pub enum Role {
+  // admins
+  Admin
+  // everyone else
+  Guest
+}
+
+pub class A {
+  fn label(self, r: Role) -> Str {
+    match r {
+      // the admin branch
+      Role.Admin => \"a\"
+      // the guest branch
+      Role.Guest => \"g\"
+    }
+  }
+}
+";
+    let once = fmt_comments(src);
+    assert!(once.contains("  // admins\n  Admin"), "{once}");
+    assert!(once.contains("      // the admin branch"), "{once}");
+    assert_eq!(once, fmt_comments(&once));
+}
+
+#[test]
+fn keeps_trailing_comments_before_closing_braces() {
+    let src = "\
+pub class A {
+  x: Int
+
+  pub fn f(self) -> Int {
+    self.x
+    // last thought
+  }
+  // end of class
+}
+";
+    let once = fmt_comments(src);
+    assert!(once.contains("// last thought"), "{once}");
+    assert!(once.contains("// end of class"), "{once}");
+    assert_eq!(once, fmt_comments(&once));
+}
+
+#[test]
+fn normalizes_block_comments() {
+    let src = "\
+/*
+   multi
+   line
+*/
+pub class A {
+  x: Int
+}
+";
+    let once = fmt_comments(src);
+    assert!(
+        once.starts_with("/*\n * multi\n * line\n */\n"),
+        "{once}"
+    );
+    assert_eq!(once, fmt_comments(&once));
+}
+
+#[test]
+fn rejects_inline_comments() {
+    let src = "pub class A { x: Int } // trailing\n";
+    let lexed = lt_syntax::tokenize_full(src);
+    let out = parse(src);
+    let error = lt_syntax::format_file_with_comments(&out.file, src, &lexed.comments).unwrap_err();
+    assert!(error.message.contains("inline comments"), "{error:?}");
+}

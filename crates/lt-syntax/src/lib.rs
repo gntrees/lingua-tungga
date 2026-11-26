@@ -12,7 +12,7 @@ pub mod token;
 
 pub use ast::*;
 pub use diagnostics::{Diagnostic, Severity};
-pub use format::format_file;
+pub use format::{format_file, format_file_with_comments, CommentError};
 pub use lexer::{LexOutput, Lexer};
 pub use parser::{parse, ParseOutput};
 pub use span::Span;

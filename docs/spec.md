@@ -78,7 +78,12 @@ Formatter (`lt fmt`) menghasilkan bentuk kanonik:
 
 `lt fmt` wajib idempoten: `fmt(fmt(x)) == fmt(x)`.
 
-**Batasan sementara:** lexer membuang komentar, jadi `lt fmt` menolak memformat file yang mengandung komentar (dengan pesan jelas) alih-alih menghapusnya diam-diam. Dukungan komentar menunggu desain *trivia attachment* di AST.
+**Komentar:** `lt fmt` mempertahankan komentar dan idempoten dengan komentar.
+
+- Komentar `//` dan `/* ... */` ditempelkan ke konstruk berikutnya di dalam body yang sama (file, class, enum, test class, block, atau `match`). Komentar setelah konstruk terakhir dicetak sebelum `}` penutup.
+- Komentar **inline** (berbagi baris dengan kode, mis. `x: Int // note`) ditolak dengan pesan jelas; pindahkan ke baris sendiri.
+- `/* ... */` dinormalkan ke bentuk `/*`, ` * ...`, ` */`. `///` dipertahankan.
+- Komentar di dalam ekspresi (mis. di antara argumen) ikut menempel ke konstruk berikutnya/akhir body; urutannya dipertahankan tetapi posisi horizontal bisa berpindah.
 
 ---
 
