@@ -1,0 +1,11 @@
+pub class User {
+  name: Str
+  age: Int
+}
+
+test class TemplateTest {
+  test fn interpolates() {
+    let user = User(name: "Ada", age: 36)
+    Expect.equal(`Hi ${user.name}, age ${user.age}`, "Hi Ada, age 36")
+  }
+}

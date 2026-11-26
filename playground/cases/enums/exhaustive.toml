@@ -1,0 +1,3 @@
+title = "match wajib menangani semua varian"
+feature = "enums/exhaustive"
+why = "Compiler menolak match yang kurang varian; tidak ada fallback diam-diam."

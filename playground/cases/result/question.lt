@@ -1,0 +1,23 @@
+pub class Parser {
+  static fn number(text: Str) -> Result<Int, Str> {
+    match text.parse_int() {
+      Some(value) => Ok(value)
+      None => Err("not a number")
+    }
+  }
+
+  static fn double(text: Str) -> Result<Int, Str> {
+    let value = Parser.number(text)?
+    Ok(value * 2)
+  }
+}
+
+test class QuestionTest {
+  test fn success() {
+    Expect.equal(Parser.double("21"), Ok(42))
+  }
+
+  test fn propagates_error() {
+    Expect.equal(Parser.double("x"), Err("not a number"))
+  }
+}

@@ -1,0 +1,3 @@
+title = "Option.map hanya berjalan untuk Some"
+feature = "option/map"
+why = "Transformasi aman tanpa membuka Option secara manual."

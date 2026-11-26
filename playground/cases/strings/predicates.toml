@@ -1,0 +1,3 @@
+title = "Predikat string dan chars"
+feature = "strings/predicates"
+why = "contains/starts_with/ends_with serta chars per code point."

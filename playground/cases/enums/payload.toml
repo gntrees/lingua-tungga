@@ -1,0 +1,3 @@
+title = "Varian enum membawa payload bertipe"
+feature = "enums/payload"
+why = "Payload diperiksa tipenya saat konstruksi dan diikat di match."

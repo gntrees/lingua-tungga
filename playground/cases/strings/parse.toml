@@ -1,0 +1,3 @@
+title = "parse_int dan parse_float mengembalikan Option"
+feature = "strings/parse"
+why = "Input tidak valid menjadi None, bukan exception."

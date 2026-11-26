@@ -1,0 +1,11 @@
+pub class Mathy {
+  static fn double(x: Int) -> Int {
+    x * 2
+  }
+}
+
+test class MathyTest {
+  test fn calls_static() {
+    Expect.equal(Mathy.double(21), 42)
+  }
+}

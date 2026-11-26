@@ -1,0 +1,10 @@
+test class OptionMapTest {
+  test fn maps_some() {
+    Expect.equal(Some(2).map(fn(x) => x * 3), Some(6))
+  }
+
+  test fn keeps_none() {
+    let none: Option<Int> = None
+    Expect.equal(none.map(fn(x) => x * 3), None)
+  }
+}

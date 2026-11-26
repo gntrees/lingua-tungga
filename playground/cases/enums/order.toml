@@ -1,0 +1,3 @@
+title = "Urutan enum mengikuti urutan deklarasi"
+feature = "enums/order"
+why = "sort pada enum memakai indeks varian, bukan nama atau nilai acak."

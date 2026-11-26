@@ -1,0 +1,3 @@
+title = "Tagged template menerima parts dan values"
+feature = "template/tagged"
+why = "Tag bisa memproses potongan teks dan nilai secara terpisah untuk escaping."

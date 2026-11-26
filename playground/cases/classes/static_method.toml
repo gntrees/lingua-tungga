@@ -1,0 +1,3 @@
+title = "Method tanpa self bersifat static"
+feature = "classes/static"
+why = "Static tidak menerima self dan dipanggil lewat nama class."

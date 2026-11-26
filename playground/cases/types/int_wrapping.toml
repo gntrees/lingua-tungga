@@ -1,0 +1,3 @@
+title = "Int membungkus pada batas i64"
+feature = "types/int"
+why = "i64 wrapping didefinisikan agar overflow identik di semua target, bukan UB."

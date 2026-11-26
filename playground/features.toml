@@ -1,0 +1,216 @@
+# Fitur yang harus punya minimal satu kasus di playground.
+
+[[feature]]
+id = "types/int"
+title = "Int adalah i64 dengan wrapping"
+spec = "#5.1"
+
+[[feature]]
+id = "types/float"
+title = "Float mengikuti IEEE-754"
+spec = "#5.1"
+
+[[feature]]
+id = "types/string"
+title = "Str dihitung per code point"
+spec = "#5.1"
+
+[[feature]]
+id = "types/bool"
+title = "Bool murni true/false"
+spec = "#5.1"
+
+[[feature]]
+id = "ops/division"
+title = "Pembagian Int truncate ke nol"
+spec = "#8"
+
+[[feature]]
+id = "ops/remainder"
+title = "Tanda sisa mengikuti dividend"
+spec = "#8"
+
+[[feature]]
+id = "ops/precedence"
+title = "Prioritas operator"
+spec = "#7"
+
+[[feature]]
+id = "ops/logic"
+title = "Short-circuit && dan ||"
+spec = "#8"
+
+[[feature]]
+id = "classes/named-args"
+title = "Konstruksi named arguments"
+spec = "#6.1"
+
+[[feature]]
+id = "classes/static"
+title = "Method tanpa self = static"
+spec = "#6.1"
+
+[[feature]]
+id = "classes/equality"
+title = "Eq struktural"
+spec = "#10"
+
+[[feature]]
+id = "classes/ord"
+title = "Ord menurut urutan field"
+spec = "#10"
+
+[[feature]]
+id = "classes/display"
+title = "Display struktural"
+spec = "#10"
+
+[[feature]]
+id = "enums/payload"
+title = "Varian dengan payload"
+spec = "#6.2"
+
+[[feature]]
+id = "enums/exhaustive"
+title = "match exhaustive"
+spec = "#7"
+
+[[feature]]
+id = "enums/order"
+title = "Ord enum menurut deklarasi"
+spec = "#10"
+
+[[feature]]
+id = "generics/inference"
+title = "Inferensi tipe generik"
+spec = "#5.5"
+
+[[feature]]
+id = "generics/nested"
+title = "Generik bersarang"
+spec = "#5.5"
+
+[[feature]]
+id = "option/some-none"
+title = "Option menggantikan null"
+spec = "#5.3"
+
+[[feature]]
+id = "option/map"
+title = "Option.map"
+spec = "#17"
+
+[[feature]]
+id = "option/and-then"
+title = "Option.and_then"
+spec = "#17"
+
+[[feature]]
+id = "option/unwrap"
+title = "unwrap / unwrap_or"
+spec = "#17"
+
+[[feature]]
+id = "result/ok-err"
+title = "Result sebagai nilai"
+spec = "#5.3"
+
+[[feature]]
+id = "result/question"
+title = "Operator ?"
+spec = "#9"
+
+[[feature]]
+id = "result/map-err"
+title = "Result.map / map_err"
+spec = "#17"
+
+[[feature]]
+id = "collections/list-transform"
+title = "List map/filter"
+spec = "#17"
+
+[[feature]]
+id = "collections/list-query"
+title = "List query"
+spec = "#17"
+
+[[feature]]
+id = "collections/list-sort"
+title = "List sort/reverse"
+spec = "#17"
+
+[[feature]]
+id = "collections/list-fold"
+title = "List fold"
+spec = "#17"
+
+[[feature]]
+id = "collections/map"
+title = "Map immutable terurut"
+spec = "#5.2"
+
+[[feature]]
+id = "collections/set"
+title = "Set tanpa duplikat"
+spec = "#5.2"
+
+[[feature]]
+id = "strings/split"
+title = "split dan join"
+spec = "#17"
+
+[[feature]]
+id = "strings/replace"
+title = "replace dan slice"
+spec = "#17"
+
+[[feature]]
+id = "strings/trim"
+title = "trim dan case"
+spec = "#17"
+
+[[feature]]
+id = "strings/parse"
+title = "parse_int / parse_float"
+spec = "#17"
+
+[[feature]]
+id = "strings/indent"
+title = "trim_indent"
+spec = "#17"
+
+[[feature]]
+id = "strings/predicates"
+title = "Predikat dan chars"
+spec = "#17"
+
+[[feature]]
+id = "template/basic"
+title = "Interpolasi template"
+spec = "#11"
+
+[[feature]]
+id = "template/escape"
+title = "Escape template"
+spec = "#11"
+
+[[feature]]
+id = "template/multiline"
+title = "Template multiline verbatim"
+spec = "#11"
+
+[[feature]]
+id = "template/tagged"
+title = "Tagged template"
+spec = "#11"
+
+[[feature]]
+id = "jsx/tree"
+title = "JSX sebagai tree bertipe"
+spec = "#12"
+
+[[feature]]
+id = "diagnostics/strict"
+title = "Error yang wajib ditolak"
+spec = "#15"

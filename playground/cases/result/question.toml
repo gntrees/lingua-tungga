@@ -1,0 +1,3 @@
+title = "Operator ? mempropagasi error"
+feature = "result/question"
+why = "Kegagalan dikembalikan langsung; jalur sukses tetap lurus."

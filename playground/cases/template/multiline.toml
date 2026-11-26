@@ -1,0 +1,3 @@
+title = "Template multiline bersifat verbatim"
+feature = "template/multiline"
+why = "Newline dan spasi dipertahankan apa adanya; trim_indent untuk merapikan."

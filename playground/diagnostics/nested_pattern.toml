@@ -1,0 +1,4 @@
+title = "Pola match bertingkat ditolak"
+feature = "diagnostics/strict"
+why = "Backend v1 belum mendukung dekomposisi bertingkat; gagal keras lebih baik daripada salah."
+expect = "nested patterns"

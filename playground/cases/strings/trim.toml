@@ -1,0 +1,3 @@
+title = "trim dan perubahan huruf"
+feature = "strings/trim"
+why = "trim membuang spasi tepi; lower/upper tidak mengubah isi lain."

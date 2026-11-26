@@ -1,0 +1,3 @@
+title = "Tanda sisa mengikuti dividend"
+feature = "ops/remainder"
+why = "Sisa negatif mengikuti angka yang dibagi, bukan pembaginya."

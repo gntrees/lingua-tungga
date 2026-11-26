@@ -1,0 +1,3 @@
+title = "Bool hanya true dan false"
+feature = "types/bool"
+why = "Tidak ada truthiness implisit; kondisi if/while wajib Bool."

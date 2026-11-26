@@ -1,0 +1,3 @@
+title = "Display class menampilkan nama dan field"
+feature = "classes/display"
+why = "Template literal memakai representasi struktural yang konsisten di semua target."

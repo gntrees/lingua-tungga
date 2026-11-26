@@ -1,0 +1,3 @@
+title = "Float mengikuti IEEE-754"
+feature = "types/float"
+why = "Pembagian float dengan nol menghasilkan inf/NaN, bukan trap."

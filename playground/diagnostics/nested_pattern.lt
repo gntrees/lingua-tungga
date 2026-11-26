@@ -1,0 +1,9 @@
+pub class A {
+  fn f(value: Option<Option<Int>>) -> Int {
+    match value {
+      Some(Some(inner)) => inner
+      Some(None) => 0
+      None => 0
+    }
+  }
+}

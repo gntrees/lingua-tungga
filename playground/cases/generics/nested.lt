@@ -1,0 +1,14 @@
+pub class Box<T> {
+  value: T
+
+  pub fn get(self) -> T {
+    self.value
+  }
+}
+
+test class NestedBoxTest {
+  test fn nested_get() {
+    let box = Box(value: Box(value: 5))
+    Expect.equal(box.get().get(), 5)
+  }
+}

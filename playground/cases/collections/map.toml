@@ -1,0 +1,3 @@
+title = "Map immutable dengan key terurut"
+feature = "collections/map"
+why = "Map.empty lalu insert; urutan key deterministik mengikuti Ord."

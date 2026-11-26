@@ -1,0 +1,12 @@
+pub class Label {
+  value: Str
+  children: List<Str>
+}
+
+test class JsxTest {
+  test fn builds_tree() {
+    let node = <Label value="greeting">{"hi"}</Label>
+    Expect.equal(node.value, "greeting")
+    Expect.equal(node.children, ["hi"])
+  }
+}

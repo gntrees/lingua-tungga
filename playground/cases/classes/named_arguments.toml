@@ -1,0 +1,3 @@
+title = "Konstruksi memakai named arguments"
+feature = "classes/named-args"
+why = "Semua field wajib diisi dengan nama, mencegah bug urutan argumen."

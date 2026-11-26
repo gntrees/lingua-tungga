@@ -1,0 +1,3 @@
+title = "Query pada List"
+feature = "collections/list-query"
+why = "contains, index_of, get, any, all memakai kesamaan struktural."

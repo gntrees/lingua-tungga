@@ -1,0 +1,11 @@
+test class IndentTest {
+  test fn removes_common_indent() {
+    Expect.equal(
+      `
+      a
+      b
+    `.trim_indent(),
+      "a\nb",
+    )
+  }
+}

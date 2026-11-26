@@ -39,6 +39,15 @@ lt update examples/validator.lt        # re-resolve URL imports, rewrite lt.lock
 lt vendor examples/validator.lt        # copy locked remote files into vendor/
 ```
 
+Playground statis per aturan bahasa (42 kasus executable + 9 kasus error):
+
+```sh
+lt playground          # → out/playground/index.html, buka langsung di browser
+scripts/playground.sh  # verifikasi 3 target + tulis evidence + generate
+```
+
+Lihat [docs/playground.md](docs/playground.md).
+
 URL import: `import User from "https://raw.githubusercontent.com/..."` — lihat
 [docs/package-manager.md](docs/package-manager.md). Tutorial lengkap:
 [docs/tutorial.md](docs/tutorial.md); contoh proyek tiga target:
@@ -55,7 +64,7 @@ Lingua Tungga tidak punya runtime sendiri, tidak punya UI, tidak punya `main`, d
 
 | | |
 |---|---|
-| Fase | M8 — polish (tutorial, contoh, gate kualitas) |
+| Fase | M8 — polish (tutorial, contoh, playground, gate kualitas) |
 | Bahasa | ekstensi `.lt` |
 | Compiler | Rust, binary `lt` |
 | Target | TypeScript ✅, Python ✅, Go ✅ (100% conformance di ketiganya) |
@@ -78,4 +87,4 @@ Build memakai compiler cache [Kache](docs/kache.md) yang datanya disimpan di dri
 ADATA. `cargo build`/`cargo test` tidak butuh langkah tambahan; untuk CLI Kache
 lihat [docs/kache.md](docs/kache.md).
 
-Struktur saat ini: `lt-syntax` (lexer, AST, parser, formatter), `lt-hir` (loader modul, tabel simbol, typechecker), `lt-ir` (typed IR + lowering), `lt-emit-ts` (backend TypeScript + runtime inline), dan `lt-cli` (binary `lt`). Total 161 test Rust + 38 test conformance di tiga target. Backend Python dan Go menyusul sesuai milestone di `PLAN.md`.
+Struktur saat ini: `lt-syntax` (lexer, AST, parser, formatter), `lt-hir` (loader modul, tabel simbol, typechecker), `lt-ir` (typed IR + lowering), `lt-emit-ts` (backend TypeScript + runtime inline), dan `lt-cli` (binary `lt`). Total 165 test Rust + 38 test conformance di tiga target + 42 kasus playground. Backend Python dan Go menyusul sesuai milestone di `PLAN.md`.

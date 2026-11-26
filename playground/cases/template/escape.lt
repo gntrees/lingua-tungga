@@ -1,0 +1,5 @@
+test class EscapeTest {
+  test fn escapes() {
+    Expect.equal(`a \` b \${not} ${1}`, "a ` b ${not} 1")
+  }
+}

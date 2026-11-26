@@ -1,0 +1,4 @@
+title = "match kurang satu varian"
+feature = "diagnostics/strict"
+why = "Tanpa exhaustiveness, perilaku runtime tidak terdefinisi."
+expect = "not exhaustive"

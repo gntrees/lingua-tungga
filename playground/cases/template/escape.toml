@@ -1,0 +1,3 @@
+title = "Escape di template literal"
+feature = "template/escape"
+why = "Backtick dan ${ harus bisa ditulis literal dengan escape."

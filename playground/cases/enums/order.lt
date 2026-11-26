@@ -1,0 +1,11 @@
+pub enum Grade {
+  Low
+  Mid
+  High
+}
+
+test class GradeTest {
+  test fn sorts_by_declaration() {
+    Expect.equal([Grade.High, Grade.Low, Grade.Mid].sort(), [Grade.Low, Grade.Mid, Grade.High])
+  }
+}

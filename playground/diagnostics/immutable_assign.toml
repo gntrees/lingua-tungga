@@ -1,0 +1,4 @@
+title = "Assignment ke binding immutable"
+feature = "diagnostics/strict"
+why = "Hanya let mut yang boleh diubah."
+expect = "immutable"

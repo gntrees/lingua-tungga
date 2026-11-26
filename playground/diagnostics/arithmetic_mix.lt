@@ -1,0 +1,5 @@
+pub class A {
+  static fn f() -> Float {
+    1 + 2.0
+  }
+}

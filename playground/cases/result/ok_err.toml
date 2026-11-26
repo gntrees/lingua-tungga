@@ -1,0 +1,3 @@
+title = "Result membawa sukses atau error"
+feature = "result/ok-err"
+why = "Error adalah nilai, bukan exception; tipe error ikut diperiksa."

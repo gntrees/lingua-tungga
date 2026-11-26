@@ -1,0 +1,9 @@
+test class RemainderTest {
+  test fn negative_dividend() {
+    Expect.equal(-7 % 2, -1)
+  }
+
+  test fn positive_dividend() {
+    Expect.equal(7 % 2, 1)
+  }
+}

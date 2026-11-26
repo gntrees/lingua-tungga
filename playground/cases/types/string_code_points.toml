@@ -1,0 +1,3 @@
+title = "Str dihitung per code point"
+feature = "types/string"
+why = "Panjang dan slicing memakai Unicode code point, bukan byte."

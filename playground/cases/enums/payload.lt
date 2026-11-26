@@ -1,0 +1,19 @@
+pub enum Shape {
+  Circle(Float)
+  Rect(Float, Float)
+}
+
+pub class Geometry {
+  static fn area(shape: Shape) -> Float {
+    match shape {
+      Shape.Circle(radius) => Math.pi() * radius * radius
+      Shape.Rect(width, height) => width * height
+    }
+  }
+}
+
+test class ShapeTest {
+  test fn area_of_rect() {
+    Expect.equal(Geometry.area(Shape.Rect(2.0, 3.0)), 6.0)
+  }
+}

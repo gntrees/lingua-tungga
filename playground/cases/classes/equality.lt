@@ -1,0 +1,11 @@
+pub class Point {
+  x: Int
+  y: Int
+}
+
+test class EqualityTest {
+  test fn compares_fields() {
+    Expect.equal(Point(x: 1, y: 2), Point(x: 1, y: 2))
+    Expect.not_equal(Point(x: 1, y: 2), Point(x: 1, y: 3))
+  }
+}

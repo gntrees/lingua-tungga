@@ -1,0 +1,12 @@
+pub enum Color {
+  Red
+  Green
+}
+
+pub class A {
+  static fn label(c: Color) -> Str {
+    match c {
+      Color.Red => "red"
+    }
+  }
+}

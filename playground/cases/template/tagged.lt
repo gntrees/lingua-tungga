@@ -1,0 +1,17 @@
+pub class Query {
+  text: Str
+}
+
+pub class Sql {
+  pub fn compose(parts: List<Str>, values: List<Str>) -> Query {
+    Query(text: `${parts.join("|")}::${values.join("|")}`)
+  }
+}
+
+test class TaggedTest {
+  test fn splits_parts() {
+    let id = 7
+    let query = Sql.compose`id = ${id} and name = ${"bo"}`
+    Expect.equal(query.text, "id = | and name = |::7|bo")
+  }
+}

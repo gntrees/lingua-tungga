@@ -1,0 +1,3 @@
+title = "fold merangkum list menjadi satu nilai"
+feature = "collections/list-fold"
+why = "Satu operasi untuk jumlah, gabungan string, dan akumulasi lain."

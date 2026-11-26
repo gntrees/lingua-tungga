@@ -1,0 +1,3 @@
+title = "Pembagian Int memotong ke nol"
+feature = "ops/division"
+why = "Python membulatkan ke bawah; LT memilih truncation agar sama di semua target."

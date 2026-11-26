@@ -1,0 +1,3 @@
+title = "Prioritas operator"
+feature = "ops/precedence"
+why = "Perkalian mengikat lebih kuat daripada penjumlahan; kurung mengubahnya."

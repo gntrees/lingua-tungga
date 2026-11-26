@@ -1,0 +1,18 @@
+[package]
+name = "lt-playground"
+description = "Static playground generator for Lingua Tungga"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+lt-syntax = { path = "../lt-syntax" }
+lt-hir = { path = "../lt-hir" }
+lt-ir = { path = "../lt-ir" }
+lt-emit-ts = { path = "../lt-emit-ts" }
+lt-emit-py = { path = "../lt-emit-py" }
+lt-emit-go = { path = "../lt-emit-go" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"

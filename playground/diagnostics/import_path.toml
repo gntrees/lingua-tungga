@@ -1,0 +1,4 @@
+title = "Import path harus relatif atau URL"
+feature = "diagnostics/strict"
+why = "Path tanpa ./ atau ../ ambigu dan tidak portabel."
+expect = "must start with"

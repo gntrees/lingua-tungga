@@ -1,0 +1,26 @@
+pub class Point {
+  x: Int
+  y: Int
+}
+
+test class MapTest {
+  test fn inserts_and_reads() {
+    let empty: Map<Str, Int> = Map.empty()
+    let filled = empty.insert("b", 2).insert("a", 1)
+    Expect.equal(filled.get("a"), Some(1))
+    Expect.equal(filled.len(), 2)
+    Expect.equal(filled.keys(), ["a", "b"])
+    Expect.equal(empty.len(), 0)
+  }
+
+  test fn class_keys_follow_ord() {
+    let empty: Map<Point, Str> = Map.empty()
+    let map = empty.insert(Point(x: 10, y: 0), "ten").insert(Point(x: 2, y: 0), "two")
+    Expect.equal(map.keys(), [Point(x: 2, y: 0), Point(x: 10, y: 0)])
+  }
+
+  test fn removes() {
+    let empty: Map<Str, Int> = Map.empty()
+    Expect.equal(empty.insert("a", 1).remove("a").len(), 0)
+  }
+}

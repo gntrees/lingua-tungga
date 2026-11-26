@@ -1,0 +1,10 @@
+pub class Point {
+  x: Int
+  y: Int
+}
+
+pub class A {
+  static fn f() -> Point {
+    Point(x: 1)
+  }
+}

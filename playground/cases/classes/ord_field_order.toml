@@ -1,0 +1,3 @@
+title = "Urutan class mengikuti urutan field"
+feature = "classes/ord"
+why = "sort membandingkan field sesuai deklarasi: x dulu, baru y."

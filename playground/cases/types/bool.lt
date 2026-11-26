@@ -1,0 +1,11 @@
+test class BoolTest {
+  test fn negates() {
+    Expect.true(!false)
+    Expect.false(!true)
+  }
+
+  test fn compares() {
+    Expect.true(true == true)
+    Expect.false(true == false)
+  }
+}

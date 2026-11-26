@@ -1,0 +1,4 @@
+title = "Konstruksi kurang satu field"
+feature = "diagnostics/strict"
+why = "Named arguments wajib lengkap agar tidak ada field setengah jadi."
+expect = "missing field"

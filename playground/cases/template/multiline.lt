@@ -1,0 +1,7 @@
+test class MultilineTest {
+  test fn keeps_newlines() {
+    let text = `
+line`
+    Expect.equal(text, "\nline")
+  }
+}

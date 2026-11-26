@@ -1,0 +1,3 @@
+title = "sort dan reverse"
+feature = "collections/list-sort"
+why = "List.sort memakai Ord; reverse membalik urutan tanpa mengubah asal."

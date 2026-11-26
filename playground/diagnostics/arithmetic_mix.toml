@@ -1,0 +1,4 @@
+title = "Int dan Float tidak bisa dicampur"
+feature = "diagnostics/strict"
+why = "Konversi harus eksplisit agar hasil aritmetika tidak bergantung target."
+expect = "arithmetic needs"

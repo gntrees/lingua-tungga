@@ -1,0 +1,249 @@
+{
+  "schema": 1,
+  "generated_at": "2026-11-26T08:22:11Z",
+  "git": {
+    "commit": "ab9c141",
+    "dirty": true
+  },
+  "tools": {
+    "rustc": "rustc 1.96.0 (ac68faa20 2026-05-25)",
+    "node": "v22.23.2",
+    "python": "Python 3.12.3",
+    "go": "go version go1.27.4 linux/amd64"
+  },
+  "targets": {
+    "ts": {
+      "suite": "vitest",
+      "cases": 42,
+      "passed": 42,
+      "conformance": 38,
+      "conformance_passed": 38
+    },
+    "py": {
+      "suite": "pytest+mypy",
+      "cases": 42,
+      "passed": 42,
+      "conformance": 38,
+      "conformance_passed": 38
+    },
+    "go": {
+      "suite": "go test+vet",
+      "cases": 42,
+      "passed": 42,
+      "conformance": 38,
+      "conformance_passed": 38
+    }
+  },
+  "cases": {
+    "classes/display": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "classes/equality": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "classes/named_arguments": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "classes/ord_field_order": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "classes/static_method": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "collections/list_fold": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "collections/list_query": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "collections/list_sort": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "collections/list_transform": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "collections/map": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "collections/set": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "enums/exhaustive": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "enums/order": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "enums/payload": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "generics/inference": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "generics/nested": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "jsx/tree": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "ops/division_truncation": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "ops/precedence": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "ops/remainder_sign": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "ops/short_circuit": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "option/and_then": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "option/map": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "option/some_none": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "option/unwrap": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "result/map_err": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "result/ok_err": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "result/question": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "strings/indent": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "strings/parse": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "strings/predicates": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "strings/replace": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "strings/split": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "strings/trim": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "template/basic": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "template/escape": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "template/multiline": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "template/tagged": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "types/bool": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "types/float_ieee": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "types/int_wrapping": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "types/string_code_points": {
+      "ts": true,
+      "py": true,
+      "go": true
+    }
+  }
+}

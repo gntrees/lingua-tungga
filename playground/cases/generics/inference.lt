@@ -1,0 +1,14 @@
+pub class Box<T> {
+  value: T
+
+  pub fn get(self) -> T {
+    self.value
+  }
+}
+
+test class BoxTest {
+  test fn infers_int() {
+    let box = Box(value: 7)
+    Expect.equal(box.get(), 7)
+  }
+}

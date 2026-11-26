@@ -1,0 +1,12 @@
+test class PredicateTest {
+  test fn predicates() {
+    Expect.true("hello".contains("ell"))
+    Expect.true("hello".starts_with("he"))
+    Expect.false("hello".ends_with("lo!"))
+  }
+
+  test fn chars() {
+    Expect.equal("ab".chars(), ["a", "b"])
+    Expect.equal("👍".chars().len(), 1)
+  }
+}

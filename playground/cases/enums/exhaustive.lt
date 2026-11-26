@@ -1,0 +1,21 @@
+pub enum Color {
+  Red
+  Green
+  Blue
+}
+
+pub class Colors {
+  static fn label(color: Color) -> Str {
+    match color {
+      Color.Red => "red"
+      Color.Green => "green"
+      Color.Blue => "blue"
+    }
+  }
+}
+
+test class ColorTest {
+  test fn labels_every_variant() {
+    Expect.equal(Colors.label(Color.Green), "green")
+  }
+}

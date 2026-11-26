@@ -1,0 +1,3 @@
+title = "&& dan || short-circuit"
+feature = "ops/logic"
+why = "Ekspresi kanan tidak dievaluasi bila hasil sudah pasti, sehingga trap terhindar."

@@ -1,0 +1,10 @@
+test class UnwrapTest {
+  test fn unwrap_some() {
+    Expect.equal(Some(5).unwrap(), 5)
+  }
+
+  test fn unwrap_or_none() {
+    let none: Option<Int> = None
+    Expect.equal(none.unwrap_or(9), 9)
+  }
+}

@@ -1,0 +1,3 @@
+title = "Interpolasi template memakai Display"
+feature = "template/basic"
+why = "Nilai apa pun yang punya Display bisa masuk ke template."

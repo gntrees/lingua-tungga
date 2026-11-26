@@ -1,0 +1,4 @@
+title = "Tipe tak dikenal"
+feature = "diagnostics/strict"
+why = "Typo pada tipe harus tertangkap sebelum emit."
+expect = "unknown type"

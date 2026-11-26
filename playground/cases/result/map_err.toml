@@ -1,0 +1,3 @@
+title = "Result.map dan map_err mengubah sisi masing-masing"
+feature = "result/map-err"
+why = "Transformasi nilai sukses dan error terpisah tanpa membongkar Result."

@@ -1,0 +1,3 @@
+title = "Option menggantikan null"
+feature = "option/some-none"
+why = "Ketiadaan nilai eksplisit: Some(x) atau None, tanpa null."

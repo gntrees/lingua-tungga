@@ -1,0 +1,3 @@
+title = "Kesamaan membandingkan isi"
+feature = "classes/equality"
+why = "Dua instance dengan field sama dianggap sama, tanpa method equals manual."

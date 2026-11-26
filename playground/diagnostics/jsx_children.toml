@@ -1,0 +1,4 @@
+title = "Children tanpa field children"
+feature = "diagnostics/strict"
+why = "JSX anak hanya sah bila class mendeklarasikan field children."
+expect = "declares no `children` field"

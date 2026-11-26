@@ -35,6 +35,7 @@ fn run(args: &[String]) -> i32 {
         Some("ir") => cmd_ir(&args[1..]),
         Some("update") => cmd_update(&args[1..]),
         Some("vendor") => cmd_vendor(&args[1..]),
+        Some("playground") => cmd_playground(&args[1..]),
         Some(other) => {
             eprintln!("lt: unknown command `{other}`");
             usage();
@@ -56,6 +57,7 @@ usage:
   lt ir <entry>             lower to IR and dump it (debugging)
   lt update <entry>...      re-resolve URL imports and rewrite lt.lock
   lt vendor <entry>...      copy locked remote files into vendor/
+  lt playground             generate the static playground (out/playground)
 
 paths may be files or directories (searched recursively for *.lt)"
     );
@@ -147,6 +149,41 @@ fn cmd_check(inputs: &[String]) -> i32 {
     1
 }
 
+/// Deepest directory that contains every entry, so output names stay relative.
+fn common_root(entries: &[PathBuf]) -> PathBuf {
+    let mut root: Option<PathBuf> = None;
+    for entry in entries {
+        let parent = normalize(
+            entry
+                .parent()
+                .map(Path::to_path_buf)
+                .unwrap_or_else(|| PathBuf::from(".")),
+        );
+        root = Some(match root {
+            None => parent,
+            Some(current) => {
+                let parts: Vec<&std::ffi::OsStr> = current.components().map(|c| c.as_os_str()).collect();
+                let other: Vec<&std::ffi::OsStr> = parent.components().map(|c| c.as_os_str()).collect();
+                let mut prefix = PathBuf::new();
+                for (left, right) in parts.iter().zip(other.iter()) {
+                    if left == right {
+                        prefix.push(left);
+                    } else {
+                        break;
+                    }
+                }
+                prefix
+            }
+        });
+    }
+    let root = root.unwrap_or_else(|| PathBuf::from("."));
+    if root == Path::new(".") {
+        PathBuf::new()
+    } else {
+        root
+    }
+}
+
 fn emitted_files(
     target: &str,
     ir: &IrProgram,
@@ -192,16 +229,7 @@ fn prepare(
     entries: &[PathBuf],
     mode: Mode,
 ) -> Result<(lt_hir::CheckOutput, lt_ir::IrProgram, Manager), i32> {
-    let mut root = normalize(
-        entries
-            .first()
-            .and_then(|entry| entry.parent())
-            .map(Path::to_path_buf)
-            .unwrap_or_else(|| PathBuf::from(".")),
-    );
-    if root == Path::new(".") {
-        root = PathBuf::new();
-    }
+    let root = common_root(entries);
 
     let mut manager = Manager::new(&root, mode);
     let mut loader = FsLoader;
@@ -555,6 +583,67 @@ fn cmd_vendor(args: &[String]) -> i32 {
             }
         },
         Err(code) => code,
+    }
+}
+
+fn cmd_playground(args: &[String]) -> i32 {
+    let mut root = PathBuf::from("playground");
+    let mut out = PathBuf::from("out/playground");
+    let mut allow_stale = false;
+    let mut index = 0;
+    while index < args.len() {
+        match args[index].as_str() {
+            "--root" => {
+                index += 1;
+                match args.get(index) {
+                    Some(value) => root = PathBuf::from(value),
+                    None => {
+                        eprintln!("lt: `--root` needs a directory");
+                        return 2;
+                    }
+                }
+            }
+            "--out" => {
+                index += 1;
+                match args.get(index) {
+                    Some(value) => out = PathBuf::from(value),
+                    None => {
+                        eprintln!("lt: `--out` needs a directory");
+                        return 2;
+                    }
+                }
+            }
+            "--allow-stale" => allow_stale = true,
+            flag => {
+                eprintln!("lt: unknown flag `{flag}`");
+                return 2;
+            }
+        }
+        index += 1;
+    }
+
+    match lt_playground::generate(&lt_playground::Options {
+        root,
+        out,
+        allow_stale,
+    }) {
+        Ok(summary) => {
+            println!(
+                "playground: {} cases ({} diagnostics), {} features -> {}",
+                summary.cases,
+                summary.diagnostics,
+                summary.features,
+                summary.output.display()
+            );
+            if summary.stale_evidence {
+                eprintln!("lt: evidence.json is stale; run scripts/playground.sh");
+            }
+            0
+        }
+        Err(error) => {
+            eprintln!("lt: {error}");
+            1
+        }
     }
 }
 

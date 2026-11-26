@@ -1,0 +1,3 @@
+title = "trim_indent merapikan template multiline"
+feature = "strings/indent"
+why = "Indentasi umum dibuang agar template multiline bisa ditulis rapi di source."

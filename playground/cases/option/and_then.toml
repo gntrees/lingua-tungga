@@ -1,0 +1,3 @@
+title = "Option.and_then menggabungkan operasi Option"
+feature = "option/and-then"
+why = "Menghindari Option<Option<T>> saat langkah berikutnya juga bisa kosong."

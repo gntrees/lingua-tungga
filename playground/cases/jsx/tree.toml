@@ -1,0 +1,3 @@
+title = "JSX membangun tree bertipe"
+feature = "jsx/tree"
+why = "Nama tag adalah class; atribut adalah named argument; children dicek tipenya."

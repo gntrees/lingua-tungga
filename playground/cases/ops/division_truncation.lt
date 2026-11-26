@@ -1,0 +1,9 @@
+test class DivisionTest {
+  test fn positive() {
+    Expect.equal(7 / 2, 3)
+  }
+
+  test fn negative() {
+    Expect.equal(-7 / 2, -3)
+  }
+}

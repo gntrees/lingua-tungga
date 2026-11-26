@@ -1,0 +1,9 @@
+pub class Element {
+  tag: Str
+}
+
+pub class View {
+  fn render() -> Element {
+    <Element tag="div"><Element tag="span" /></Element>
+  }
+}

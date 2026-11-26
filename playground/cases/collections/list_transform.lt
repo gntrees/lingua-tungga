@@ -1,0 +1,16 @@
+test class TransformTest {
+  test fn maps() {
+    Expect.equal([1, 2, 3].map(fn(x) => x * 2), [2, 4, 6])
+  }
+
+  test fn filters() {
+    Expect.equal([1, 2, 3, 4].filter(fn(x) => x % 2 == 0), [2, 4])
+  }
+
+  test fn original_unchanged() {
+    let xs = [1, 2]
+    let ys = xs.push(3)
+    Expect.equal(xs, [1, 2])
+    Expect.equal(ys, [1, 2, 3])
+  }
+}
