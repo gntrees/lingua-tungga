@@ -588,3 +588,22 @@ fn diagnostic_renders_with_location() {
     let rendered = out.diagnostics[0].render("main.lt", src);
     assert!(rendered.contains("main.lt:2:8"), "{rendered}");
 }
+
+#[test]
+fn method_chains_continue_across_lines() {
+    let file = parse_ok(
+        r#"
+pub class A {
+  fn f(self, xs: List<Int>) -> Int {
+    xs
+      .filter(fn(x) => x > 0)
+      .map(fn(x) => x * 2)
+      .len()
+  }
+}
+"#,
+    );
+    let stmts = body_stmts(first_class(&file), "f");
+    assert_eq!(stmts.len(), 1, "a chain across newlines is one statement");
+    assert!(matches!(&stmts[0], Stmt::Expr(Expr::Call { .. })));
+}

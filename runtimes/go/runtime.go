@@ -576,6 +576,18 @@ func (m Map[K, V]) LtDisplay() string {
 
 func StrLen(value string) int64 { return int64(len([]rune(value))) }
 
+func StrTrim(value string) string { return strings.TrimSpace(value) }
+
+func StrLower(value string) string { return strings.ToLower(value) }
+
+func StrUpper(value string) string { return strings.ToUpper(value) }
+
+func StrStartsWith(value string, prefix string) bool { return strings.HasPrefix(value, prefix) }
+
+func StrEndsWith(value string, suffix string) bool { return strings.HasSuffix(value, suffix) }
+
+func StrContains(value string, needle string) bool { return strings.Contains(value, needle) }
+
 func StrSlice(value string, start int64, end int64) string {
 	runes := []rune(value)
 	if start < 0 {

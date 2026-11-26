@@ -1,6 +1,11 @@
 pub class Collections {
-  static fn numbers() -> List<Int> { [3, 1, 2] }
-  static fn words() -> List<Str> { ["a", "b"] }
+  static fn numbers() -> List<Int> {
+    [3, 1, 2]
+  }
+
+  static fn words() -> List<Str> {
+    ["a", "b"]
+  }
 }
 
 test class CollectionsTest {

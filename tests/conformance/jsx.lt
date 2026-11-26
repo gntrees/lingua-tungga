@@ -5,9 +5,7 @@ pub class Label {
 
 pub class View {
   pub fn label(prefix: Str, text: Str) -> Label {
-    <Label value="prefix">
-      {prefix}
-    </Label>
+    <Label value="prefix">{prefix}</Label>
   }
 
   pub fn plain() -> Label {

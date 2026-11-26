@@ -1,0 +1,53 @@
+pub class ChainUser {
+  name: Str
+
+  pub fn greet(self) -> Str {
+    `hi ${self.name}`
+  }
+
+  static fn anonymous() -> ChainUser {
+    ChainUser(name: "  ada  ")
+  }
+}
+
+pub class Chains {
+  static fn words(xs: List<Str>) -> Str {
+    xs.filter(fn(x) => x.len() > 0).map(fn(x) => x.trim().upper()).join(",")
+  }
+
+  static fn total(xs: List<Str>) -> Int {
+    xs.map(fn(x) => x.len()).fold(0, fn(acc, n) => acc + n)
+  }
+
+  static fn number(text: Str) -> Int {
+    text.trim().parse_int().unwrap_or(0)
+  }
+
+  static fn greeting() -> Str {
+    ChainUser.anonymous().greet().trim()
+  }
+
+  static fn doubled(xs: List<Int>) -> Int {
+    xs.filter(fn(x) => x > 0).map(fn(x) => x * 2).len()
+  }
+}
+
+test class ChainingTest {
+  test fn chains_list_methods() {
+    Expect.equal(Chains.words(["a", "  b ", ""]), "A,B")
+    Expect.equal(Chains.total(["ab", "c"]), 3)
+  }
+
+  test fn chains_option_after_result() {
+    Expect.equal(Chains.number(" 42 "), 42)
+    Expect.equal(Chains.number("nope"), 0)
+  }
+
+  test fn chains_static_then_instance() {
+    Expect.equal(Chains.greeting(), "hi   ada")
+  }
+
+  test fn chains_across_lines() {
+    Expect.equal(Chains.doubled([-1, 1, 2]), 2)
+  }
+}

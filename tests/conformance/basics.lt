@@ -1,6 +1,11 @@
 pub class Basics {
-  static fn max_int() -> Int { 9223372036854775807 }
-  static fn min_int() -> Int { -9223372036854775807 - 1 }
+  static fn max_int() -> Int {
+    9223372036854775807
+  }
+
+  static fn min_int() -> Int {
+    -9223372036854775807 - 1
+  }
 }
 
 test class BasicsTest {
@@ -16,7 +21,7 @@ test class BasicsTest {
 
   test fn floats_follow_ieee() {
     Expect.true(1.0 / 0.0 > 0.0)
-    Expect.false((0.0 / 0.0) == (0.0 / 0.0))
+    Expect.false(0.0 / 0.0 == 0.0 / 0.0)
   }
 
   test fn strings_count_code_points() {
