@@ -34,6 +34,7 @@ out/ts/
   package.json
   tsconfig.json      strict, ES2022, noEmit
   src/<module>.ts    satu file per modul LT
+  tests/<module>.test.ts   file `vitest` untuk setiap `test class`
 ```
 
 Import antar modul memakai namespace `m<id>` (`import * as m1 from "./user"`), sehingga tidak ada tabrakan nama.
@@ -43,6 +44,13 @@ Import antar modul memakai namespace `m<id>` (`import * as m1 from "./user"`), s
 - field, method, parameter, variabel lokal: `snake_case` → `camelCase`
 - class, enum, varian: tetap `PascalCase`
 - kata kunci TypeScript diberi akhiran `_`
+
+## Test
+
+`lt test -t ts <entry>...` meng-emit paket plus `tests/<module>.test.ts`
+(`describe`/`it`). `--run` menjalankan `vitest run` di direktori output.
+`tsconfig.json` menyertakan `tests/**/*.ts`, jadi `tsc --strict` juga memeriksa
+file test.
 
 ## Batasan v1
 

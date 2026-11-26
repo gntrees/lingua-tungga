@@ -664,6 +664,15 @@ impl<'a> Lowerer<'a> {
                             ty,
                         };
                     }
+                    if owner == "Map" || owner == "Set" {
+                        let Some(items) = self.positional(args, span) else {
+                            return IrExpr::Var("undefined".to_string());
+                        };
+                        if !items.is_empty() {
+                            self.diag(span, format!("`{owner}.empty` takes no arguments"));
+                        }
+                        return IrExpr::EmptyCollection { ty };
+                    }
                     if owner == "Math" {
                         let Some(items) = self.positional(args, span) else {
                             return IrExpr::Var("undefined".to_string());

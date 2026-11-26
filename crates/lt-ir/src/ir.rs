@@ -145,6 +145,10 @@ pub enum IrExpr {
         items: Vec<IrExpr>,
         ty: Ty,
     },
+    /// `Map.empty()` / `Set.empty()`.
+    EmptyCollection {
+        ty: Ty,
+    },
     Var(String),
     SelfRef,
     Field {
@@ -409,15 +413,18 @@ impl Builtin {
     /// How many arguments are lambdas, and which parameter types they take.
     pub fn lambda_params(&self, receiver: &Ty, first_arg_ty: Option<&Ty>) -> Option<Vec<Ty>> {
         use Builtin::*;
-        let element = match receiver {
-            Ty::List(inner) | Ty::Set(inner) | Ty::Option(inner) => (**inner).clone(),
-            Ty::Result(ok, _) => (**ok).clone(),
+        let (ok, err, inner) = match receiver {
+            Ty::List(inner) | Ty::Set(inner) => ((**inner).clone(), Ty::Error, (**inner).clone()),
+            Ty::Option(inner) => ((**inner).clone(), Ty::Error, (**inner).clone()),
+            Ty::Result(ok, err) => ((**ok).clone(), (**err).clone(), (**ok).clone()),
             _ => return None,
         };
         Some(match self {
-            ListMap | ListFilter | ListAny | ListAll => vec![element],
-            ListFold => vec![first_arg_ty.cloned().unwrap_or(Ty::Error), element],
-            OptionMap | OptionAndThen | ResultMap | ResultAndThen | ResultMapErr => vec![element],
+            ListMap | ListFilter | ListAny | ListAll => vec![inner],
+            ListFold => vec![first_arg_ty.cloned().unwrap_or(Ty::Error), inner],
+            OptionMap | OptionAndThen => vec![ok],
+            ResultMap | ResultAndThen => vec![ok],
+            ResultMapErr => vec![err],
             _ => return None,
         })
     }

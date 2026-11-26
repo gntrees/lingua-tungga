@@ -929,6 +929,13 @@ impl<'a> Checker<'a> {
 
     fn check_expr(&mut self, expr: &ast::Expr, expected: Option<&Ty>) -> Ty {
         let ty = self.check_expr_shallow(expr, expected);
+        // Bind any inference variables to the expected type before recording,
+        // so the IR (and therefore the emitters) never sees `?` placeholders
+        // that were actually resolved by the surrounding context.
+        if let Some(expected) = expected {
+            let expected = expected.clone();
+            let _ = self.unify(&expected, &ty);
+        }
         self.record_type(expr, &ty);
         ty
     }
@@ -1451,6 +1458,23 @@ impl<'a> Checker<'a> {
                         return self.construct_variant(&decl, type_name, name, args, span);
                     }
                     match owner.as_str() {
+                        "Map" | "Set" if name == "empty" => {
+                            let Some(items) = self.positional(args, span, name) else {
+                                return Ty::Error;
+                            };
+                            if !items.is_empty() {
+                                self.diag(
+                                    span,
+                                    format!("`{owner}.empty` takes no arguments"),
+                                );
+                                return Ty::Error;
+                            }
+                            return if owner == "Map" {
+                                Ty::map(self.fresh(), self.fresh())
+                            } else {
+                                Ty::set(self.fresh())
+                            };
+                        }
                         "Math" => return self.call_math(name, args, span),
                         "Expect" => return self.call_expect(name, args, span),
                         "Json" => {
@@ -2061,10 +2085,17 @@ impl<'a> Checker<'a> {
                             Ty::Bool
                         }
                     }
-                    "replace" | "slice" => {
+                    "replace" => {
                         for item in &items {
                             let ty = self.check_expr(item, Some(&Ty::Str));
-                            self.expect(item.span(), &Ty::Str, &ty, " in `Str` method");
+                            self.expect(item.span(), &Ty::Str, &ty, " in `Str.replace`");
+                        }
+                        Ty::Str
+                    }
+                    "slice" => {
+                        for item in &items {
+                            let ty = self.check_expr(item, Some(&Ty::Int));
+                            self.expect(item.span(), &Ty::Int, &ty, " in `Str.slice`");
                         }
                         Ty::Str
                     }

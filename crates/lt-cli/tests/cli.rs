@@ -215,3 +215,75 @@ fn ir_command_dumps_lowering() {
     assert!(stdout.contains("IrProgram"), "{stdout}");
     assert!(stdout.contains("IrClass"), "{stdout}");
 }
+
+#[test]
+fn test_command_emits_vitest_files() {
+    let dir = temp_dir("test-emit");
+    let entry = dir.join("suite.lt");
+    std::fs::write(
+        &entry,
+        r#"
+pub class Adder {
+  static fn add(a: Int, b: Int) -> Int { a + b }
+}
+
+test class AdderTest {
+  test fn adds() {
+    Expect.equal(Adder.add(1, 2), 3)
+  }
+}
+"#,
+    )
+    .unwrap();
+
+    let out = dir.join("out");
+    let output = Command::new(bin())
+        .arg("test")
+        .arg("-t")
+        .arg("ts")
+        .arg(&entry)
+        .arg("--out")
+        .arg(&out)
+        .output()
+        .unwrap();
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let test_file = out.join("ts/tests/suite.test.ts");
+    let contents = std::fs::read_to_string(&test_file).unwrap();
+    assert!(contents.contains("import { describe, it } from \"vitest\";"), "{contents}");
+    assert!(contents.contains("describe(\"AdderTest\""), "{contents}");
+    assert!(contents.contains("it(\"adds\""), "{contents}");
+
+    let package = std::fs::read_to_string(out.join("ts/package.json")).unwrap();
+    assert!(package.contains("\"vitest\""), "{package}");
+    assert!(out.join("ts/src/suite.ts").is_file());
+}
+
+#[test]
+fn build_does_not_emit_tests() {
+    let dir = temp_dir("build-no-tests");
+    let entry = dir.join("suite.lt");
+    std::fs::write(
+        &entry,
+        "pub class A { x: Int }\n\ntest class T {\n  test fn ok() {\n    Expect.equal(1, 1)\n  }\n}\n",
+    )
+    .unwrap();
+
+    let out = dir.join("out");
+    let output = Command::new(bin())
+        .arg("build")
+        .arg("-t")
+        .arg("ts")
+        .arg(&entry)
+        .arg("--out")
+        .arg(&out)
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(0));
+    assert!(!out.join("ts/tests/suite.test.ts").exists());
+}

@@ -29,6 +29,7 @@ lt fmt --check src/                    # exit 1 kalau ada file belum terformat
 lt ast src/a.lt                        # dump AST untuk debugging
 lt ir src/a.lt                         # dump IR hasil lowering
 lt build -t ts examples/validator.lt   # → out/ts, package TypeScript siap tsc
+lt test  -t ts tests/conformance/*.lt --out out/conf --run   # conformance (vitest)
 ```
 
 ## Bukan Haxe
@@ -39,7 +40,7 @@ Lingua Tungga tidak punya runtime sendiri, tidak punya UI, tidak punya `main`, d
 
 | | |
 |---|---|
-| Fase | M3 — IR + backend TypeScript (`lt-ir`, `lt-emit-ts`) |
+| Fase | M4 — conformance suite TypeScript |
 | Bahasa | ekstensi `.lt` |
 | Compiler | Rust, binary `lt` |
 | Target | TypeScript, Python, Go (100% conformance) |
@@ -62,4 +63,4 @@ Build memakai compiler cache [Kache](docs/kache.md) yang datanya disimpan di dri
 ADATA. `cargo build`/`cargo test` tidak butuh langkah tambahan; untuk CLI Kache
 lihat [docs/kache.md](docs/kache.md).
 
-Struktur saat ini: `lt-syntax` (lexer, AST, parser, formatter), `lt-hir` (loader modul, tabel simbol, typechecker), `lt-ir` (typed IR + lowering), `lt-emit-ts` (backend TypeScript + runtime inline), dan `lt-cli` (binary `lt`). Total 119 test. Backend Python dan Go menyusul sesuai milestone di `PLAN.md`.
+Struktur saat ini: `lt-syntax` (lexer, AST, parser, formatter), `lt-hir` (loader modul, tabel simbol, typechecker), `lt-ir` (typed IR + lowering), `lt-emit-ts` (backend TypeScript + runtime inline), dan `lt-cli` (binary `lt`). Total 123 test Rust + 17 test conformance. Backend Python dan Go menyusul sesuai milestone di `PLAN.md`.

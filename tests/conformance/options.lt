@@ -1,0 +1,39 @@
+pub class Maybe {
+  static fn find(xs: List<Int>, target: Int) -> Option<Int> {
+    xs.index_of(target)
+  }
+
+  static fn parse(text: Str) -> Result<Int, Str> {
+    match text.parse_int() {
+      Some(value) => Ok(value)
+      None => Err("not a number")
+    }
+  }
+
+  static fn double(text: Str) -> Result<Int, Str> {
+    let value = Maybe.parse(text)?
+    Ok(value * 2)
+  }
+}
+
+test class MaybeTest {
+  test fn option_helpers() {
+    Expect.equal(Maybe.find([1, 2], 2), Some(1))
+    Expect.equal(Maybe.find([1, 2], 9), None)
+    Expect.equal(Maybe.find([1, 2], 9).unwrap_or(-1), -1)
+    Expect.equal(Maybe.find([1, 2], 2).map(fn(x) => x + 10), Some(11))
+    Expect.true(Maybe.find([1, 2], 2).is_some())
+    Expect.true(Maybe.find([1, 2], 9).is_none())
+  }
+
+  test fn result_propagation() {
+    Expect.equal(Maybe.double("21"), Ok(42))
+    Expect.equal(Maybe.double("x"), Err("not a number"))
+  }
+
+  test fn result_helpers() {
+    Expect.equal(Maybe.parse("7").map(fn(x) => x + 1), Ok(8))
+    Expect.equal(Maybe.parse("x").map_err(fn(e) => `bad: ${e}`), Err("bad: not a number"))
+    Expect.equal(Maybe.parse("x").unwrap_or(0), 0)
+  }
+}

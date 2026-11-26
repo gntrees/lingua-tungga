@@ -329,7 +329,8 @@ import Post from "https://raw.githubusercontent.com/foo/bar/v1.2.0/src/post.lt"
 
 ## 14. Test
 
-- `lt test -t <target>` meng-generate file test native lalu menjalankannya: `vitest`, `pytest`, `go test`.
+- `lt test -t <target>` meng-generate file test native lalu menjalankannya: `vitest`, `pytest`, `go test`. Untuk TypeScript, `lt test -t ts ... --run` menjalankan `vitest`; tanpa `--run` hanya meng-emit.
+- Test class tidak ikut di-emit ke paket library (`lt build`); hanya `lt test` yang menghasilkan file test.
 - Assertion hanya lewat class `Expect`: `Expect.equal(a, b)`, `Expect.not_equal`, `Expect.true(x)`, `Expect.false(x)`.
 - Tidak ada mocking, tidak ada setup/teardown, tidak ada test paralel di v1. Semua test wajib deterministik dan murni.
 - Sebuah target dianggap lulus hanya jika **seluruh** conformance suite lulus di target itu.
@@ -373,6 +374,7 @@ Trap dipetakan ke mekanisme native target (panic/exception) tetapi **tidak perna
 | Method `Option<T>` | `is_some`, `is_none`, `unwrap`, `unwrap_or`, `map`, `and_then` |
 | Method `Result<T,E>` | `is_ok`, `is_err`, `unwrap`, `unwrap_or`, `map`, `map_err`, `and_then` |
 | Class `Math` | `abs`, `min`, `max`, `floor`, `ceil`, `round`, `sqrt`, `pow`, `pi` — semuanya `Float` (tanpa overloading) |
+| Konstruktor `Map.empty()` / `Set.empty()` | masing-masing `Map<K,V>` / `Set<T>`; tipe parameter diambil dari konteks (anotasi `let`, parameter, atau return) |
 | Class `Json` | **belum ada di v1**; menunggu enum `Value` dan runtime per target (M7) |
 | Class `Expect` | `equal`, `not_equal`, `true`, `false` (hanya boleh dipakai di `test class`) |
 | Enum `Value` | **belum ada di v1**; rencananya `Null`, `Bool`, `Int`, `Float`, `Str`, `List`, `Map` |

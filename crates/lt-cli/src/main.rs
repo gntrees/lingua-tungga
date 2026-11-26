@@ -29,6 +29,7 @@ fn run(args: &[String]) -> i32 {
         Some("fmt") => cmd_fmt(&args[1..]),
         Some("ast") => cmd_ast(&args[1..]),
         Some("build") => cmd_build(&args[1..]),
+        Some("test") => cmd_test(&args[1..]),
         Some("ir") => cmd_ir(&args[1..]),
         Some(other) => {
             eprintln!("lt: unknown command `{other}`");
@@ -47,6 +48,7 @@ usage:
   lt fmt [--check] <path>   format files in place (or check formatting)
   lt ast <path>             parse and dump the AST (debugging)
   lt build -t ts <entry>    compile to a TypeScript package (default out/ts)
+  lt test -t ts <entry>...  emit + run the conformance suite (vitest)
   lt ir <entry>             lower to IR and dump it (debugging)
 
 paths may be files or directories (searched recursively for *.lt)"
@@ -125,16 +127,17 @@ fn cmd_check(inputs: &[String]) -> i32 {
     1
 }
 
-fn prepare(entry: &Path) -> Result<(lt_hir::CheckOutput, lt_ir::IrProgram), i32> {
+fn prepare(entries: &[PathBuf]) -> Result<(lt_hir::CheckOutput, lt_ir::IrProgram), i32> {
     let mut loader = FsLoader;
-    let checked = check_entries(&[entry.to_path_buf()], &mut loader);
+    let checked = check_entries(entries, &mut loader);
     if !checked.is_ok() {
         print_file_diagnostics(&checked);
         return Err(1);
     }
 
-    let root = entry
-        .parent()
+    let root = entries
+        .first()
+        .and_then(|entry| entry.parent())
         .map(Path::to_path_buf)
         .unwrap_or_else(|| PathBuf::from("."));
 
@@ -178,12 +181,110 @@ fn cmd_ir(args: &[String]) -> i32 {
         eprintln!("lt: `ir` needs an entry file");
         return 2;
     };
-    match prepare(Path::new(path)) {
+    match prepare(&[PathBuf::from(path)]) {
         Ok((_, ir)) => {
             println!("{ir:#?}");
             0
         }
         Err(code) => code,
+    }
+}
+
+fn cmd_test(args: &[String]) -> i32 {
+    let mut target = "ts".to_string();
+    let mut out_dir = PathBuf::from("out");
+    let mut run = false;
+    let mut entries: Vec<PathBuf> = Vec::new();
+
+    let mut index = 0;
+    while index < args.len() {
+        match args[index].as_str() {
+            "-t" | "--target" => {
+                index += 1;
+                match args.get(index) {
+                    Some(value) => target = value.clone(),
+                    None => {
+                        eprintln!("lt: `-t` needs a target name");
+                        return 2;
+                    }
+                }
+            }
+            "--out" => {
+                index += 1;
+                match args.get(index) {
+                    Some(value) => out_dir = PathBuf::from(value),
+                    None => {
+                        eprintln!("lt: `--out` needs a directory");
+                        return 2;
+                    }
+                }
+            }
+            "--run" => run = true,
+            flag if flag.starts_with('-') => {
+                eprintln!("lt: unknown flag `{flag}`");
+                return 2;
+            }
+            path => entries.push(PathBuf::from(path)),
+        }
+        index += 1;
+    }
+
+    if target != "ts" {
+        eprintln!("lt: unknown target `{target}`; available: ts");
+        return 2;
+    }
+    if entries.is_empty() {
+        eprintln!("lt: `test` needs at least one entry file");
+        return 2;
+    }
+
+    let (_checked, ir) = match prepare(&entries) {
+        Ok(prepared) => prepared,
+        Err(code) => return code,
+    };
+
+    let out_dir = out_dir.join(&target);
+    for file in lt_emit_ts::emit_package_with_tests(&ir) {
+        let path = out_dir.join(&file.path);
+        if let Some(parent) = path.parent() {
+            if let Err(error) = std::fs::create_dir_all(parent) {
+                eprintln!("lt: {}: {error}", parent.display());
+                return 1;
+            }
+        }
+        if let Err(error) = std::fs::write(&path, &file.contents) {
+            eprintln!("lt: {}: {error}", path.display());
+            return 1;
+        }
+    }
+    println!("emitted tests to {}", out_dir.display());
+
+    if !run {
+        println!("run with: cd {} && npm install && npm test", out_dir.display());
+        return 0;
+    }
+
+    let local = out_dir.join("node_modules/.bin/vitest");
+    let status = if local.is_file() {
+        std::process::Command::new(&local)
+            .arg("run")
+            .current_dir(&out_dir)
+            .status()
+    } else {
+        std::process::Command::new("npx")
+            .arg("--no-install")
+            .arg("vitest")
+            .arg("run")
+            .current_dir(&out_dir)
+            .status()
+    };
+    match status {
+        Ok(status) if status.success() => 0,
+        Ok(_) => 1,
+        Err(error) => {
+            eprintln!("lt: cannot run vitest ({error}); run `npm install` in {}", out_dir.display());
+            1
+        }
     }
 }
 
@@ -240,7 +341,7 @@ fn cmd_build(args: &[String]) -> i32 {
         return 2;
     };
 
-    let (checked, ir) = match prepare(&entry) {
+    let (checked, ir) = match prepare(&[entry]) {
         Ok(prepared) => prepared,
         Err(code) => return code,
     };
