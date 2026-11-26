@@ -8,3 +8,6 @@ repository.workspace = true
 
 [dependencies]
 lt-syntax = { path = "../lt-syntax" }
+
+[dev-dependencies]
+sha2 = "0.10"

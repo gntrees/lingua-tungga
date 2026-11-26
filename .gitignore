@@ -1,6 +1,5 @@
 /target
 /out
-/vendor
 *.swp
 .DS_Store
 /out

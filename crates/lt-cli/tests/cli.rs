@@ -412,3 +412,38 @@ fn test_command_emits_go_test_files() {
     assert!(tests.contains("package suite_test"), "{tests}");
     assert!(tests.contains("func TestAdds(t *testing.T)"), "{tests}");
 }
+
+#[test]
+fn local_projects_do_not_get_a_lockfile() {
+    let dir = temp_dir("no-lock");
+    let entry = dir.join("a.lt");
+    std::fs::write(&entry, "pub class A { x: Int }\n").unwrap();
+
+    let output = Command::new(bin())
+        .arg("build")
+        .arg("-t")
+        .arg("ts")
+        .arg(&entry)
+        .arg("--out")
+        .arg(dir.join("out"))
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(0));
+    assert!(!dir.join("lt.lock").exists(), "no remote imports means no lockfile");
+}
+
+#[test]
+fn vendor_without_remotes_is_a_noop() {
+    let dir = temp_dir("vendor-empty");
+    let entry = dir.join("a.lt");
+    std::fs::write(&entry, "pub class A { x: Int }\n").unwrap();
+
+    let output = Command::new(bin())
+        .arg("vendor")
+        .arg(&entry)
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("vendored 0 package(s)"), "{stdout}");
+}

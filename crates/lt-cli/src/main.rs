@@ -6,7 +6,8 @@ use std::process::exit;
 
 use std::collections::HashMap;
 
-use lt_hir::{check_entries, FsLoader};
+use lt_hir::{check_entries_with_remote, normalize, FsLoader};
+use lt_pkg::{Manager, Mode};
 use lt_ir::lower_program;
 use lt_ir::IrProgram;
 use lt_syntax::{format_file, parse, span::line_col_at, tokenize_full, Diagnostic};
@@ -32,6 +33,8 @@ fn run(args: &[String]) -> i32 {
         Some("build") => cmd_build(&args[1..]),
         Some("test") => cmd_test(&args[1..]),
         Some("ir") => cmd_ir(&args[1..]),
+        Some("update") => cmd_update(&args[1..]),
+        Some("vendor") => cmd_vendor(&args[1..]),
         Some(other) => {
             eprintln!("lt: unknown command `{other}`");
             usage();
@@ -51,6 +54,8 @@ usage:
   lt build -t ts|py|go <entry>    compile to a package (default out/<target>)
   lt test -t ts|py|go <entry>...  emit + run the conformance suite
   lt ir <entry>             lower to IR and dump it (debugging)
+  lt update <entry>...      re-resolve URL imports and rewrite lt.lock
+  lt vendor <entry>...      copy locked remote files into vendor/
 
 paths may be files or directories (searched recursively for *.lt)"
     );
@@ -114,8 +119,10 @@ fn cmd_check(inputs: &[String]) -> i32 {
         return 2;
     }
 
-    let mut loader = FsLoader;
-    let out = check_entries(&paths, &mut loader);
+    let (out, _ir, _manager) = match prepare(&paths, Mode::Locked) {
+        Ok(prepared) => prepared,
+        Err(code) => return code,
+    };
 
     if out.diagnostics.is_empty() {
         for path in &paths {
@@ -169,39 +176,62 @@ fn emitted_files(
     Some(files)
 }
 
-fn prepare(entries: &[PathBuf]) -> Result<(lt_hir::CheckOutput, lt_ir::IrProgram), i32> {
+fn prepare(
+    entries: &[PathBuf],
+    mode: Mode,
+) -> Result<(lt_hir::CheckOutput, lt_ir::IrProgram, Manager), i32> {
+    let mut root = normalize(
+        entries
+            .first()
+            .and_then(|entry| entry.parent())
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| PathBuf::from(".")),
+    );
+    if root == Path::new(".") {
+        root = PathBuf::new();
+    }
+
+    let mut manager = Manager::new(&root, mode);
     let mut loader = FsLoader;
-    let checked = check_entries(entries, &mut loader);
+    let checked = check_entries_with_remote(entries, &mut loader, &mut manager);
+    if let Err(error) = manager.save() {
+        eprintln!("lt: {error}");
+        return Err(1);
+    }
     if !checked.is_ok() {
         print_file_diagnostics(&checked);
         return Err(1);
     }
 
-    let root = entries
-        .first()
-        .and_then(|entry| entry.parent())
-        .map(Path::to_path_buf)
-        .unwrap_or_else(|| PathBuf::from("."));
-
     let mut names = Vec::new();
     for module in &checked.program.modules {
-        let relative = match module.path.strip_prefix(&root) {
-            Ok(relative) => relative,
-            Err(_) => {
-                eprintln!(
-                    "lt: `{}` is outside the entry directory `{}`",
-                    module.path.display(),
-                    root.display()
-                );
-                return Err(1);
-            }
+        let name = if module.origin.is_some() {
+            module
+                .path
+                .with_extension("")
+                .components()
+                .map(|component| component.as_os_str().to_string_lossy().to_string())
+                .collect::<Vec<_>>()
+                .join("/")
+        } else {
+            let relative = match module.path.strip_prefix(&root) {
+                Ok(relative) => relative,
+                Err(_) => {
+                    eprintln!(
+                        "lt: `{}` is outside the entry directory `{}`",
+                        module.path.display(),
+                        root.display()
+                    );
+                    return Err(1);
+                }
+            };
+            relative
+                .with_extension("")
+                .components()
+                .map(|component| component.as_os_str().to_string_lossy().to_string())
+                .collect::<Vec<_>>()
+                .join("/")
         };
-        let name = relative
-            .with_extension("")
-            .components()
-            .map(|component| component.as_os_str().to_string_lossy().to_string())
-            .collect::<Vec<_>>()
-            .join("/");
         names.push(name);
     }
 
@@ -215,7 +245,7 @@ fn prepare(entries: &[PathBuf]) -> Result<(lt_hir::CheckOutput, lt_ir::IrProgram
         return Err(1);
     }
 
-    Ok((checked, ir))
+    Ok((checked, ir, manager))
 }
 
 fn cmd_ir(args: &[String]) -> i32 {
@@ -223,8 +253,8 @@ fn cmd_ir(args: &[String]) -> i32 {
         eprintln!("lt: `ir` needs an entry file");
         return 2;
     };
-    match prepare(&[PathBuf::from(path)]) {
-        Ok((_, ir)) => {
+    match prepare(&[PathBuf::from(path)], Mode::Locked) {
+        Ok((_, ir, _)) => {
             println!("{ir:#?}");
             0
         }
@@ -280,7 +310,7 @@ fn cmd_test(args: &[String]) -> i32 {
         return 2;
     }
 
-    let (_checked, ir) = match prepare(&entries) {
+    let (_checked, ir, _manager) = match prepare(&entries, Mode::Locked) {
         Ok(prepared) => prepared,
         Err(code) => return code,
     };
@@ -407,7 +437,7 @@ fn cmd_build(args: &[String]) -> i32 {
         return 2;
     };
 
-    let (checked, ir) = match prepare(&[entry]) {
+    let (checked, ir, _manager) = match prepare(&[entry], Mode::Locked) {
         Ok(prepared) => prepared,
         Err(code) => return code,
     };
@@ -440,18 +470,79 @@ fn cmd_build(args: &[String]) -> i32 {
 }
 
 fn print_file_diagnostics(checked: &lt_hir::CheckOutput) {
-    let sources: HashMap<PathBuf, &str> = checked
+    let sources: HashMap<PathBuf, (String, &str)> = checked
         .program
         .modules
         .iter()
-        .map(|module| (module.path.clone(), module.source.as_str()))
+        .map(|module| {
+            let display = module
+                .origin
+                .clone()
+                .unwrap_or_else(|| module.path.display().to_string());
+            (module.path.clone(), (display, module.source.as_str()))
+        })
         .collect();
     for file in &checked.diagnostics {
         let name = file.path.display().to_string();
         match sources.get(&file.path) {
-            Some(source) => eprintln!("{}", file.diagnostic.render(&name, source)),
+            Some((display, source)) => eprintln!("{}", file.diagnostic.render(display, source)),
             None => eprintln!("error: {}: {}", name, file.diagnostic.message),
         }
+    }
+}
+
+fn parse_entries(args: &[String], command: &str) -> Result<Vec<PathBuf>, i32> {
+    let mut entries = Vec::new();
+    for arg in args {
+        if arg.starts_with('-') {
+            eprintln!("lt: unknown flag `{arg}`");
+            return Err(2);
+        }
+        entries.push(PathBuf::from(arg));
+    }
+    if entries.is_empty() {
+        eprintln!("lt: `{command}` needs at least one entry file");
+        return Err(2);
+    }
+    Ok(entries)
+}
+
+fn cmd_update(args: &[String]) -> i32 {
+    let entries = match parse_entries(args, "update") {
+        Ok(entries) => entries,
+        Err(code) => return code,
+    };
+    match prepare(&entries, Mode::Update) {
+        Ok((checked, _ir, manager)) => {
+            println!(
+                "updated lt.lock ({} package(s), {} fetched, {} module(s))",
+                manager.lock.packages.len(),
+                manager.fetched.len(),
+                checked.program.modules.len()
+            );
+            0
+        }
+        Err(code) => code,
+    }
+}
+
+fn cmd_vendor(args: &[String]) -> i32 {
+    let entries = match parse_entries(args, "vendor") {
+        Ok(entries) => entries,
+        Err(code) => return code,
+    };
+    match prepare(&entries, Mode::Locked) {
+        Ok((_checked, _ir, mut manager)) => match manager.vendor() {
+            Ok(count) => {
+                println!("vendored {count} package(s) into {}", manager.vendor_dir.display());
+                0
+            }
+            Err(error) => {
+                eprintln!("lt: {error}");
+                1
+            }
+        },
+        Err(code) => code,
     }
 }
 

@@ -320,10 +320,12 @@ import Post from "https://raw.githubusercontent.com/foo/bar/v1.2.0/src/post.lt"
 ### Lockfile
 
 - **Status saat ini (M2):** hanya import relatif yang jalan; URL remote menghasilkan compile error yang menyebut package manager (M7). File di `vendor/` bisa di-import dengan path relatif.
-- Build pertama menulis `lt.lock`: URL, commit SHA, sha256 per file.
-- `lt.lock` wajib di-commit. Build berikutnya nol network dan memverifikasi checksum.
-- URL menunjuk branch = warning; lock tetap melindungi.
-- `lt update` me-refresh. `lt vendor` menyalin ke `vendor/` untuk build offline.
+- Build pertama menulis `lt.lock`: URL, canonical URL, commit SHA (bila GitHub), sha256 per file. Format `lt.lock` adalah TOML (`[[package]]`).
+- `lt.lock` wajib di-commit. Build berikutnya memakai `vendor/<sha256>` atau cache `objects/<sha256>` tanpa jaringan, dan memverifikasi checksum setiap kali.
+- URL menunjuk branch = warning konseptual; untuk `raw.githubusercontent.com` ref di-resolve ke commit SHA sehingga `canonical` tidak bisa berubah.
+- `lt update` me-refresh lock. `lt vendor` menyalin objek ke `vendor/` untuk build offline.
+- Cache default `$XDG_CACHE_HOME/lt` atau `~/.cache/lt`; `LT_CACHE_DIR` menimpanya.
+- Detail perilaku dan batasan: [`package-manager.md`](package-manager.md).
 
 ---
 

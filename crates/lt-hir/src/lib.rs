@@ -13,7 +13,10 @@ use std::path::PathBuf;
 use lt_syntax::Diagnostic;
 
 pub use check::check_program;
-pub use loader::{load, FsLoader, MapLoader, SourceLoader};
+pub use loader::{
+    join_url, load, load_with_remote, normalize, FsLoader, MapLoader, NoRemote, RemoteResolver,
+    ResolvedRemote, SourceLoader,
+};
 pub use program::{
     builtin_enum, ClassInfo, DeclKind, EnumInfo, FieldInfo, ImportInfo, MethodInfo, Module, ModuleId,
     Program, VariantInfo,
@@ -36,7 +39,30 @@ pub struct CheckOutput {
 
 /// Load `entries` plus their imports, then type check the whole graph.
 pub fn check_entries(entries: &[PathBuf], loader: &mut dyn SourceLoader) -> CheckOutput {
-    let loaded = load(entries, loader);
+    check_entries_with_remote(entries, loader, &mut NoRemote)
+}
+
+pub fn check_entries_with_remote(
+    entries: &[PathBuf],
+    loader: &mut dyn SourceLoader,
+    remote: &mut dyn RemoteResolver,
+) -> CheckOutput {
+    let loaded = load_with_remote(entries, loader, remote);
+
+    // If a file could not be read, parsed, or fetched, type checking would only
+    // add cascading "unknown type" noise. Report the load errors instead.
+    if !loaded.diagnostics.is_empty() {
+        return CheckOutput {
+            program: loaded.program,
+            diagnostics: loaded
+                .diagnostics
+                .into_iter()
+                .map(|(path, diagnostic)| FileDiagnostic { path, diagnostic })
+                .collect(),
+            types: TypeTable::default(),
+        };
+    }
+
     let (program, module_diagnostics, types) = check_program(loaded.program);
 
     let mut diagnostics: Vec<FileDiagnostic> = loaded

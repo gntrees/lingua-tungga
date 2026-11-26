@@ -17,7 +17,10 @@ pub struct Program {
 #[derive(Debug)]
 pub struct Module {
     pub id: ModuleId,
+    /// Local path, or a synthetic path for remote modules (stable output name).
     pub path: PathBuf,
+    /// Canonical URL for modules that came from an `https://` import.
+    pub origin: Option<String>,
     pub source: String,
     pub ast: ast::File,
     pub imports: Vec<ImportInfo>,

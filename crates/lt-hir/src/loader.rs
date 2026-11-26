@@ -1,4 +1,4 @@
-//! Module loading: parse files, follow imports, detect cycles.
+//! Module loading: parse files, follow imports (local and remote), detect cycles.
 
 use std::collections::HashMap;
 use std::path::{Component, Path, PathBuf};
@@ -31,7 +31,8 @@ impl MapLoader {
     }
 
     pub fn add(&mut self, path: &str, source: &str) {
-        self.files.insert(normalize(PathBuf::from(path)), source.to_string());
+        self.files
+            .insert(normalize(PathBuf::from(path)), source.to_string());
     }
 }
 
@@ -41,22 +42,54 @@ impl SourceLoader for MapLoader {
     }
 }
 
+/// A remote file that has been fetched and pinned.
+#[derive(Debug, Clone)]
+pub struct ResolvedRemote {
+    /// URL containing the content hash or commit, used for further imports.
+    pub canonical_url: String,
+    pub content: String,
+    pub sha256: String,
+}
+
+/// Resolves `https://` imports. The package manager implements this.
+pub trait RemoteResolver {
+    fn resolve(&mut self, url: &str) -> Result<ResolvedRemote, String>;
+}
+
+/// Default resolver: remote imports are an error.
+pub struct NoRemote;
+
+impl RemoteResolver for NoRemote {
+    fn resolve(&mut self, _url: &str) -> Result<ResolvedRemote, String> {
+        Err("remote imports need the package manager (run `lt build` with a lockfile-aware command)".to_string())
+    }
+}
+
 pub struct LoadResult {
     pub program: Program,
     pub diagnostics: Vec<(PathBuf, Diagnostic)>,
 }
 
-/// Load every entry and everything it imports into one program.
 pub fn load(entries: &[PathBuf], loader: &mut dyn SourceLoader) -> LoadResult {
+    load_with_remote(entries, loader, &mut NoRemote)
+}
+
+pub fn load_with_remote(
+    entries: &[PathBuf],
+    loader: &mut dyn SourceLoader,
+    remote: &mut dyn RemoteResolver,
+) -> LoadResult {
     let mut state = Loader {
         loader,
+        remote,
         modules: Vec::new(),
         by_path: HashMap::new(),
+        by_url: HashMap::new(),
         stack: Vec::new(),
         diagnostics: Vec::new(),
     };
     for entry in entries {
-        state.load(normalize(entry.clone()));
+        state.load_local(normalize(entry.clone()));
     }
     LoadResult {
         program: Program {
@@ -66,37 +99,30 @@ pub fn load(entries: &[PathBuf], loader: &mut dyn SourceLoader) -> LoadResult {
     }
 }
 
+enum Parent {
+    Local(PathBuf),
+    Remote(String),
+}
+
 struct Loader<'a> {
     loader: &'a mut dyn SourceLoader,
+    remote: &'a mut dyn RemoteResolver,
     modules: Vec<Module>,
     by_path: HashMap<PathBuf, ModuleId>,
+    by_url: HashMap<String, ModuleId>,
     stack: Vec<PathBuf>,
     diagnostics: Vec<(PathBuf, Diagnostic)>,
 }
 
 impl<'a> Loader<'a> {
-    fn load(&mut self, path: PathBuf) -> Option<ModuleId> {
+    fn load_local(&mut self, path: PathBuf) -> Option<ModuleId> {
         if let Some(position) = self.stack.iter().position(|p| p == &path) {
-            let mut chain: Vec<String> = self.stack[position..]
-                .iter()
-                .map(|p| p.display().to_string())
-                .collect();
-            chain.push(path.display().to_string());
-            self.diagnostics.push((
-                path.clone(),
-                Diagnostic::error(
-                    format!("import cycle: {}", chain.join(" -> ")),
-                    Span::default(),
-                    1,
-                    1,
-                ),
-            ));
+            self.cycle_error(position, &path);
             return None;
         }
         if let Some(&id) = self.by_path.get(&path) {
             return Some(id);
         }
-
         let Some(source) = self.loader.read(&path) else {
             self.diagnostics.push((
                 path.clone(),
@@ -110,15 +136,61 @@ impl<'a> Loader<'a> {
             return None;
         };
 
+        let parent = Parent::Local(path.parent().map(Path::to_path_buf).unwrap_or_default());
+        let id = self.load_module(path.clone(), source, None, parent);
+        self.by_path.insert(path, id);
+        Some(id)
+    }
+
+    fn load_remote(&mut self, url: &str) -> Option<ModuleId> {
+        let resolved = match self.remote.resolve(url) {
+            Ok(resolved) => resolved,
+            Err(message) => {
+                self.diagnostics.push((
+                    PathBuf::from(url),
+                    Diagnostic::error(message, Span::default(), 1, 1),
+                ));
+                return None;
+            }
+        };
+
+        if let Some(&id) = self.by_url.get(&resolved.canonical_url) {
+            return Some(id);
+        }
+
+        let identity = remote_identity(&resolved.canonical_url, &resolved.sha256);
+        if let Some(position) = self.stack.iter().position(|p| p == &identity) {
+            self.cycle_error(position, &identity);
+            return None;
+        }
+
+        let parent = Parent::Remote(resolved.canonical_url.clone());
+        let id = self.load_module(
+            identity.clone(),
+            resolved.content,
+            Some(resolved.canonical_url.clone()),
+            parent,
+        );
+        self.by_url.insert(resolved.canonical_url, id);
+        Some(id)
+    }
+
+    fn load_module(
+        &mut self,
+        path: PathBuf,
+        source: String,
+        origin: Option<String>,
+        parent: Parent,
+    ) -> ModuleId {
         let parsed = parse(&source);
         self.diagnostics
             .extend(parsed.diagnostics.into_iter().map(|d| (path.clone(), d)));
 
         let id = self.modules.len();
-        self.by_path.insert(path.clone(), id);
         self.modules.push(Module {
             id,
             path: path.clone(),
+            origin,
             source,
             ast: parsed.file,
             imports: Vec::new(),
@@ -126,55 +198,46 @@ impl<'a> Loader<'a> {
             enums: Vec::new(),
         });
 
-        self.stack.push(path.clone());
-        let parent = path.parent().map(Path::to_path_buf).unwrap_or_default();
+        self.stack.push(path);
         let imports = self.modules[id].ast.imports.clone();
         let source = self.modules[id].source.clone();
 
         for decl in imports {
-            if decl.path.starts_with("http://") || decl.path.starts_with("https://") {
+            let (child, is_remote) = if decl.path.starts_with("http://")
+                || decl.path.starts_with("https://")
+            {
+                (self.load_remote(&decl.path), true)
+            } else if !decl.path.starts_with("./") && !decl.path.starts_with("../") {
                 let loc = line_col_at(&source, decl.span.start);
                 self.diagnostics.push((
-                    path.clone(),
+                    self.modules[id].path.clone(),
                     Diagnostic::error(
-                        format!(
-                            "remote import `{}` needs the package manager, which lands in M7; \
-                             vendor the file and import it with a relative path for now",
-                            decl.path
-                        ),
+                        format!("import path `{}` must start with `./`, `../`, or `https://`", decl.path),
                         decl.span,
                         loc.line,
                         loc.col,
                     ),
                 ));
                 continue;
-            }
-            if !decl.path.starts_with("./") && !decl.path.starts_with("../") {
-                let loc = line_col_at(&source, decl.span.start);
-                self.diagnostics.push((
-                    path.clone(),
-                    Diagnostic::error(
-                        format!(
-                            "import path `{}` must start with `./` or `../`",
-                            decl.path
-                        ),
-                        decl.span,
-                        loc.line,
-                        loc.col,
-                    ),
-                ));
-                continue;
-            }
+            } else {
+                match &parent {
+                    Parent::Local(dir) => (self.load_local(normalize(dir.join(&decl.path))), false),
+                    Parent::Remote(base) => {
+                        let joined = join_url(base, &decl.path);
+                        (self.load_remote(&joined), true)
+                    }
+                }
+            };
 
-            let target = normalize(parent.join(&decl.path));
-            let Some(child) = self.load(target) else {
+            let Some(child) = child else {
                 continue;
             };
+            let _ = is_remote;
 
             if self.modules[id].imports.iter().any(|i| i.name == decl.name) {
                 let loc = line_col_at(&source, decl.span.start);
                 self.diagnostics.push((
-                    path.clone(),
+                    self.modules[id].path.clone(),
                     Diagnostic::error(
                         format!("`{}` is imported twice in this file", decl.name),
                         decl.span,
@@ -193,8 +256,88 @@ impl<'a> Loader<'a> {
         }
 
         self.stack.pop();
-        Some(id)
+        id
     }
+
+    fn cycle_error(&mut self, position: usize, path: &Path) {
+        let mut chain: Vec<String> = self.stack[position..]
+            .iter()
+            .map(|p| self.display_path(p))
+            .collect();
+        chain.push(self.display_path(path));
+        self.diagnostics.push((
+            path.to_path_buf(),
+            Diagnostic::error(
+                format!("import cycle: {}", chain.join(" -> ")),
+                Span::default(),
+                1,
+                1,
+            ),
+        ));
+    }
+
+    fn display_path(&self, path: &Path) -> String {
+        self.modules
+            .iter()
+            .find(|module| module.path == path)
+            .and_then(|module| module.origin.clone())
+            .unwrap_or_else(|| path.display().to_string())
+    }
+}
+
+/// Stable synthetic path for a remote module, used for output naming and cycles.
+fn remote_identity(canonical_url: &str, sha256: &str) -> PathBuf {
+    let (host, path) = split_url(canonical_url);
+    let host: String = host
+        .chars()
+        .map(|ch| if ch.is_ascii_alphanumeric() { ch } else { '_' })
+        .collect();
+    let digest = &sha256[..sha256.len().min(8)];
+    PathBuf::from(format!(
+        "remote/{host}/{digest}/{}",
+        path.trim_start_matches('/')
+    ))
+}
+
+fn split_url(url: &str) -> (String, String) {
+    let without_scheme = url
+        .strip_prefix("https://")
+        .or_else(|| url.strip_prefix("http://"))
+        .unwrap_or(url);
+    match without_scheme.split_once('/') {
+        Some((host, path)) => (host.to_string(), path.to_string()),
+        None => (without_scheme.to_string(), String::new()),
+    }
+}
+
+/// Join a relative import against a canonical URL, normalizing `.` and `..`.
+pub fn join_url(base: &str, relative: &str) -> String {
+    if relative.starts_with("http://") || relative.starts_with("https://") {
+        return relative.to_string();
+    }
+    let prefix = if base.starts_with("https://") {
+        "https://"
+    } else {
+        "http://"
+    };
+    let without_scheme = base
+        .strip_prefix("https://")
+        .or_else(|| base.strip_prefix("http://"))
+        .unwrap_or(base);
+    let mut segments: Vec<&str> = without_scheme.split('/').collect();
+    segments.pop();
+    for part in relative.split('/') {
+        match part {
+            "" | "." => {}
+            ".." => {
+                if segments.len() > 1 {
+                    segments.pop();
+                }
+            }
+            other => segments.push(other),
+        }
+    }
+    format!("{prefix}{}", segments.join("/"))
 }
 
 /// Lexically normalize a path: drop `.`, resolve `..`, keep it relative.

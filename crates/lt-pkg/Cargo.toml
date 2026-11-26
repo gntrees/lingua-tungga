@@ -1,0 +1,11 @@
+[package]
+name = "lt-pkg"
+description = "URL imports, lockfile, and cache for Lingua Tungga"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+lt-hir = { path = "../lt-hir" }
+sha2 = "0.10"
