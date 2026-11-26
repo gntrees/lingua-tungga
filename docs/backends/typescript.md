@@ -1,0 +1,52 @@
+# Backend TypeScript
+
+Target pertama, dipakai untuk memvalidasi IR dan semantik.
+
+## Representasi
+
+| LT | TypeScript |
+|---|---|
+| `Int` (i64) | `bigint` + `BigInt.asIntN(64, …)` di setiap operasi |
+| `Float` | `number` |
+| `Str` | `string`, index/len dihitung per code point (`[...s]`) |
+| `Bool` | `boolean` |
+| `List<T>` | `lt.LList<T>` (immutable, copy-on-write) |
+| `Map<K,V>` | `lt.LMap<K,V>` (entry terurut `Ord`, lookup O(n)) |
+| `Set<T>` | `lt.LSet<T>` |
+| `Option<T>` | `lt.Opt<T>` = union `{tag:"some"|"none", values, __lt_display}` |
+| `Result<T,E>` | `lt.Res<T,E>` = union `{tag:"ok"|"err", …}` |
+| `enum` | discriminating union + konstruktor `Enum_Variant(...)` |
+| `class` | `class` dengan field `readonly`, konstruktor objek, `__lt_eq`, `__lt_to_string` |
+| `Display` | `lt.disp(value)` |
+| `Eq` | `lt.eq(a, b)` |
+| `Ord` | `lt.cmp(a, b)` |
+| `?` pada `Result`/`Option` | `const t = …; if (t.tag === "err"/"none") return t;` |
+| template | konkatenasi `+ lt.disp(...)` |
+| tagged template | pemanggilan static method dengan dua `LList<string>` |
+| JSX | `new Class({ field: …, children: new LList([...]) })` |
+| `match` | `switch (value.tag)` |
+
+## Struktur paket
+
+```
+out/ts/
+  _lingua_rt.ts      runtime inline (di-embed dari runtimes/ts/runtime.ts)
+  package.json
+  tsconfig.json      strict, ES2022, noEmit
+  src/<module>.ts    satu file per modul LT
+```
+
+Import antar modul memakai namespace `m<id>` (`import * as m1 from "./user"`), sehingga tidak ada tabrakan nama.
+
+## Penamaan
+
+- field, method, parameter, variabel lokal: `snake_case` → `camelCase`
+- class, enum, varian: tetap `PascalCase`
+- kata kunci TypeScript diberi akhiran `_`
+
+## Batasan v1
+
+- Pola `match` bertingkat (`Ok(Some(x))`) ditolak saat lowering.
+- `?` di dalam lambda ditolak typechecker (akan `return` dari lambda, bukan method).
+- `Json`/`Value` belum ada.
+- Implementasi `Map`/`Set` memakai pencarian linear; cukup untuk library logika, bukan untuk data besar.

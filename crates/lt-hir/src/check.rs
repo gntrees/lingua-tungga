@@ -9,14 +9,17 @@ use lt_syntax::{Diagnostic, Span};
 use crate::program::{
     builtin_enum, ClassInfo, DeclKind, EnumInfo, MethodInfo, ModuleId, Program, VariantInfo,
 };
-use crate::types::{mentions_any_generic, substitute, Subst, Ty, TypeName};
+use crate::types::{mentions_any_generic, substitute, Subst, Ty, TypeName, TypeTable};
 
-pub fn check_program(mut program: Program) -> (Program, Vec<(ModuleId, Diagnostic)>) {
+pub fn check_program(
+    mut program: Program,
+) -> (Program, Vec<(ModuleId, Diagnostic)>, TypeTable) {
     let mut diagnostics = Vec::new();
+    let mut types = TypeTable::default();
     collect_declarations(&mut program, &mut diagnostics);
     resolve_declarations(&mut program, &mut diagnostics);
-    check_bodies(&program, &mut diagnostics);
-    (program, diagnostics)
+    check_bodies(&program, &mut diagnostics, &mut types);
+    (program, diagnostics, types)
 }
 
 fn diag(diagnostics: &mut Vec<Diagnostic>, src: &str, span: Span, message: String) {
@@ -452,7 +455,11 @@ fn lookup_decl(
 
 // ---------------------------------------------------------------- body checking
 
-fn check_bodies(program: &Program, diagnostics: &mut Vec<(ModuleId, Diagnostic)>) {
+fn check_bodies(
+    program: &Program,
+    diagnostics: &mut Vec<(ModuleId, Diagnostic)>,
+    types: &mut TypeTable,
+) {
     for module in &program.modules {
         for item in &module.ast.items {
             match item {
@@ -495,6 +502,9 @@ fn check_bodies(program: &Program, diagnostics: &mut Vec<(ModuleId, Diagnostic)>
                             " as the method result",
                         );
                         checker.scopes.pop();
+                        for ((start, end), ty) in checker.types {
+                            types.insert(module.id, (start, end), ty);
+                        }
                         diagnostics.extend(checker.diags.into_iter().map(|d| (module.id, d)));
                     }
                 }
@@ -513,6 +523,9 @@ fn check_bodies(program: &Program, diagnostics: &mut Vec<(ModuleId, Diagnostic)>
                         let body_ty = checker.check_block(&helper.body, Some(&Ty::Unit));
                         checker.expect(helper.body.span, &Ty::Unit, &body_ty, " as the method result");
                         checker.scopes.pop();
+                        for ((start, end), ty) in checker.types {
+                            types.insert(module.id, (start, end), ty);
+                        }
                         diagnostics.extend(checker.diags.into_iter().map(|d| (module.id, d)));
                     }
                     diagnostics.extend(local.into_iter().map(|d| (module.id, d)));
@@ -524,6 +537,9 @@ fn check_bodies(program: &Program, diagnostics: &mut Vec<(ModuleId, Diagnostic)>
                         let body_ty = checker.check_block(&test.body, Some(&Ty::Unit));
                         checker.expect(test.body.span, &Ty::Unit, &body_ty, " as the test result");
                         checker.scopes.pop();
+                        for ((start, end), ty) in checker.types {
+                            types.insert(module.id, (start, end), ty);
+                        }
                         diagnostics.extend(checker.diags.into_iter().map(|d| (module.id, d)));
                     }
                 }
@@ -551,6 +567,8 @@ struct Checker<'a> {
     self_ty: Option<Ty>,
     ret: Ty,
     in_test: bool,
+    in_lambda: bool,
+    types: HashMap<(usize, usize), Ty>,
 }
 
 impl<'a> Checker<'a> {
@@ -567,6 +585,8 @@ impl<'a> Checker<'a> {
             self_ty: None,
             ret: Ty::Unit,
             in_test: false,
+            in_lambda: false,
+            types: HashMap::new(),
         }
     }
 
@@ -908,6 +928,18 @@ impl<'a> Checker<'a> {
     // ----------------------------------------------------------- expressions
 
     fn check_expr(&mut self, expr: &ast::Expr, expected: Option<&Ty>) -> Ty {
+        let ty = self.check_expr_shallow(expr, expected);
+        self.record_type(expr, &ty);
+        ty
+    }
+
+    fn record_type(&mut self, expr: &ast::Expr, ty: &Ty) {
+        let span = expr.span();
+        let resolved = self.resolve_deep(ty);
+        self.types.insert((span.start, span.end), resolved);
+    }
+
+    fn check_expr_shallow(&mut self, expr: &ast::Expr, expected: Option<&Ty>) -> Ty {
         match expr {
             ast::Expr::Int { .. } => Ty::Int,
             ast::Expr::Float { .. } => Ty::Float,
@@ -1106,6 +1138,14 @@ impl<'a> Checker<'a> {
     }
 
     fn check_try(&mut self, value: &ast::Expr, span: Span) -> Ty {
+        if self.in_lambda {
+            self.diag(
+                span,
+                "`?` cannot be used inside a lambda: it would return from the lambda, not the method"
+                    .to_string(),
+            );
+            return Ty::Error;
+        }
         let inner = self.check_expr(value, None);
         match self.resolve_deep(&inner) {
             Ty::Option(inner_ty) => {
@@ -2469,10 +2509,13 @@ impl<'a> Checker<'a> {
         for (name, ty) in names.iter().zip(params.iter()) {
             self.declare(name, ty.clone(), false, *span);
         }
+        let previous = self.in_lambda;
+        self.in_lambda = true;
         let result = match body {
             LambdaBody::Expr(expr) => self.check_expr(expr, None),
             LambdaBody::Block(block) => self.check_block(block, None),
         };
+        self.in_lambda = previous;
         self.scopes.pop();
         Some(result)
     }

@@ -23,10 +23,12 @@ lt test -t go       # jalankan conformance suite di target Go
 Hari ini yang sudah bisa dipakai:
 
 ```sh
-lt check src/       # resolve import + typecheck seluruh graf
-lt fmt src/         # format kanonik (idempoten)
-lt fmt --check src/ # exit 1 kalau ada file belum terformat
-lt ast src/a.lt     # dump AST untuk debugging
+lt check src/                          # resolve import + typecheck seluruh graf
+lt fmt src/                            # format kanonik (idempoten)
+lt fmt --check src/                    # exit 1 kalau ada file belum terformat
+lt ast src/a.lt                        # dump AST untuk debugging
+lt ir src/a.lt                         # dump IR hasil lowering
+lt build -t ts examples/validator.lt   # → out/ts, package TypeScript siap tsc
 ```
 
 ## Bukan Haxe
@@ -37,7 +39,7 @@ Lingua Tungga tidak punya runtime sendiri, tidak punya UI, tidak punya `main`, d
 
 | | |
 |---|---|
-| Fase | M2 — resolusi modul + typechecker (`lt-hir`) |
+| Fase | M3 — IR + backend TypeScript (`lt-ir`, `lt-emit-ts`) |
 | Bahasa | ekstensi `.lt` |
 | Compiler | Rust, binary `lt` |
 | Target | TypeScript, Python, Go (100% conformance) |
@@ -56,4 +58,4 @@ cargo test
 cargo clippy --all-targets -- -D warnings
 ```
 
-Struktur saat ini: `crates/lt-syntax` (lexer, AST, parser, formatter, diagnostik) dan `crates/lt-hir` (loader modul, tabel simbol, typechecker). `crates/lt-cli` menyediakan binary `lt`. Total 109 test. IR dan emitter menyusul sesuai milestone di `PLAN.md`.
+Struktur saat ini: `lt-syntax` (lexer, AST, parser, formatter), `lt-hir` (loader modul, tabel simbol, typechecker), `lt-ir` (typed IR + lowering), `lt-emit-ts` (backend TypeScript + runtime inline), dan `lt-cli` (binary `lt`). Total 119 test. Backend Python dan Go menyusul sesuai milestone di `PLAN.md`.

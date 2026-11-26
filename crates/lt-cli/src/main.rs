@@ -7,6 +7,7 @@ use std::process::exit;
 use std::collections::HashMap;
 
 use lt_hir::{check_entries, FsLoader};
+use lt_ir::lower_program;
 use lt_syntax::{format_file, parse, span::line_col_at, tokenize_full, Diagnostic};
 
 fn main() {
@@ -27,6 +28,8 @@ fn run(args: &[String]) -> i32 {
         Some("check") => cmd_check(&args[1..]),
         Some("fmt") => cmd_fmt(&args[1..]),
         Some("ast") => cmd_ast(&args[1..]),
+        Some("build") => cmd_build(&args[1..]),
+        Some("ir") => cmd_ir(&args[1..]),
         Some(other) => {
             eprintln!("lt: unknown command `{other}`");
             usage();
@@ -40,9 +43,11 @@ fn usage() {
         "lt — Lingua Tungga toolchain
 
 usage:
-  lt check <path>...        parse files and report diagnostics
+  lt check <path>...        resolve imports and type check
   lt fmt [--check] <path>   format files in place (or check formatting)
   lt ast <path>             parse and dump the AST (debugging)
+  lt build -t ts <entry>    compile to a TypeScript package (default out/ts)
+  lt ir <entry>             lower to IR and dump it (debugging)
 
 paths may be files or directories (searched recursively for *.lt)"
     );
@@ -116,21 +121,168 @@ fn cmd_check(inputs: &[String]) -> i32 {
         return 0;
     }
 
-    let sources: HashMap<PathBuf, &str> = out
+    print_file_diagnostics(&out);
+    1
+}
+
+fn prepare(entry: &Path) -> Result<(lt_hir::CheckOutput, lt_ir::IrProgram), i32> {
+    let mut loader = FsLoader;
+    let checked = check_entries(&[entry.to_path_buf()], &mut loader);
+    if !checked.is_ok() {
+        print_file_diagnostics(&checked);
+        return Err(1);
+    }
+
+    let root = entry
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| PathBuf::from("."));
+
+    let mut names = Vec::new();
+    for module in &checked.program.modules {
+        let relative = match module.path.strip_prefix(&root) {
+            Ok(relative) => relative,
+            Err(_) => {
+                eprintln!(
+                    "lt: `{}` is outside the entry directory `{}`",
+                    module.path.display(),
+                    root.display()
+                );
+                return Err(1);
+            }
+        };
+        let name = relative
+            .with_extension("")
+            .components()
+            .map(|component| component.as_os_str().to_string_lossy().to_string())
+            .collect::<Vec<_>>()
+            .join("/");
+        names.push(name);
+    }
+
+    let (ir, lower_diagnostics) = lower_program(&checked.program, &checked.types, names);
+    if !lower_diagnostics.is_empty() {
+        for (module, diagnostic) in &lower_diagnostics {
+            let path = &checked.program.modules[*module].path;
+            let source = &checked.program.modules[*module].source;
+            eprintln!("{}", diagnostic.render(&path.display().to_string(), source));
+        }
+        return Err(1);
+    }
+
+    Ok((checked, ir))
+}
+
+fn cmd_ir(args: &[String]) -> i32 {
+    let Some(path) = args.first() else {
+        eprintln!("lt: `ir` needs an entry file");
+        return 2;
+    };
+    match prepare(Path::new(path)) {
+        Ok((_, ir)) => {
+            println!("{ir:#?}");
+            0
+        }
+        Err(code) => code,
+    }
+}
+
+fn cmd_build(args: &[String]) -> i32 {
+    let mut target = "ts".to_string();
+    let mut out_dir = PathBuf::from("out");
+    let mut entry: Option<PathBuf> = None;
+
+    let mut index = 0;
+    while index < args.len() {
+        match args[index].as_str() {
+            "-t" | "--target" => {
+                index += 1;
+                match args.get(index) {
+                    Some(value) => target = value.clone(),
+                    None => {
+                        eprintln!("lt: `-t` needs a target name");
+                        return 2;
+                    }
+                }
+            }
+            "--out" => {
+                index += 1;
+                match args.get(index) {
+                    Some(value) => out_dir = PathBuf::from(value),
+                    None => {
+                        eprintln!("lt: `--out` needs a directory");
+                        return 2;
+                    }
+                }
+            }
+            flag if flag.starts_with('-') => {
+                eprintln!("lt: unknown flag `{flag}`");
+                return 2;
+            }
+            path => {
+                if entry.is_some() {
+                    eprintln!("lt: `build` takes exactly one entry file");
+                    return 2;
+                }
+                entry = Some(PathBuf::from(path));
+            }
+        }
+        index += 1;
+    }
+
+    if target != "ts" {
+        eprintln!("lt: unknown target `{target}`; available: ts");
+        return 2;
+    }
+
+    let Some(entry) = entry else {
+        eprintln!("lt: `build` needs an entry file");
+        return 2;
+    };
+
+    let (checked, ir) = match prepare(&entry) {
+        Ok(prepared) => prepared,
+        Err(code) => return code,
+    };
+
+    let out_dir = out_dir.join(&target);
+    let files = lt_emit_ts::emit_package(&ir);
+    for file in &files {
+        let path = out_dir.join(&file.path);
+        if let Some(parent) = path.parent() {
+            if let Err(error) = std::fs::create_dir_all(parent) {
+                eprintln!("lt: {}: {error}", parent.display());
+                return 1;
+            }
+        }
+        if let Err(error) = std::fs::write(&path, &file.contents) {
+            eprintln!("lt: {}: {error}", path.display());
+            return 1;
+        }
+    }
+
+    println!(
+        "built {} module(s) to {}",
+        checked.program.modules.len(),
+        out_dir.display()
+    );
+    0
+}
+
+fn print_file_diagnostics(checked: &lt_hir::CheckOutput) {
+    let sources: HashMap<PathBuf, &str> = checked
         .program
         .modules
         .iter()
         .map(|module| (module.path.clone(), module.source.as_str()))
         .collect();
-
-    for file in &out.diagnostics {
+    for file in &checked.diagnostics {
         let name = file.path.display().to_string();
         match sources.get(&file.path) {
             Some(source) => eprintln!("{}", file.diagnostic.render(&name, source)),
             None => eprintln!("error: {}: {}", name, file.diagnostic.message),
         }
     }
-    1
 }
 
 fn cmd_ast(inputs: &[String]) -> i32 {

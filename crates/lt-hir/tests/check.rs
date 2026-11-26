@@ -503,3 +503,17 @@ pub class A {
 "#;
     assert_has(&[("a.lt", src)], "a.lt", "no method `unknown_method`");
 }
+
+#[test]
+fn question_mark_inside_lambda_is_rejected() {
+    let src = r#"
+pub class A {
+  fn inner(x: Int) -> Result<Int, Str> { Ok(x) }
+
+  fn outer(xs: List<Int>) -> Result<List<Int>, Str> {
+    Ok(xs.map(fn(x) => A.inner(x)?))
+  }
+}
+"#;
+    assert_has(&[("a.lt", src)], "a.lt", "`?` cannot be used inside a lambda");
+}

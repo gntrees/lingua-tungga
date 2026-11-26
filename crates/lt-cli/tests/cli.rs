@@ -134,3 +134,84 @@ fn examples_typecheck() {
         String::from_utf8_lossy(&output.stderr)
     );
 }
+
+#[test]
+fn build_emits_a_typescript_package() {
+    let dir = temp_dir("build");
+    let entry = dir.join("user.lt");
+    std::fs::write(&entry, "pub class User {\n  name: Str\n  pub fn greet(self) -> Str { `hi ${self.name}` }\n}\n").unwrap();
+
+    let out = dir.join("out");
+    let output = Command::new(bin())
+        .arg("build")
+        .arg("-t")
+        .arg("ts")
+        .arg(&entry)
+        .arg("--out")
+        .arg(&out)
+        .output()
+        .unwrap();
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let file = out.join("ts/src/user.ts");
+    let contents = std::fs::read_to_string(&file).unwrap();
+    assert!(contents.contains("export class User"), "{contents}");
+    assert!(contents.contains("import * as lt from \"../_lingua_rt\";"));
+    assert!(out.join("ts/_lingua_rt.ts").is_file());
+    assert!(out.join("ts/package.json").is_file());
+    assert!(out.join("ts/tsconfig.json").is_file());
+
+    // Rebuilding produces byte-identical output.
+    let first = contents;
+    let output = Command::new(bin())
+        .arg("build")
+        .arg("-t")
+        .arg("ts")
+        .arg(&entry)
+        .arg("--out")
+        .arg(&out)
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(0));
+    let second = std::fs::read_to_string(file).unwrap();
+    assert_eq!(first, second);
+}
+
+#[test]
+fn build_refuses_type_errors() {
+    let dir = temp_dir("build-bad");
+    let entry = dir.join("bad.lt");
+    std::fs::write(&entry, "pub class A { x: Missing }\n").unwrap();
+
+    let output = Command::new(bin())
+        .arg("build")
+        .arg("-t")
+        .arg("ts")
+        .arg(&entry)
+        .arg("--out")
+        .arg(dir.join("out"))
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("unknown type"), "{stderr}");
+    assert!(!dir.join("out/ts/src/bad.ts").exists());
+}
+
+#[test]
+fn ir_command_dumps_lowering() {
+    let dir = temp_dir("ir");
+    let entry = dir.join("a.lt");
+    std::fs::write(&entry, "pub class A { x: Int }\n").unwrap();
+
+    let output = Command::new(bin()).arg("ir").arg(&entry).output().unwrap();
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("IrProgram"), "{stdout}");
+    assert!(stdout.contains("IrClass"), "{stdout}");
+}

@@ -239,6 +239,7 @@ Catatan pemetaan: Python membulatkan ke bawah untuk `//` dan `%`-nya mengikuti p
 ## 9. `?` — Propagasi
 
 - `expr?` pada `Option<T>` hanya sah di method yang return `Option<U>`.
+- `?` tidak boleh dipakai di dalam lambda: `return`-nya akan keluar dari lambda, bukan dari method.
 - `expr?` pada `Result<T, E>` hanya sah di method yang return `Result<U, E>`.
 - Tidak boleh campur `Option` dan `Result` dalam satu method di v1.
 - `None`/`Err` langsung di-`return`; selain itu mengekstrak nilai.
@@ -357,6 +358,7 @@ Trap dipetakan ke mekanisme native target (panic/exception) tetapi **tidak perna
 - Setiap paket output punya satu file runtime inline (`_lingua_rt.ts`, `_lingua_rt.py`, `rt.go`).
 - Tabel pemetaan tipe & konstruksi: lihat [PLAN.md §5](../PLAN.md).
 - Kode user wajib lulus `tsc --strict`, `ruff` + `mypy --strict`, `go vet` + `gofmt -l`.
+- Pemetaan konkret untuk backend TypeScript ada di [`backends/typescript.md`](backends/typescript.md). Batasan backend v1 (mis. pola `match` bertingkat) didokumentasikan di sana dan selalu muncul sebagai compile error, bukan perbedaan perilaku.
 
 ---
 

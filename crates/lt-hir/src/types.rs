@@ -113,6 +113,30 @@ impl fmt::Display for Ty {
 
 pub type Subst = HashMap<String, Ty>;
 
+/// Types of every checked expression, keyed by module and byte span.
+#[derive(Debug, Default)]
+pub struct TypeTable {
+    entries: HashMap<(usize, usize, usize), Ty>,
+}
+
+impl TypeTable {
+    pub fn insert(&mut self, module: usize, span: (usize, usize), ty: Ty) {
+        self.entries.insert((module, span.0, span.1), ty);
+    }
+
+    pub fn get(&self, module: usize, span: (usize, usize)) -> Option<&Ty> {
+        self.entries.get(&(module, span.0, span.1))
+    }
+
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+}
+
 pub fn substitute(ty: &Ty, subst: &Subst) -> Ty {
     match ty {
         Ty::Generic(name) => subst.get(name).cloned().unwrap_or_else(|| ty.clone()),

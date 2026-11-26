@@ -1,0 +1,11 @@
+[package]
+name = "lt-ir"
+description = "Typed, target-neutral IR and lowering for Lingua Tungga"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+lt-syntax = { path = "../lt-syntax" }
+lt-hir = { path = "../lt-hir" }
