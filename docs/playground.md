@@ -16,7 +16,7 @@ framework JS).
 ```
 playground/
   features.toml            # daftar fitur (id, judul, referensi spec)
-  cases/<grup>/<id>.lt     # kasus executable (wajib punya test class)
+  cases/<grup>/<id>.lt     # kasus executable (wajib punya minimal satu `test "…"`)
   cases/<grup>/<id>.toml   # metadata: title, feature, why
   diagnostics/<id>.lt      # kasus yang WAJIB gagal compile
   diagnostics/<id>.toml    # + expect = "potongan pesan error"
@@ -33,8 +33,8 @@ why = "Python membulatkan ke bawah; LT memilih truncation agar sama di semua tar
 
 ## Menambah kasus
 
-1. Tulis file `.lt` (self-contained; tanpa import) dengan minimal satu
-   `test class`.
+1. Tulis file `.lt` (self-contained; tanpa import) dalam satu blok
+   `package <nama> { … }` dengan minimal satu `test "judul" { … }`.
 2. Tambahkan sidecar `.toml` dengan `title`, `feature`, `why`.
 3. Pastikan `feature` ada di `features.toml` (menambah fitur baru = tambah
    entri di sana).

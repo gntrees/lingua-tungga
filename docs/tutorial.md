@@ -201,8 +201,9 @@ export function genre_label(b: Book): string { /* … */ }
 ```
 
 Nama field/fungsi diubah sesuai konvensi target (`snake_case` → `camelCase` di TypeScript).
-Deklarasi tanpa `export` tetap private di LT, tetapi tetap bisa muncul di output sebagai helper
-yang tidak diekspor.
+Deklarasi tanpa `export` tetap private **di LT**: package lain tidak bisa memanggilnya, termasuk
+lewat sugar receiver. Di output ia diberi prefiks `_` (TypeScript/Python) atau huruf kecil (Go)
+supaya tetap bisa dipakai file test package itu sendiri tanpa dianggap API publik.
 
 ## 7. Import dari GitHub
 

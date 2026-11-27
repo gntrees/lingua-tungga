@@ -430,63 +430,39 @@ test "none city" {
 
 ---
 
-## 9. Milestone
+## 9. Status & Urutan Kerja
 
-Setiap milestone harus hijau sebelum lanjut. Estimasi asumsi ~10 jam/minggu solo.
+Milestone M1–M9 di bawah ini adalah **rencana v1** dan kini hanya bernilai historis: v1 sudah
+dibangun, lalu digantikan oleh desain v2 (`package` + `struct` + fungsi ber-receiver) yang
+mengubah lapisan deklarasi di semua crate. Yang berlaku sekarang adalah tabel status berikut.
 
-### M1 — Frontend (`lt-syntax`)
-- Tokenizer: string, template, tagged template, JSX, komentar, angka.
-- Parser rekursif-descent + AST + span akurat.
-- Diagnostik: `file:line:col`, cuplikan baris, panah kolom, pesan "expected X, found Y".
-- `lt fmt` idempoten; `lt parse --dump-ast`.
-- **Selesai:** 200+ file `.lt` (valid & invalid) menghasilkan error yang benar; formatter idempoten; snapshot test lengkap.
-- Estimasi: 4–8 minggu.
+| Lapis | Kondisi |
+|---|---|
+| `lt-syntax` — lexer, AST, parser, formatter | selesai; 76 test |
+| `lt-hir` — package = modul, checker, privasi, penamaan | selesai; 36 test |
+| `lt-ir` — struct/fungsi/binding/test | selesai |
+| `lt-emit-ts` / `lt-emit-py` / `lt-emit-go` | selesai; emit + golden |
+| `lt-cli` — penamaan output per package | selesai; 19 test |
+| Korpus — conformance, examples, playground, golden | termigrasi ke v2 |
+| Gate lokal (`scripts/check.sh --full`) | hijau: fmt, clippy, 169 test Rust, 45 vitest, 45 pytest + `mypy --strict`, `go test` 13/13, playground 43 kasus + 9 diagnostik |
 
-### M2 — HIR + Typechecker (`lt check`)
-- Resolve import (lokal dulu), deteksi import cycle.
-- Desugar: template, tagged template, JSX, `?`.
-- Typechecker nominal, `Option`/`Result`, generik + constraint, derive `Eq`/`Ord`/`Display`.
-- **Selesai:** semua conformance `.lt` lolos typecheck; error berkualitas sama dengan M1.
-- Estimasi: 8–12 minggu.
+### Urutan kerja yang tersisa
 
-### M3 — IR + emitter TypeScript
-- IR typed-tree + dump S-expr.
-- `lt-emit-ts` + runtime TS inline.
-- `lt build -t ts`.
-- **Selesai:** output TS lulus `tsc --strict`; golden TS ada.
-- Estimasi: 6–10 minggu.
+1. **Keputusan merge.** Branch `explore/package-struct` bersifat breaking (`class` hilang,
+   `pub` → `export`, stdlib lowercase). Pilih: merge ke `main` sebagai v2, atau pertahankan
+   sebagai branch sampai pilot membuktikan.
+2. **Pilot.** Tulis ulang SQL builder di repo pilot sebagai pembuktian bahwa model
+   `package`/`struct` cukup untuk library nyata. Temuan pilot yang menetukan fitur berikutnya.
+3. **Kandidat fitur (belum diputuskan).** `Ordering` di permukaan (butuh konstanta di tiga
+   runtime), pemanggilan builtin berkualifikasi (`list.map(xs, …)`), `enum Value` + `json`,
+   codegen skema eksternal.
 
-### M4 — Conformance TypeScript 100%
-- Suite conformance lengkap (bukan subset).
-- **Selesai:** aturan §8 terpenuhi untuk TS. Rilis binary `lt` pertama.
-- Estimasi: 3–6 minggu.
+### Riwayat v1 (arsip)
 
-### M5 — Emitter + runtime Python 100%
-- Estimasi: 6–10 minggu.
-
-### M6 — Emitter + runtime Go 100%
-- Estimasi: 6–10 minggu.
-
-### M7 — Package manager
-- Fetch URL/git, `lt.lock`, checksum, cache, `lt vendor`, `lt update`.
-- **Selesai:** build reproducible offline; import cycle & checksum mismatch ditolak dengan pesan jelas.
-- Estimasi: 4–8 minggu.
-
-### M8 — Polish
-- Dokumentasi bahasa + tutorial + contoh nyata.
-- Playground statis (WASM) — opsional.
-- **Selesai (versi diturunkan, 2026-11-27):** dokumentasi, tutorial, `examples/library`, playground statis per aturan. Publikasi library ke registry **dipindah ke M9**; sebelumnya bagian ini mensyaratkannya, tetapi kriteria itu tidak pernah diuji dan membuat status milestone ambigu.
-- Estimasi: 4–8 minggu.
-
-### M9 — Distribusi
-- CI di repo `lt`: `fmt`, `clippy -D warnings`, `cargo test`, tiga suite conformance, dan gate evidence playground.
-- Rilis binary `lt` lewat GitHub Releases: `x86_64-unknown-linux-musl`, `aarch64-unknown-linux-musl`, `aarch64-apple-darwin`, `x86_64-apple-darwin`, `x86_64-pc-windows-msvc`, plus checksum per arsip.
-- `scripts/install.sh` (unduh + verifikasi checksum + pasang ke `$LT_PREFIX/bin`).
-- **Selesai:** orang lain bisa memasang `lt` di mesin bersih tanpa Rust, dan setiap PR diverifikasi di CI pada tiga target.
-
-**Total realistis sampai M6:** ~37–64 minggu part-time. Ini alasan target dipangkas ke 3.
-
----
+M1 frontend → M2 HIR/typechecker → M3 IR + emitter TS → M4 conformance TS → M5 Python →
+M6 Go → M7 package manager → M8 polish/playground → M9 distribusi. Semua sudah dikerjakan
+untuk v1; pekerjaan v2 memakai ulang hasilnya (runtime, package manager, playground, distribusi)
+dan hanya mengganti lapisan deklarasi serta emitter.
 
 ## 9b. Arah Setelah M9 (diputuskan 2026-11-27)
 

@@ -178,7 +178,7 @@ Dicatat agar tidak diusulkan ulang tanpa konteks baru.
 | Lapis | Status |
 |---|---|
 | `lt-syntax` (lexer, AST, parser, formatter) | ✅ 75 test |
-| `lt-hir` (package = module, checker v2) | ✅ 32 test |
+| `lt-hir` (package = module, checker v2) | ✅ 36 test |
 | `lt-ir` (struct/fn/binding/test) | ✅ |
 | `lt-emit-ts` / `lt-emit-py` / `lt-emit-go` | ✅ (emit + golden) |
 | `lt-cli` (naming per package) | ✅ 19 test |
