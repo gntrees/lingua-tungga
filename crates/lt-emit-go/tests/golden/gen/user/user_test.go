@@ -11,4 +11,3 @@ import (
 func TestLabelOfAdmin(t *testing.T) {
 	lt.ExpectEqual(m0.NewUser("a", m0.RoleAdmin).Label(), "admin")
 }
-

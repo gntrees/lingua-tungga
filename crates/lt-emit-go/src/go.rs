@@ -130,7 +130,7 @@ pub fn emit_module(program: &IrProgram, module: &IrModule) -> String {
         body.push('\n');
     }
 
-    emitter.header(&body)
+    trim_end(emitter.header(&body))
 }
 
 pub fn emit_tests(program: &IrProgram, module: &IrModule) -> Option<String> {
@@ -192,7 +192,7 @@ pub fn emit_tests(program: &IrProgram, module: &IrModule) -> Option<String> {
     }
     out.push_str(")\n\n");
     out.push_str(&body);
-    Some(out)
+    Some(trim_end(out))
 }
 
 struct Emitter<'a> {
@@ -213,21 +213,29 @@ impl<'a> Emitter<'a> {
             "package {}\n\n",
             package_name(&self.module.name)
         ));
-        out.push_str("import (\n");
+        // gofmt sorts a single import block by path.
+        let mut imports: Vec<(String, String)> = Vec::new();
         if body.contains("lt.") {
-            out.push_str("\tlt \"linguatungga/lt\"\n");
-        }
-        if self.uses_math || body.contains("math.") {
-            out.push_str("\t\"math\"\n");
-        }
-        for id in &self.used {
-            out.push_str(&format!(
-                "\tm{} \"linguatungga/gen/{}\"\n",
-                id,
-                self.program.names[*id]
+            imports.push((
+                "linguatungga/lt".to_string(),
+                "\tlt \"linguatungga/lt\"\n".to_string(),
             ));
         }
-        out.push_str(")\n\n");
+        if self.uses_math || body.contains("math.") {
+            imports.push(("math".to_string(), "\t\"math\"\n".to_string()));
+        }
+        for id in &self.used {
+            let path = format!("linguatungga/gen/{}", self.program.names[*id]);
+            imports.push((path.clone(), format!("\tm{} \"{path}\"\n", id)));
+        }
+        if !imports.is_empty() {
+            imports.sort_by(|a, b| a.0.cmp(&b.0));
+            out.push_str("import (\n");
+            for (_, line) in &imports {
+                out.push_str(line);
+            }
+            out.push_str(")\n\n");
+        }
         out.push_str(body);
         out
     }
@@ -410,15 +418,21 @@ impl<'a> Emitter<'a> {
             class.name,
             use_generics
         ));
-        out.push_str(&format!("\treturn {}{}{{\n", class.name, use_generics));
-        for field in &class.fields {
-            out.push_str(&format!(
-                "\t\t{}: {},\n",
-                export_name(&field.name),
-                local_name(&field.name)
-            ));
+        if class.fields.is_empty() {
+            // gofmt keeps a zero-field literal on one line.
+            out.push_str(&format!("\treturn {}{}{{}}\n", class.name, use_generics));
+        } else {
+            out.push_str(&format!("\treturn {}{}{{\n", class.name, use_generics));
+            for field in &class.fields {
+                out.push_str(&format!(
+                    "\t\t{}: {},\n",
+                    export_name(&field.name),
+                    local_name(&field.name)
+                ));
+            }
+            out.push_str("\t}\n");
         }
-        out.push_str("\t}\n}\n\n");
+        out.push_str("}\n\n");
 
         for method in &class.methods {
             out.push_str(&self.method_decl(class, method));
@@ -852,7 +866,7 @@ impl<'a> Emitter<'a> {
                     .collect();
                 Frag {
                     prelude,
-                    code: format!("lt.NewList([]{} {{{}}})", element, rendered.join(", ")),
+                    code: format!("lt.NewList([]{}{{{}}})", element, rendered.join(", ")),
                 }
             }
             IrExpr::EmptyCollection { ty } => {
@@ -1511,6 +1525,15 @@ fn collect_expr(expr: &IrExpr, used: &mut HashSet<String>) {
         | IrExpr::SelfRef
         | IrExpr::EmptyCollection { .. } => {}
     }
+}
+
+/// gofmt ends a file with exactly one newline and no trailing blank line.
+fn trim_end(mut out: String) -> String {
+    while out.ends_with('\n') {
+        out.pop();
+    }
+    out.push('\n');
+    out
 }
 
 fn format_float(value: f64) -> String {

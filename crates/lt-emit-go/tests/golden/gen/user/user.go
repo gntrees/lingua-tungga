@@ -72,4 +72,3 @@ func (self User) LtCmp(other any) int {
 func (self User) LtDisplay() string {
 	return "User(" + "name: " + lt.Disp(self.Name) + ", " + "role: " + lt.Disp(self.Role) + ")"
 }
-
