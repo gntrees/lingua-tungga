@@ -613,6 +613,59 @@ fn lookup_type(
 fn check_imports(program: &Program, diagnostics: &mut Vec<(ModuleId, Diagnostic)>) {
     for module_id in 0..program.modules.len() {
         let module = &program.modules[module_id];
+
+        // A file's imports are attached to every package it declares, so a name
+        // that is also declared in this package would be ambiguous. Spec §13
+        // says that is an error, and so is importing one name twice.
+        let declared: HashSet<&str> = module
+            .structs
+            .iter()
+            .map(|decl| decl.name.as_str())
+            .chain(module.enums.iter().map(|decl| decl.name.as_str()))
+            .chain(module.functions.iter().map(|decl| decl.name.as_str()))
+            .chain(module.bindings.iter().map(|decl| decl.name.as_str()))
+            .collect();
+        let mut seen: HashSet<&str> = HashSet::new();
+        for import in &module.imports {
+            // Qualifier first, then destructured names, in source order.
+            let mut bindings: Vec<(&str, Span)> = vec![(import.binding.as_str(), import.span)];
+            bindings.extend(
+                import
+                    .items
+                    .iter()
+                    .map(|item| (item.binding.as_str(), item.span)),
+            );
+            for (name, span) in bindings {
+                let loc = line_col_at(&module.source, span.start);
+                if declared.contains(name) {
+                    diagnostics.push((
+                        module_id,
+                        Diagnostic::error(
+                            format!(
+                                "`{name}` is declared in package `{}`; an import may not shadow a local name",
+                                module.name
+                            ),
+                            span,
+                            loc.line,
+                            loc.col,
+                        ),
+                    ));
+                    continue;
+                }
+                if !seen.insert(name) {
+                    diagnostics.push((
+                        module_id,
+                        Diagnostic::error(
+                            format!("`{name}` is imported twice in this file"),
+                            span,
+                            loc.line,
+                            loc.col,
+                        ),
+                    ));
+                }
+            }
+        }
+
         for import in &module.imports {
             let target = &program.modules[import.module];
             for item in &import.items {

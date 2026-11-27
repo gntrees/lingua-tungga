@@ -296,6 +296,78 @@ fn package_names_are_unique_per_build() {
 }
 
 #[test]
+fn import_may_not_shadow_a_local_declaration() {
+    let files = [
+        ("models.lt", pkg("models", USER)),
+        (
+            "app.lt",
+            file(
+                "import models { User } \"./models.lt\"",
+                "app",
+                "export struct User {\n  id: Int\n}\n\nexport fn make() -> User {\n  User(id: 1)\n}",
+            ),
+        ),
+    ];
+    assert_has(
+        &files,
+        "app.lt",
+        "`User` is declared in package `app`; an import may not shadow a local name",
+    );
+}
+
+#[test]
+fn import_qualifier_may_not_shadow_a_local_declaration() {
+    let files = [
+        ("models.lt", pkg("models", USER)),
+        (
+            "app.lt",
+            file(
+                "import models \"./models.lt\"",
+                "app",
+                "let models: Int = 1\n\nexport fn read() -> Int {\n  models\n}",
+            ),
+        ),
+    ];
+    assert_has(
+        &files,
+        "app.lt",
+        "`models` is declared in package `app`; an import may not shadow a local name",
+    );
+}
+
+#[test]
+fn one_name_cannot_be_imported_twice() {
+    let files = [
+        ("a.lt", pkg("alpha", "export fn f() -> Int {\n  1\n}")),
+        (
+            "b.lt",
+            file(
+                "import alpha { f, f as f } \"./a.lt\"",
+                "beta",
+                "export fn g() -> Int {\n  f()\n}",
+            ),
+        ),
+    ];
+    assert_has(&files, "b.lt", "`f` is imported twice in this file");
+}
+
+#[test]
+fn destructured_name_cannot_repeat_the_qualifier() {
+    let files = [
+        ("a.lt", pkg("alpha", "export fn alpha() -> Int {\n  1\n}")),
+        (
+            "b.lt",
+            file(
+                "import alpha { alpha } \"./a.lt\"",
+                "beta",
+                "export fn g() -> Int {\n  alpha()\n}",
+            ),
+        ),
+    ];
+    assert_has(&files, "b.lt", "`alpha` is imported twice in this file");
+}
+
+#[test]
 fn to_string_override_is_used_by_interpolation() {
     let body = r#"
 export struct Price {

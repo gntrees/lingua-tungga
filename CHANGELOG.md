@@ -30,6 +30,9 @@
   tetap dicadangkan walau tidak lagi dipakai.
 - Klarifikasi spec §13: destructuring **tidak** mematikan qualifier — perilaku
   loader selama ini memang begitu, dokumennya yang salah.
+- Aturan spec §13 yang sebelumnya hanya tertulis di dokumen kini ditegakkan:
+  nama import (qualifier maupun hasil destructuring) yang bentrok dengan
+  deklarasi package itu, atau yang diimpor dua kali, menjadi compile error.
 - Korpus playground (50 kasus) dan seluruh metadata sidecar kini berbahasa Inggris.
 - 24 kasus yang sebelumnya hanya berisi `test` sekarang mengekspor fungsi yang
   dipanggil oleh test-nya, sehingga panel output tidak lagi kosong.
