@@ -35,7 +35,7 @@ case "$arch" in
 esac
 
 if [ "$os_part" = "unknown-linux" ]; then
-  target="$arch_part-unknown-linux-musl"
+  target="$arch_part-unknown-linux-gnu"
 else
   target="$arch_part-apple-darwin"
 fi
