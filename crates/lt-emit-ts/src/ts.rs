@@ -137,6 +137,7 @@ struct Frag {
 
 pub fn emit_module(program: &IrProgram, module: &IrModule) -> String {
     let mut emitter = Emitter {
+        program,
         module,
         temps: 0,
         used: BTreeSet::new(),
@@ -186,6 +187,7 @@ pub fn emit_tests(program: &IrProgram, module: &IrModule) -> Option<String> {
     }
 
     let mut emitter = Emitter {
+        program,
         module,
         temps: 0,
         used: BTreeSet::new(),
@@ -227,6 +229,7 @@ pub fn emit_tests(program: &IrProgram, module: &IrModule) -> Option<String> {
 }
 
 struct Emitter<'a> {
+    program: &'a IrProgram,
     module: &'a IrModule,
     temps: usize,
     used: BTreeSet<ModuleId>,
@@ -239,6 +242,37 @@ impl<'a> Emitter<'a> {
     fn temp(&mut self, prefix: &str) -> String {
         self.temps += 1;
         format!("__{prefix}{}", self.temps)
+    }
+
+    /// A function/binding is exported to TypeScript consumers only when the LT
+    /// declaration is `export`; otherwise it keeps an `_` prefix so that
+    /// generated test files can still reach it without advertising it as API.
+    fn value_name(&self, module: ModuleId, name: &str, is_export: bool) -> String {
+        let _ = module;
+        let mut out = if is_export {
+            camel(name)
+        } else {
+            format!("_{}", camel(name))
+        };
+        // `lt` is the runtime namespace in every emitted module.
+        if out == "lt" {
+            out.push('_');
+        }
+        out
+    }
+
+    fn function_exported(&self, module: ModuleId, name: &str) -> bool {
+        self.program.modules[module]
+            .functions
+            .iter()
+            .any(|f| f.name == name && f.is_export)
+    }
+
+    fn binding_exported(&self, module: ModuleId, name: &str) -> bool {
+        self.program.modules[module]
+            .bindings
+            .iter()
+            .any(|b| b.name == name && b.is_export)
     }
 
     fn use_module(&mut self, module: ModuleId) {
@@ -542,10 +576,12 @@ impl<'a> Emitter<'a> {
             .map(|param| format!("{}: {}", camel(&param.name), self.type_ref(&param.ty)))
             .collect();
         let ret = self.return_type(&function.ret);
-        let exported = if function.is_export { "export " } else { "" };
+        let name = self.value_name(self.module.id, &function.name, function.is_export);
+        let generics = Self::generics(&function.generics);
         let mut out = format!(
-            "{exported}function {}({}): {ret} {{\n",
-            camel(&function.name),
+            "export function {}{}({}): {ret} {{\n",
+            name,
+            generics,
             params.join(", ")
         );
         let tail = if matches!(function.ret, Ty::Unit) {
@@ -563,15 +599,15 @@ impl<'a> Emitter<'a> {
 
     fn binding_decl(&mut self, binding: &IrBinding) -> String {
         let frag = self.expr(&binding.value, 0);
-        let exported = if binding.is_export { "export " } else { "" };
+        let name = self.value_name(self.module.id, &binding.name, binding.is_export);
         let mut out = String::new();
         for line in frag.prelude {
             out.push_str(&line);
             out.push('\n');
         }
         out.push_str(&format!(
-            "{exported}const {}: {} = {};\n",
-            camel(&binding.name),
+            "export const {}: {} = {};\n",
+            name,
             self.type_ref(&binding.ty),
             frag.code
         ));
@@ -816,11 +852,13 @@ impl<'a> Emitter<'a> {
                 code: camel(name),
             },
             IrExpr::BindingRef { module, name, .. } => {
+                let exported = self.binding_exported(*module, name);
+                let rendered = self.value_name(*module, name, exported);
                 let code = if *module == self.module.id && !self.tests_mode {
-                    camel(name)
+                    rendered
                 } else {
                     self.use_module(*module);
-                    format!("m{}.{}", module, camel(name))
+                    format!("m{}.{}", module, rendered)
                 };
                 Frag {
                     prelude: Vec::new(),
@@ -942,11 +980,13 @@ impl<'a> Emitter<'a> {
                         frag.code
                     })
                     .collect();
+                let exported = self.function_exported(*module, name);
+                let callee = self.value_name(*module, name, exported);
                 let target = if *module == self.module.id && !self.tests_mode {
-                    camel(name)
+                    callee
                 } else {
                     self.use_module(*module);
-                    format!("m{}.{}", module, camel(name))
+                    format!("m{}.{}", module, callee)
                 };
                 Frag {
                     prelude,

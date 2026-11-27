@@ -183,7 +183,7 @@ Dicatat agar tidak diusulkan ulang tanpa konteks baru.
 | `lt-emit-ts` / `lt-emit-py` / `lt-emit-go` | ✅ (emit + golden) |
 | `lt-cli` (naming per package) | ✅ 19 test |
 | Korpus: conformance, examples, playground, golden | ✅ dimigrasikan |
-| Verifikasi runtime | Go `go test` 13/13 paket; Python `pytest` 45 test; playground 43 kasus + 9 diagnostik. TypeScript belum dijalankan (vitest tidak terpasang di mesin ini). |
+| Verifikasi runtime | Go `go test` 13/13 paket; Python `pytest` 45 test; TypeScript `vitest` 45 test + `tsc --noEmit` bersih; playground 43 kasus + 9 diagnostik. |
 
 ## 12. Urutan kerja
 
