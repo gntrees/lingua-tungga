@@ -18,8 +18,8 @@ pub use loader::{
     ResolvedRemote, SourceLoader,
 };
 pub use program::{
-    builtin_enum, ClassInfo, DeclKind, EnumInfo, FieldInfo, ImportInfo, MethodInfo, Module,
-    ModuleId, Program, VariantInfo,
+    builtin_enum, BindingInfo, DeclKind, EnumInfo, FieldInfo, FnInfo, ImportInfo, ImportItemInfo,
+    Module, ModuleId, Program, StructInfo, TestInfo, VariantInfo,
 };
 pub use types::{Ty, TypeName, TypeTable};
 

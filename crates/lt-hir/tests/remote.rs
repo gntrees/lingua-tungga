@@ -54,20 +54,24 @@ fn check(files: &[(&str, &str)], remote: &[(&str, &str)], entry: &str) -> lt_hir
 }
 
 const REMOTE_USER: &str = r#"
-import Helper from "./helper.lt"
+import helper { twice } from "./helper.lt"
 
-pub class RemoteUser {
+package remote_user {
+
+export struct RemoteUser {
   name: Str
+}
 
-  pub fn doubled(self, x: Int) -> Int {
-    Helper.twice(x)
-  }
+export fn doubled(u: RemoteUser, x: Int) -> Int {
+  twice(x)
+}
 }
 "#;
 
 const REMOTE_HELPER: &str = r#"
-pub class Helper {
-  static fn twice(x: Int) -> Int { x * 2 }
+package helper {
+
+export fn twice(x: Int) -> Int { x * 2 }
 }
 "#;
 
@@ -76,7 +80,7 @@ fn remote_imports_resolve_relative_to_their_url() {
     let output = check(
         &[(
             "main.lt",
-            "import RemoteUser from \"http://example.test/pkg/user.lt\"\n\npub class App {\n  user: RemoteUser\n}\n",
+            "import remote_user { RemoteUser } from \"http://example.test/pkg/user.lt\"\n\npackage app {\n\nexport struct App {\n  user: RemoteUser\n}\n}\n",
         )],
         &[
             ("http://example.test/pkg/user.lt", REMOTE_USER),
@@ -108,16 +112,16 @@ fn remote_cycle_is_reported() {
     let output = check(
         &[(
             "main.lt",
-            "import A from \"http://example.test/a.lt\"\n\npub class App {\n  a: A\n}\n",
+            "import a { A } from \"http://example.test/a.lt\"\n\npackage app {\n\nexport struct App {\n  holder: A\n}\n}\n",
         )],
         &[
             (
                 "http://example.test/a.lt",
-                "import B from \"./b.lt\"\n\npub class A { x: Int }\n",
+                "import b { B } from \"./b.lt\"\n\npackage a {\n\nexport struct A { x: Int }\n}\n",
             ),
             (
                 "http://example.test/b.lt",
-                "import A from \"./a.lt\"\n\npub class B { y: Int }\n",
+                "import a { A } from \"./a.lt\"\n\npackage b {\n\nexport struct B { y: Int }\n}\n",
             ),
         ],
         "main.lt",
@@ -156,7 +160,7 @@ fn remote_missing_reports_the_url() {
     let output = check(
         &[(
             "main.lt",
-            "import A from \"http://example.test/missing.lt\"\n\npub class App {\n  a: A\n}\n",
+            "import a { A } from \"http://example.test/missing.lt\"\n\npackage app {\n  a: A\n}\n",
         )],
         &[],
         "main.lt",
