@@ -1000,11 +1000,14 @@ impl<'a> Checker<'a> {
             ast::Expr::Try { value, span } => self.check_try(value, *span),
             ast::Expr::Template { exprs, .. } => {
                 for inner in exprs {
-                    let _ = self.check_expr(inner, None);
+                    let inner_ty = self.check_expr(inner, None);
+                    self.require_value(inner.span(), &inner_ty);
                 }
                 Ty::Str
             }
-            ast::Expr::TaggedTemplate { tag, span, .. } => self.check_tagged(tag, *span),
+            ast::Expr::TaggedTemplate {
+                tag, exprs, span, ..
+            } => self.check_tagged(tag, exprs, *span),
             ast::Expr::Jsx(element) => self.check_jsx(element),
             ast::Expr::Lambda { span, .. } => {
                 self.diag(
@@ -1850,7 +1853,16 @@ impl<'a> Checker<'a> {
         self.builtin_method(&receiver_ty, name, args, span)
     }
 
-    fn check_tagged(&mut self, tag: &ast::Expr, span: Span) -> Ty {
+    fn require_value(&mut self, span: Span, ty: &Ty) {
+        if matches!(self.resolve_deep(ty), Ty::Unit) {
+            self.diag(
+                span,
+                "this expression has type `Unit`, which cannot be interpolated",
+            );
+        }
+    }
+
+    fn check_tagged(&mut self, tag: &ast::Expr, exprs: &[ast::Expr], span: Span) -> Ty {
         let ast::Expr::Field { base, name, .. } = tag else {
             self.diag(
                 span,
@@ -1896,6 +1908,10 @@ impl<'a> Checker<'a> {
                 &param.1.clone(),
                 " in the tag signature",
             );
+        }
+        for inner in exprs {
+            let inner_ty = self.check_expr(inner, None);
+            self.require_value(inner.span(), &inner_ty);
         }
         self.resolve_deep(&method.ret)
     }
