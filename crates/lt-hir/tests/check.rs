@@ -731,7 +731,11 @@ pub class A {
   }
 }
 "#;
-    assert_has(&[("a.lt", src)], "a.lt", "`to_string` expects 0 argument(s)");
+    assert_has(
+        &[("a.lt", src)],
+        "a.lt",
+        "`to_string` expects 0 argument(s)",
+    );
 }
 
 #[test]
