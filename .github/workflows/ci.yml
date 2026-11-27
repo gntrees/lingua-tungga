@@ -172,4 +172,4 @@ jobs:
         with:
           go-version: stable
       - run: go install github.com/rhysd/actionlint/cmd/actionlint@latest
-      - run: '"$(go env GOPATH)/bin/actionlint"'
+      - run: '"$(go env GOPATH)/bin/actionlint" .github/workflows/*.yml'
