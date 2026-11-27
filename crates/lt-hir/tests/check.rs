@@ -533,3 +533,55 @@ pub class A {
         "`?` cannot be used inside a lambda",
     );
 }
+
+#[test]
+fn tagged_template_interpolations_are_typechecked() {
+    let src = r#"
+pub class Sql {
+  static fn tag(parts: List<Str>, values: List<Str>) -> Str {
+    parts.join("|")
+  }
+}
+
+pub class A {
+  fn f() -> Str {
+    Sql.tag`id = ${missing}`
+  }
+}
+"#;
+    assert_has(&[("a.lt", src)], "a.lt", "unknown variable `missing`");
+}
+
+#[test]
+fn template_cannot_interpolate_unit() {
+    let src = r#"
+pub class A {
+  static fn side_effect() {}
+
+  fn f() -> Str {
+    `${A.side_effect()}`
+  }
+}
+"#;
+    assert_has(&[("a.lt", src)], "a.lt", "cannot be interpolated");
+}
+
+#[test]
+fn tagged_template_cannot_interpolate_unit() {
+    let src = r#"
+pub class Sql {
+  static fn tag(parts: List<Str>, values: List<Str>) -> Str {
+    parts.join("|")
+  }
+}
+
+pub class A {
+  static fn side_effect() {}
+
+  fn f() -> Str {
+    Sql.tag`x ${A.side_effect()}`
+  }
+}
+"#;
+    assert_has(&[("a.lt", src)], "a.lt", "cannot be interpolated");
+}
