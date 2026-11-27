@@ -693,3 +693,57 @@ pub class A {
 "#;
     assert_ok(&[("a.lt", src)], "a.lt");
 }
+
+#[test]
+fn to_string_converts_any_value_to_str() {
+    let src = r#"
+pub class A {
+  fn f(x: Int, s: Str) -> Str {
+    `${x.to_string()}-${s.to_string()}`
+  }
+}
+"#;
+    assert_ok(&[("a.lt", src)], "a.lt");
+}
+
+#[test]
+fn a_user_defined_to_string_method_wins() {
+    let src = r#"
+pub class A {
+  fn to_string(self) -> Str {
+    "custom"
+  }
+
+  fn f(self) -> Str {
+    self.to_string()
+  }
+}
+"#;
+    assert_ok(&[("a.lt", src)], "a.lt");
+}
+
+#[test]
+fn to_string_takes_no_arguments() {
+    let src = r#"
+pub class A {
+  fn f(x: Int) -> Str {
+    x.to_string(1)
+  }
+}
+"#;
+    assert_has(&[("a.lt", src)], "a.lt", "`to_string` expects 0 argument(s)");
+}
+
+#[test]
+fn unit_cannot_be_converted_to_str() {
+    let src = r#"
+pub class A {
+  static fn side_effect() {}
+
+  fn f() -> Str {
+    A.side_effect().to_string()
+  }
+}
+"#;
+    assert_has(&[("a.lt", src)], "a.lt", "`Unit` has no value");
+}

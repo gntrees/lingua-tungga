@@ -225,3 +225,17 @@ fn emission_is_deterministic() {
         assert_eq!(left.contents, right.contents);
     }
 }
+
+#[test]
+fn to_string_uses_the_display_runtime() {
+    let src = r#"
+pub class A {
+  pub fn f(x: Int) -> Str {
+    x.to_string()
+  }
+}
+"#;
+    let files = emit(&[("a.lt", src)], "a.lt");
+    let module = find(&files, "src/a.ts");
+    assert!(module.contains("return lt.disp(x);"), "{module}");
+}

@@ -205,7 +205,7 @@ pub enum IrExpr {
         name: String,
         args: Vec<IrExpr>,
     },
-    /// Convert a value to `Str` for templates and tagged templates.
+    /// Render a value with its `Display` implementation (`to_string()`).
     ToStr {
         value: Box<IrExpr>,
         ty: Ty,

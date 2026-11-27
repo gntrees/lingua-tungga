@@ -250,3 +250,17 @@ fn emission_is_deterministic() {
             .collect::<Vec<_>>()
     );
 }
+
+#[test]
+fn to_string_uses_the_display_runtime() {
+    let src = r#"
+pub class A {
+  pub fn f(x: Int) -> Str {
+    x.to_string()
+  }
+}
+"#;
+    let files = emit(&[("a.lt", src)], "a.lt", false);
+    let module = find(&files, "gen/a.py");
+    assert!(module.contains("return _lt.disp(x)"), "{module}");
+}
