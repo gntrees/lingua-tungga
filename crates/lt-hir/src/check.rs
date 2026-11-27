@@ -1785,6 +1785,37 @@ impl<'a> Checker<'a> {
     fn call_method(&mut self, receiver: &Ty, name: &str, args: &ast::Args, span: Span) -> Ty {
         let receiver_ty = self.resolve_deep(receiver);
 
+        if name == "to_string" {
+            // A user-defined instance method wins; otherwise every value with
+            // `Display` gets the universal conversion.
+            let user_defined = match &receiver_ty {
+                Ty::Named(type_name, _) => self.program.class_of(type_name).is_some_and(|class| {
+                    class
+                        .methods
+                        .iter()
+                        .any(|method| method.name == name && method.has_self)
+                }),
+                _ => false,
+            };
+            if !user_defined {
+                let Some(items) = self.positional(args, span, name) else {
+                    return Ty::Error;
+                };
+                if !items.is_empty() {
+                    self.diag(
+                        span,
+                        format!("`to_string` expects 0 argument(s), found {}", items.len()),
+                    );
+                    return Ty::Error;
+                }
+                if matches!(&receiver_ty, Ty::Unit) {
+                    self.diag(span, "`Unit` has no value to convert to `Str`");
+                    return Ty::Error;
+                }
+                return Ty::Str;
+            }
+        }
+
         if let Ty::Named(type_name, type_args) = &receiver_ty {
             let program = self.program;
             if let Some(class) = program.class_of(type_name) {
@@ -1848,24 +1879,6 @@ impl<'a> Checker<'a> {
                 self.diag(span, format!("`{shown}` has no methods"));
                 return Ty::Error;
             }
-        }
-
-        if name == "to_string" {
-            let Some(items) = self.positional(args, span, name) else {
-                return Ty::Error;
-            };
-            if !items.is_empty() {
-                self.diag(
-                    span,
-                    format!("`to_string` expects 0 argument(s), found {}", items.len()),
-                );
-                return Ty::Error;
-            }
-            if matches!(&receiver_ty, Ty::Unit) {
-                self.diag(span, "`Unit` has no value to convert to `Str`");
-                return Ty::Error;
-            }
-            return Ty::Str;
         }
 
         self.builtin_method(&receiver_ty, name, args, span)

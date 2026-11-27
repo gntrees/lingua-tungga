@@ -751,3 +751,23 @@ pub class A {
 "#;
     assert_has(&[("a.lt", src)], "a.lt", "`Unit` has no value");
 }
+
+#[test]
+fn to_string_works_on_classes_and_enums() {
+    let src = r#"
+pub enum Role {
+  Admin
+}
+
+pub class User {
+  name: Str
+}
+
+pub class A {
+  fn f(user: User, role: Role) -> Str {
+    `${user.to_string()}-${role.to_string()}`
+  }
+}
+"#;
+    assert_ok(&[("a.lt", src)], "a.lt");
+}
