@@ -7,12 +7,14 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
-use lt_hir::{check_entries, MapLoader};
+use lt_hir::{check_entries, MapLoader, Program};
 use lt_ir::lower_program;
 use lt_syntax::{tokenize_full, TokenKind};
 use serde::Deserialize;
 
 mod html;
+
+use lt_ir::usage_block;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Feature {
@@ -52,6 +54,10 @@ pub struct Case {
     pub source: String,
     pub source_html: String,
     pub outputs: BTreeMap<String, String>,
+    /// Per-target runnable program that calls the emitted library.
+    pub usage: BTreeMap<String, String>,
+    /// Per-target standard output of [`usage`], recorded by `scripts/playground.sh`.
+    pub usage_output: BTreeMap<String, Vec<String>>,
     pub diagnostic: Option<String>,
     pub status: BTreeMap<String, String>,
 }
@@ -81,6 +87,20 @@ struct Evidence {
     targets: serde_json::Map<String, serde_json::Value>,
     #[serde(default)]
     cases: BTreeMap<String, BTreeMap<String, bool>>,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+struct UsageRun {
+    #[serde(default)]
+    status: String,
+    #[serde(default)]
+    lines: Vec<String>,
+}
+
+#[derive(Deserialize, Default)]
+struct UsageFile {
+    #[serde(default)]
+    cases: BTreeMap<String, BTreeMap<String, UsageRun>>,
 }
 
 pub fn generate(options: &Options) -> Result<Summary, String> {
@@ -128,6 +148,11 @@ pub fn generate(options: &Options) -> Result<Summary, String> {
     let evidence: Option<Evidence> = std::fs::read_to_string(&evidence_path)
         .ok()
         .and_then(|text| serde_json::from_str(&text).ok());
+    let usage_path = options.root.join("usage.json");
+    let usage: UsageFile = std::fs::read_to_string(&usage_path)
+        .ok()
+        .and_then(|text| serde_json::from_str(&text).ok())
+        .unwrap_or_default();
 
     let run_ids: BTreeSet<String> = cases
         .iter()
@@ -175,6 +200,14 @@ pub fn generate(options: &Options) -> Result<Summary, String> {
             case.status
                 .entry(target.to_string())
                 .or_insert_with(|| "not-run".to_string());
+        }
+        if let Some(recorded) = usage.cases.get(&case.id) {
+            for (target, run) in recorded {
+                case.usage_output.insert(target.clone(), run.lines.clone());
+                if run.status == "fail" {
+                    case.status.insert(target.clone(), "fail".to_string());
+                }
+            }
         }
         outputs.push(case.clone());
     }
@@ -240,6 +273,10 @@ fn load_dir(dir: &Path, prefix: &str, kind: &str, cases: &mut Vec<Case>) -> Resu
             .and_then(|stem| stem.to_str())
             .ok_or_else(|| format!("{}: invalid file name", path.display()))?
             .to_string();
+        // `_name.lt` files are import targets for a case, never cases themselves.
+        if stem.starts_with('_') {
+            continue;
+        }
         let id = format!("{prefix}{stem}");
         cases.push(build_case(&path, &stem, &id, kind)?);
     }
@@ -266,9 +303,31 @@ fn build_case(path: &Path, stem: &str, id: &str, kind: &str) -> Result<Case, Str
 
     let mut loader = MapLoader::new();
     loader.add("case.lt", &source);
+    // Sibling `_name.lt` files exist only as import targets for this case.
+    if let Some(dir) = path.parent() {
+        let mut helpers: Vec<PathBuf> = std::fs::read_dir(dir)
+            .map_err(|error| format!("{}: {error}", dir.display()))?
+            .filter_map(Result::ok)
+            .map(|entry| entry.path())
+            .filter(|path| path.extension().and_then(|ext| ext.to_str()) == Some("lt"))
+            .collect();
+        helpers.sort();
+        for helper in helpers {
+            let Some(name) = helper.file_name().and_then(|name| name.to_str()) else {
+                continue;
+            };
+            if !name.starts_with('_') {
+                continue;
+            }
+            let text = std::fs::read_to_string(&helper)
+                .map_err(|error| format!("{}: {error}", helper.display()))?;
+            loader.add(name, &text);
+        }
+    }
     let checked = check_entries(&[PathBuf::from("case.lt")], &mut loader);
 
     let mut outputs = BTreeMap::new();
+    let mut usage = BTreeMap::new();
     let mut diagnostic = None;
 
     if effective_kind == "diagnostic" {
@@ -278,8 +337,11 @@ fn build_case(path: &Path, stem: &str, id: &str, kind: &str) -> Result<Case, Str
             .map(|file| file.diagnostic.message.clone())
             .collect();
         if checked.is_ok() {
-            let (_, lower_diagnostics) =
-                lower_program(&checked.program, &checked.types, vec![stem.to_string()]);
+            let (_, lower_diagnostics) = lower_program(
+                &checked.program,
+                &checked.types,
+                module_names(&checked.program, stem),
+            );
             messages.extend(
                 lower_diagnostics
                     .into_iter()
@@ -321,8 +383,11 @@ fn build_case(path: &Path, stem: &str, id: &str, kind: &str) -> Result<Case, Str
                 .collect();
             return Err(format!("{}: does not type check: {:?}", id, messages));
         }
-        let (ir, lower_diagnostics) =
-            lower_program(&checked.program, &checked.types, vec![stem.to_string()]);
+        let (ir, lower_diagnostics) = lower_program(
+            &checked.program,
+            &checked.types,
+            module_names(&checked.program, stem),
+        );
         if !lower_diagnostics.is_empty() {
             return Err(format!("{}: lowering failed", id));
         }
@@ -332,6 +397,49 @@ fn build_case(path: &Path, stem: &str, id: &str, kind: &str) -> Result<Case, Str
         outputs.insert("ts".to_string(), pick(ts, &stems("src", stem, "ts")));
         outputs.insert("py".to_string(), pick(py, &stems("gen", stem, "py")));
         outputs.insert("go".to_string(), pick(go, &format!("gen/{stem}/{stem}.go")));
+
+        let module = ir
+            .modules
+            .iter()
+            .find(|module| module.name == stem)
+            .or_else(|| ir.modules.first())
+            .ok_or_else(|| format!("{}: lowering produced no module", id))?;
+        let exported = module.functions.iter().filter(|f| f.is_export).count()
+            + module.bindings.iter().filter(|b| b.is_export).count()
+            + module.structs.iter().filter(|s| s.is_export).count()
+            + module.enums.iter().filter(|e| e.is_export).count();
+        if exported == 0 {
+            return Err(format!(
+                "{}: exports nothing; every executable case needs at least one `export` declaration",
+                id
+            ));
+        }
+        if usage_block(module).is_none() {
+            return Err(format!(
+                "{}: has no test statements; usage examples are derived from `test` blocks",
+                id
+            ));
+        }
+        usage.insert(
+            "ts".to_string(),
+            pick(lt_emit_ts::emit_usage(&ir), &format!("src/{stem}.usage.ts")),
+        );
+        usage.insert(
+            "py".to_string(),
+            pick(lt_emit_py::emit_usage(&ir), &format!("usage/{stem}.py")),
+        );
+        usage.insert(
+            "go".to_string(),
+            pick(
+                lt_emit_go::emit_usage(&ir),
+                &format!("usage/{stem}/main.go"),
+            ),
+        );
+        for (target, code) in &usage {
+            if code.is_empty() {
+                return Err(format!("{}: no usage program emitted for `{target}`", id));
+            }
+        }
     }
 
     Ok(Case {
@@ -347,9 +455,29 @@ fn build_case(path: &Path, stem: &str, id: &str, kind: &str) -> Result<Case, Str
         source_html: highlight(&source),
         source,
         outputs,
+        usage,
+        usage_output: BTreeMap::new(),
         diagnostic,
         status: BTreeMap::new(),
     })
+}
+
+/// One output name per module, in module order. A case that imports pulls extra
+/// modules into the program, and every one of them needs a name. The case itself
+/// keeps the file stem so its output path is predictable; imported packages keep
+/// their declared name.
+fn module_names(program: &Program, stem: &str) -> Vec<String> {
+    program
+        .modules
+        .iter()
+        .map(|module| {
+            if module.path == Path::new("case.lt") {
+                stem.to_string()
+            } else {
+                module.name.clone()
+            }
+        })
+        .collect()
 }
 
 fn stems(dir: &str, stem: &str, ext: &str) -> String {

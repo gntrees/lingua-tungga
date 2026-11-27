@@ -1,4 +1,4 @@
-import x { X } from "x.lt"
+import x { X } "x.lt"
 
 package import_path {
   export struct A {

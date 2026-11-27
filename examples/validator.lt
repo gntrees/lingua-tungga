@@ -1,4 +1,4 @@
-import user { User } from "./user.lt"
+import user { User } "./user.lt"
 
 package validator {
   export fn check(u: User) -> Result<User, Str> {

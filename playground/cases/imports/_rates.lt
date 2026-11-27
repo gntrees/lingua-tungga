@@ -1,0 +1,5 @@
+package rates {
+  export fn to_idr(usd: Int) -> Int {
+    usd * 16000
+  }
+}

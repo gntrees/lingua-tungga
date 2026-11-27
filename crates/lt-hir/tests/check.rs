@@ -206,7 +206,7 @@ fn destructured_import_requires_export() {
         (
             "app.lt",
             file(
-                "import models { User } from \"./models.lt\"",
+                "import models { User } \"./models.lt\"",
                 "app",
                 "export fn f(u: User) -> Str {\n  u.name\n}",
             ),
@@ -222,7 +222,7 @@ fn destructured_import_is_enough() {
         (
             "app.lt",
             file(
-                "import models { User, greet } from \"./models.lt\"",
+                "import models { User, greet } \"./models.lt\"",
                 "app",
                 "export fn hello(u: User) -> Str {\n  greet(u)\n}",
             ),
@@ -244,7 +244,7 @@ fn qualified_paths_reach_types_functions_and_bindings() {
         (
             "app.lt",
             file(
-                "import models from \"./models.lt\"",
+                "import models \"./models.lt\"",
                 "app",
                 "export fn make() -> models.User {\n  models.User(name: models.origin)\n}",
             ),
@@ -260,7 +260,7 @@ fn private_binding_is_not_reachable_by_qualifier() {
         (
             "app.lt",
             file(
-                "import models from \"./models.lt\"",
+                "import models \"./models.lt\"",
                 "app",
                 "export fn read() -> Str {\n  models.origin\n}",
             ),
@@ -273,10 +273,7 @@ fn private_binding_is_not_reachable_by_qualifier() {
 fn import_must_name_a_package_that_exists() {
     let files = [
         ("a.lt", pkg("alpha", "export fn f() -> Int {\n  1\n}")),
-        (
-            "b.lt",
-            file("import missing { f } from \"./a.lt\"", "beta", ""),
-        ),
+        ("b.lt", file("import missing { f } \"./a.lt\"", "beta", "")),
     ];
     assert_has(&files, "b.lt", "does not declare `package missing`");
 }
@@ -289,7 +286,7 @@ fn package_names_are_unique_per_build() {
         (
             "c.lt",
             file(
-                "import shared { f } from \"./a.lt\"\nimport shared from \"./b.lt\"",
+                "import shared { f } \"./a.lt\"\nimport shared \"./b.lt\"",
                 "app",
                 "export fn h() -> Int {\n  f()\n}",
             ),
@@ -366,7 +363,7 @@ fn bindings_are_immutable() {
         (
             "app.lt",
             file(
-                "import config { limit } from \"./config.lt\"",
+                "import config { limit } \"./config.lt\"",
                 "app",
                 "export fn bump() -> Int {\n  limit = 11\n  limit\n}",
             ),
@@ -473,7 +470,7 @@ fn importing_a_missing_name_is_reported() {
         (
             "app.lt",
             file(
-                "import models { nowhere } from \"./models.lt\"",
+                "import models { nowhere } \"./models.lt\"",
                 "app",
                 "export fn g() -> Int {\n  1\n}",
             ),
@@ -495,7 +492,7 @@ fn receiver_sugar_respects_export() {
         (
             "app.lt",
             file(
-                "import geo { Point } from \"./geo.lt\"",
+                "import geo { Point } \"./geo.lt\"",
                 "app",
                 "export fn peek(p: Point) -> Int {\n  p.secret()\n}",
             ),

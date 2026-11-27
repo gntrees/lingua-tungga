@@ -1,70 +1,119 @@
 # Playground
 
-Galeri statis kecil-kecil: satu kasus = satu aturan bahasa, dengan source,
-penjelasan, output ketiga target, dan status test.
+A small static gallery: one case = one language rule, with its source, an
+explanation, the generated code for all three targets, and — for every target —
+a runnable program showing how to call the result, plus the values it printed.
 
 ```sh
 lt playground                 # generate out/playground/index.html
-scripts/playground.sh         # verifikasi 3 target + tulis evidence + generate
+scripts/playground.sh         # verify 3 targets, record usage + evidence, generate
 ```
 
-Hasilnya **satu file HTML** yang bekerja lewat `file://` (tanpa server, tanpa
-framework JS).
+The output is **one HTML file** that works over `file://` (no server, no JS
+framework).
 
 ## Layout
 
 ```
 playground/
-  features.toml            # daftar fitur (id, judul, referensi spec)
-  cases/<grup>/<id>.lt     # kasus executable (wajib punya minimal satu `test "…"`)
-  cases/<grup>/<id>.toml   # metadata: title, feature, why
-  diagnostics/<id>.lt      # kasus yang WAJIB gagal compile
-  diagnostics/<id>.toml    # + expect = "potongan pesan error"
-  evidence.json            # hasil verifikasi (di-commit)
+  features.toml            # feature list (id, title, spec reference)
+  cases/<group>/<id>.lt    # executable case (needs an `export` and a `test "…"`)
+  cases/<group>/<id>.toml  # metadata: title, feature, why
+  cases/<group>/_name.lt   # import target for the cases beside it (not a case)
+  diagnostics/<id>.lt      # case that MUST fail to compile
+  diagnostics/<id>.toml    # + expect = "fragment of the error message"
+  evidence.json            # verification results (committed)
+  usage.json               # recorded stdout of every usage program (committed)
 ```
 
-Contoh metadata:
+Example metadata:
 
 ```toml
-title = "Pembagian Int memotong ke nol"
+title = "Int division truncates toward zero"
 feature = "ops/division"
-why = "Python membulatkan ke bawah; LT memilih truncation agar sama di semua target."
+why = "Python floors; Lingua Tungga truncates so every target agrees."
 ```
 
-## Menambah kasus
+## Usage programs per target
 
-1. Tulis file `.lt` (self-contained; tanpa import) dalam satu blok
-   `package <nama> { … }` dengan minimal satu `test "judul" { … }`.
-2. Tambahkan sidecar `.toml` dengan `title`, `feature`, `why`.
-3. Pastikan `feature` ada di `features.toml` (menambah fitur baru = tambah
-   entri di sana).
-4. `scripts/playground.sh` untuk memverifikasi semua target dan memperbarui
-   evidence, lalu `lt playground`.
+Each case has three tabs — TypeScript, Python, Go. Every tab shows two things
+stacked: the generated module, and directly below it the *usage program* for that
+target together with the stdout it produced.
 
-Gate build akan **gagal** jika:
+The usage program imports the emitted module and replays the case's tests, but
+each `expect.*` is replaced by a print of its first argument. So it shows the
+real call site — the actual arguments, the real receiver, the generic
+instantiation — and then the values that call produced:
 
-- ada fitur di `features.toml` tanpa kasus,
-- ada kasus yang tidak typecheck / test gagal,
-- ada kasus diagnostik yang pesan errornya tidak cocok dengan `expect`,
-- `evidence.json` tidak mencakup tepat semua kasus executable (status basi).
+```ts
+import * as lt from "../../_lingua_rt";
+import * as m1 from "./question";
 
-## Evidence
+function main(): void {
+  {
+    lt.print(m1.double("21"));
+  }
+}
+```
 
-`evidence.json` mencatat commit, versi tool, jumlah kasus per target, dan status
-per kasus. Ia di-commit supaya halaman bisa menampilkan bukti eksekusi. Bila
-daftar kasus berubah tanpa regenerasi, `lt playground` menolak (kecuali
-`--allow-stale`, yang menampilkan banner peringatan).
+```text
+Ok(42)
+```
 
-## "Lengkap" itu terukur
+Because the program is derived from the same IR as the tests, it cannot drift
+from the library API: renaming a function, changing a parameter, or adding a
+variant updates the usage program on the next generation.
 
-`features.toml` adalah daftar fitur yang diklaim; setiap fitur wajib punya
-minimal satu kasus, dan setiap kasus wajib menunjuk fitur yang dikenal. Jadi
-kelengkapan bukan klaim, melainkan hasil gate.
+## Adding a case
 
-## Batasan
+1. Write a `.lt` file with one `package <name> { … }` block, at least one
+   `export` declaration (`export fn`, `export let`, `export struct`,
+   `export enum`) and at least one `test "title" { … }` block. A case that needs
+   an import keeps the target in a sibling `_name.lt`; helper files never become
+   cases themselves, so `cases/imports/qualified.lt` pairs with
+   `cases/imports/_wallet.lt`.
+2. Add a sidecar `.toml` with `title`, `feature`, `why`.
+3. Make sure `feature` exists in `features.toml` (a new feature is a new entry
+   there).
+4. Run `scripts/playground.sh` to verify every target, record stdout and
+   evidence, then `lt playground`.
 
-- Kasus harus satu file tanpa import; skenario import/URL/lockfile tetap
-  didokumentasikan di [`package-manager.md`](package-manager.md) dan diuji oleh
-  conformance suite.
-- Halaman tidak mengeksekusi kode di browser; status berasal dari eksekusi nyata
-  saat `scripts/playground.sh` dijalankan.
+The build gate **fails** when:
+
+- a feature in `features.toml` has no case,
+- a case does not type check, or a generated test fails,
+- a case exports nothing — an empty module would make the output and usage
+  tabs meaningless,
+- a case has no `test` block to derive the usage program from,
+- a diagnostic case does not produce the error message named by `expect`,
+- a usage program fails to compile or exits non-zero,
+- `evidence.json` does not cover exactly the current executable cases (stale
+  status).
+
+## Evidence and usage output
+
+`evidence.json` records the commit, tool versions, case counts per target, and
+the pass/fail status of every case. `usage.json` records, per case and target,
+the exit status and the stdout lines of the usage program. Both are committed so
+the page can show real proof without executing anything in the browser.
+
+If the case list changes without regenerating, `lt playground` refuses to run
+(unless `--allow-stale`, which renders a warning banner).
+
+## "Complete" is measurable
+
+`features.toml` is the list of claimed features; every feature needs a case and
+every case must point at a known feature. On top of that, every case must expose
+something callable (the export rule) and demonstrate calling it (the usage
+rule), so the catalogue is checked rather than asserted.
+
+## Limits
+
+- A case must be a single file without imports; import/URL/lockfile scenarios
+  stay documented in [`package-manager.md`](package-manager.md) and are covered
+  by the conformance suite.
+- The page does not execute code in the browser: status and stdout come from
+  real runs performed by `scripts/playground.sh`.
+- Usage programs replay the case's tests. They demonstrate the API, they are not
+  a second test suite; the generated `test` files remain the source of truth for
+  behaviour.

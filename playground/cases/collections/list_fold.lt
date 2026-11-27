@@ -1,9 +1,17 @@
 package list_fold {
+  export fn sum(xs: List<Int>) -> Int {
+    xs.fold(0, fn(total, x) => total + x)
+  }
+
+  export fn concat(xs: List<Str>) -> Str {
+    xs.fold("", fn(acc, x) => `${acc}${x}`)
+  }
+
   test "sums" {
-    expect.eq([1, 2, 3].fold(0, fn(total, x) => total + x), 6)
+    expect.eq(sum([1, 2, 3]), 6)
   }
 
   test "builds string" {
-    expect.eq(["a", "b"].fold("", fn(acc, x) => `${acc}${x}`), "ab")
+    expect.eq(concat(["a", "b"]), "ab")
   }
 }

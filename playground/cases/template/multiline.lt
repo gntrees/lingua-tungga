@@ -1,7 +1,10 @@
 package multiline {
-  test "keeps newlines" {
-    let text = `
+  export fn leading_newline() -> Str {
+    `
 line`
-    expect.eq(text, "\nline")
+  }
+
+  test "keeps newlines" {
+    expect.eq(leading_newline(), "\nline")
   }
 }

@@ -1,4 +1,4 @@
-import book { Book } from "./book.lt"
+import book { Book } "./book.lt"
 
 package catalog {
   export struct Catalog {

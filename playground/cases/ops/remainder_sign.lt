@@ -1,9 +1,13 @@
 package remainder_sign {
+  export fn rem(a: Int, b: Int) -> Int {
+    a % b
+  }
+
   test "negative dividend" {
-    expect.eq(-7 % 2, -1)
+    expect.eq(rem(-7, 2), -1)
   }
 
   test "positive dividend" {
-    expect.eq(7 % 2, 1)
+    expect.eq(rem(7, 2), 1)
   }
 }

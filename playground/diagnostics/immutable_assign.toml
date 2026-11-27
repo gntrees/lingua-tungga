@@ -1,4 +1,4 @@
-title = "Assignment ke binding immutable"
+title = "Assignment to an immutable binding"
 feature = "diagnostics/strict"
-why = "Hanya let mut yang boleh diubah."
+why = "Only let mut may be reassigned."
 expect = "immutable"

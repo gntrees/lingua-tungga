@@ -1,11 +1,12 @@
 package indent {
-  test "removes common indent" {
-    expect.eq(
-      `
+  export fn menu() -> Str {
+    `
       a
       b
-    `.trim_indent(),
-      "a\nb",
-    )
+    `.trim_indent()
+  }
+
+  test "removes common indent" {
+    expect.eq(menu(), "a\nb")
   }
 }

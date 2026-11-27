@@ -1,0 +1,3 @@
+title = "Exported functions are the module API"
+feature = "functions/export-fn"
+why = "Calling greet or twice from TypeScript, Python, or Go goes through the emitted module."

@@ -136,7 +136,7 @@ fn imports_between_modules_use_go_import_paths() {
 }
 
 const VALIDATOR: &str = r#"
-import user { User } from "./user.lt"
+import user { User } "./user.lt"
 
 package validator {
 

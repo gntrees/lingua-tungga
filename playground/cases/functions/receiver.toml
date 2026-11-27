@@ -1,0 +1,3 @@
+title = "Receiver calls bind the first argument"
+feature = "functions/receiver"
+why = "c.bump() is sugar for bump(c); both compile to the same function."

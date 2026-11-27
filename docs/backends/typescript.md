@@ -14,9 +14,9 @@ Target pertama, dipakai untuk memvalidasi IR dan semantik. Status: **v2 — terv
 | `List<T>` | `lt.LList<T>` (immutable, copy-on-write) |
 | `Map<K,V>` | `lt.LMap<K,V>` (entry terurut `Ord`, lookup O(n)) |
 | `Set<T>` | `lt.LSet<T>` |
-| `Option<T>` | `lt.Opt<T>` = union `{tag:"some"\|"none", values, __lt_display}` |
+| `Option<T>` | `lt.Opt<T>` = union `{tag:"some"\|"none", values, __lt_meta}` |
 | `Result<T,E>` | `lt.Res<T,E>` = union `{tag:"ok"\|"err", …}` |
-| `enum` | discriminated union + konstruktor `Enum_Variant(...)`; setiap nilai membawa `__lt_order` |
+| `enum` | satu identifier: `export type Enum` + `export const Enum`, varian dipanggil `Enum.Variant(...)`; urutan & display varian ada di `Enum_variant` yang dipakai bersama |
 | `struct` | `class` dengan field `readonly`, konstruktor objek `{ field: … }`, `__lt_eq`, `__lt_cmp`, `__lt_to_string` |
 | fungsi package-level | `export function name(...)` |
 | fungsi private | `export function _name(...)` — tetap diekspor agar file test bisa memanggilnya, tetapi ditandai `_` sebagai internal |

@@ -1,0 +1,15 @@
+package wallet {
+  export struct Money {
+    amount: Int
+  }
+
+  export let vat: Int = 11
+
+  export fn add_vat(money: Money) -> Money {
+    Money(amount: money.amount + money.amount * vat / 100)
+  }
+
+  export fn format(money: Money) -> Str {
+    `Rp${money.amount}`
+  }
+}

@@ -1,0 +1,17 @@
+package export_fn {
+  export fn greet(name: Str) -> Str {
+    `Hello, ${name}!`
+  }
+
+  export fn twice(n: Int) -> Int {
+    n * 2
+  }
+
+  test "greets" {
+    expect.eq(greet("Ada"), "Hello, Ada!")
+  }
+
+  test "doubles" {
+    expect.eq(twice(21), 42)
+  }
+}

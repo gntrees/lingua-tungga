@@ -1,0 +1,13 @@
+package export_let {
+  export let greeting: Str = "hello"
+
+  export let sizes: List<Int> = [1, 2, 3]
+
+  test "reads a package binding" {
+    expect.eq(greeting, "hello")
+  }
+
+  test "reads a list binding" {
+    expect.eq(sizes.len(), 3)
+  }
+}

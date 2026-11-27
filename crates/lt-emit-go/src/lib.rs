@@ -70,3 +70,17 @@ pub fn emit_package_with_tests(program: &IrProgram) -> Vec<EmittedFile> {
     files.extend(emit_tests(program));
     files
 }
+
+/// One runnable `main` package per module: how to call it from Go.
+pub fn emit_usage(program: &IrProgram) -> Vec<EmittedFile> {
+    let mut files = Vec::new();
+    for module in &program.modules {
+        if let Some(contents) = go::emit_usage(program, module) {
+            files.push(EmittedFile {
+                path: PathBuf::from(format!("usage/{}/main.go", module.name)),
+                contents,
+            });
+        }
+    }
+    files
+}

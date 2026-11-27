@@ -1,0 +1,14 @@
+import (
+  rates { to_idr } "./_rates.lt"
+  units { Price } "./_units.lt"
+)
+
+package grouped {
+  export fn price(usd: Int) -> Price {
+    Price(amount: to_idr(usd))
+  }
+
+  test "a group is several imports with one keyword" {
+    expect.eq(price(2).amount, 32000)
+  }
+}

@@ -1,3 +1,3 @@
-title = "Display class menampilkan nama dan field"
+title = "Display renders the type name and fields"
 feature = "classes/display"
-why = "Template literal memakai representasi struktural yang konsisten di semua target."
+why = "Template literals use one structural representation on every target."

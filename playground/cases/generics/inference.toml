@@ -1,3 +1,3 @@
-title = "Tipe generik diinferensi dari argumen"
+title = "Generic types are inferred from arguments"
 feature = "generics/inference"
-why = "Box(value: 1) langsung menjadi Box<Int> tanpa anotasi manual."
+why = "Box(value: 7) becomes Box<Int> with no annotation."

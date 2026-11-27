@@ -1,0 +1,4 @@
+title = "Dot imports are rejected"
+feature = "diagnostics/strict"
+why = "Names are always reached through a qualifier; nothing is injected implicitly."
+expect = "dot import is not supported"

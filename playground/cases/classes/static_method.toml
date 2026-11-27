@@ -1,3 +1,3 @@
-title = "Method tanpa self bersifat static"
+title = "Functions without a receiver are called by name"
 feature = "classes/static"
-why = "Static tidak menerima self dan dipanggil lewat nama class."
+why = "A package function takes no receiver and is called directly."

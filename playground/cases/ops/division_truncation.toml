@@ -1,3 +1,3 @@
-title = "Pembagian Int memotong ke nol"
+title = "Int division truncates toward zero"
 feature = "ops/division"
-why = "Python membulatkan ke bawah; LT memilih truncation agar sama di semua target."
+why = "Python floors; Lingua Tungga truncates so every target agrees."

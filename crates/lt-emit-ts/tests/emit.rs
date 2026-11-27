@@ -91,14 +91,19 @@ fn emits_a_typed_package() {
 
     let user = find(&files, "src/user.ts");
     assert!(user.contains("export type Role ="));
-    assert!(user.contains("export const Role_Admin"));
-    assert!(user.contains("export function Role_Member(_0: bigint): Role"));
+    assert!(user.contains("export const Role = {"));
+    assert!(user.contains(
+        "  Admin: { tag: \"Admin\", values: [], __lt_meta: Role_variant.Admin } as Role,"
+    ));
+    assert!(user.contains("  Member: (_0: bigint): Role =>"));
+    assert!(user.contains("__lt_meta: Role_variant.Member"));
+    assert!(!user.contains("Role_display"));
     assert!(user.contains("export class User"));
     assert!(user.contains("readonly age: bigint;"));
     assert!(user.contains("export function greet(u: User): string"));
     assert!(user.contains("lt.iadd(u.age, 1n)"), "{user}");
     assert!(user.contains("export function anonymous(): User"));
-    assert!(user.contains("new User({ name: \"?\", age: 0n, role: Role_Guest })"));
+    assert!(user.contains("new User({ name: \"?\", age: 0n, role: Role.Guest })"));
     assert!(user.contains("__lt_eq(other: unknown): boolean"));
     assert!(user.contains("switch (__match1.tag)"));
     assert!(user.contains("import * as lt from \"../_lingua_rt\";"));
@@ -119,7 +124,7 @@ fn imports_between_modules_are_relative() {
 }
 
 const VALIDATOR: &str = r#"
-import user { User } from "./user.lt"
+import user { User } "./user.lt"
 
 package validator {
 
@@ -263,12 +268,12 @@ fn generic_enum_nullary_variant_is_not_generic() {
     let files = emit(&[("a.lt", GENERIC_ENUM)], "a.lt");
     let module = find(&files, "src/a.ts");
     assert!(
-        module.contains("export const MaybeBox_Empty: MaybeBox<any>"),
+        module.contains("Empty: { tag: \"Empty\", values: [], __lt_meta: MaybeBox_variant.Empty } as MaybeBox<never>"),
         "{module}"
     );
     assert!(!module.contains("MaybeBox_Empty<T>"), "{module}");
     assert!(
-        module.contains("export function MaybeBox_Value<T>(_0: T): MaybeBox<T>"),
+        module.contains("Value: <T>(_0: T): MaybeBox<T> =>"),
         "{module}"
     );
 }

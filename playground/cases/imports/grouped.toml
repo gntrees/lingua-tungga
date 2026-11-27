@@ -1,0 +1,3 @@
+title = "One `import ( … )` block holds many packages"
+feature = "imports/grouped"
+why = "One entry per line, no commas; `lt fmt` sorts the block by path."

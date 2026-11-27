@@ -1,0 +1,7 @@
+import . "./_helper.lt"
+
+package import_dot {
+  export fn label() -> Str {
+    "dot"
+  }
+}

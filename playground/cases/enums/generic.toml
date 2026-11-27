@@ -1,3 +1,3 @@
-title = "Enum generik dengan varian nullary"
+title = "Generic enum with nullary variants"
 feature = "enums/generic"
-why = "Type argument enum dipertahankan di konstruksi, match, dan ketiga backend."
+why = "Type arguments survive construction, match, and all three backends."

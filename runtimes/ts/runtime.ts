@@ -4,16 +4,27 @@
 export type Unit = null;
 
 export interface Displayable {
-  readonly __lt_display: (value: any) => string;
+  readonly __lt_meta: VariantMeta;
 }
 
+// Ordering and display of a variant, shared by every value of that variant so
+// the payload itself stays pure data.
+export type VariantMeta = {
+  readonly order: number;
+  readonly display: (value: any) => string;
+};
+
 export type Opt<T> =
-  | { readonly tag: "some"; readonly values: readonly [T]; readonly __lt_display: (value: any) => string; readonly __lt_order: number }
-  | { readonly tag: "none"; readonly values: readonly []; readonly __lt_display: (value: any) => string; readonly __lt_order: number };
+  | { readonly tag: "some"; readonly values: readonly [T]; readonly __lt_meta: VariantMeta }
+  | { readonly tag: "none"; readonly values: readonly []; readonly __lt_meta: VariantMeta };
 
 export type Res<T, E> =
-  | { readonly tag: "ok"; readonly values: readonly [T]; readonly __lt_display: (value: any) => string; readonly __lt_order: number }
-  | { readonly tag: "err"; readonly values: readonly [E]; readonly __lt_display: (value: any) => string; readonly __lt_order: number };
+  | { readonly tag: "ok"; readonly values: readonly [T]; readonly __lt_meta: VariantMeta }
+  | { readonly tag: "err"; readonly values: readonly [E]; readonly __lt_meta: VariantMeta };
+
+export function print(value: unknown): void {
+  console.log(disp(value));
+}
 
 export function disp(value: unknown): string {
   if (typeof value === "bigint") return value.toString();
@@ -24,7 +35,9 @@ export function disp(value: unknown): string {
   if (typeof value === "boolean") return value ? "true" : "false";
   if (value === null || value === undefined) return "None";
   const object = value as any;
-  if (typeof object.__lt_display === "function") return object.__lt_display(value);
+  if (object.__lt_meta !== undefined && typeof object.__lt_meta.display === "function") {
+    return object.__lt_meta.display(value);
+  }
   if (typeof object.__lt_to_string === "function") return object.__lt_to_string();
   if (typeof object.toString === "function" && object.toString !== Object.prototype.toString) {
     return object.toString();
@@ -56,13 +69,15 @@ export function cmp(a: unknown, b: unknown): number {
     if (typeof leftValue.__lt_cmp === "function") return leftValue.__lt_cmp(b);
     const rightValue = b as any;
     if (
-      typeof leftValue.__lt_order === "number" &&
+      leftValue.__lt_meta !== undefined &&
+      typeof leftValue.__lt_meta.order === "number" &&
       rightValue !== null &&
       typeof rightValue === "object" &&
-      typeof rightValue.__lt_order === "number"
+      rightValue.__lt_meta !== undefined &&
+      typeof rightValue.__lt_meta.order === "number"
     ) {
-      if (leftValue.__lt_order !== rightValue.__lt_order) {
-        return leftValue.__lt_order < rightValue.__lt_order ? -1 : 1;
+      if (leftValue.__lt_meta.order !== rightValue.__lt_meta.order) {
+        return leftValue.__lt_meta.order < rightValue.__lt_meta.order ? -1 : 1;
       }
       const leftItems = leftValue.values ?? [];
       const rightItems = rightValue.values ?? [];
@@ -91,15 +106,19 @@ export const irem = (a: bigint, b: bigint): bigint => BigInt.asIntN(64, a % b);
 export const ineg = (a: bigint): bigint => BigInt.asIntN(64, -a);
 
 // --- Option ----------------------------------------------------------------
+const noneDisplay = (value: any): string =>
+  value.tag === "none" ? "None" : `Some(${disp(value.values[0])})`;
+const noneMeta: VariantMeta = { order: 0, display: noneDisplay };
+const someMeta: VariantMeta = { order: 1, display: noneDisplay };
+
 const noneValue: Opt<never> = {
   tag: "none",
   values: [],
-  __lt_order: 0,
-  __lt_display: (value: any) => (value.tag === "none" ? "None" : `Some(${disp(value.values[0])})`),
+  __lt_meta: noneMeta,
 };
 
 export function Some<T>(value: T): Opt<T> {
-  return { tag: "some", values: [value], __lt_order: 1, __lt_display: noneValue.__lt_display };
+  return { tag: "some", values: [value], __lt_meta: someMeta };
 }
 
 export function None<T>(): Opt<T> {
@@ -130,12 +149,15 @@ export function optAndThen<T, U>(value: Opt<T>, f: (value: T) => Opt<U>): Opt<U>
 const resDisplay = (value: any): string =>
   value.tag === "ok" ? `Ok(${disp(value.values[0])})` : `Err(${disp(value.values[0])})`;
 
+const resMeta: VariantMeta = { order: 0, display: resDisplay };
+const errMeta: VariantMeta = { order: 1, display: resDisplay };
+
 export function Ok<T, E>(value: T): Res<T, E> {
-  return { tag: "ok", values: [value], __lt_order: 0, __lt_display: resDisplay };
+  return { tag: "ok", values: [value], __lt_meta: resMeta };
 }
 
 export function Err<T, E>(value: E): Res<T, E> {
-  return { tag: "err", values: [value], __lt_order: 1, __lt_display: resDisplay };
+  return { tag: "err", values: [value], __lt_meta: errMeta };
 }
 
 export const resIsOk = <T, E>(value: Res<T, E>): boolean => value.tag === "ok";

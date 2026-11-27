@@ -1,16 +1,28 @@
 package list_query {
+  export fn index_of(xs: List<Int>, needle: Int) -> Option<Int> {
+    xs.index_of(needle)
+  }
+
+  export fn at(xs: List<Int>, index: Int) -> Option<Int> {
+    xs.get(index)
+  }
+
+  export fn has_big(xs: List<Int>) -> Bool {
+    xs.any(fn(x) => x > 1)
+  }
+
   test "contains and index" {
     expect.true([1, 2, 3].contains(2))
-    expect.eq([1, 2, 3].index_of(3), Some(2))
+    expect.eq(index_of([1, 2, 3], 3), Some(2))
   }
 
   test "safe get" {
-    expect.eq([1, 2].get(1), Some(2))
-    expect.eq([1, 2].get(9), None)
+    expect.eq(at([1, 2], 1), Some(2))
+    expect.eq(at([1, 2], 9), None)
   }
 
   test "any and all" {
-    expect.true([1, 2].any(fn(x) => x > 1))
+    expect.true(has_big([1, 2]))
     expect.false([1, 2].all(fn(x) => x > 1))
   }
 }

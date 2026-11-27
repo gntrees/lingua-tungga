@@ -3,7 +3,7 @@
 `import` bisa menunjuk file `.lt` di internet:
 
 ```lt
-import User from "https://raw.githubusercontent.com/foo/bar/v1.2.0/src/user.lt"
+import user "https://raw.githubusercontent.com/foo/bar/v1.2.0/src/user.lt"
 ```
 
 Tidak ada konfigurasi tambahan. Build pertama me-resolve URL, menulis

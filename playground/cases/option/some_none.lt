@@ -1,17 +1,25 @@
 package some_none {
+  export fn one() -> Option<Int> {
+    Some(1)
+  }
+
+  export fn nothing() -> Option<Int> {
+    None
+  }
+
   test "some equals some" {
-    expect.eq(Some(1), Some(1))
+    expect.eq(one(), Some(1))
   }
 
   test "none equals none" {
-    expect.eq(None, None)
+    expect.eq(nothing(), None)
   }
 
   test "is some" {
-    expect.true(Some(2).is_some())
+    expect.true(one().is_some())
   }
 
   test "is none" {
-    expect.true(None.is_none())
+    expect.true(nothing().is_none())
   }
 }

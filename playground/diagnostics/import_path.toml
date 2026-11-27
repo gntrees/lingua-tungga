@@ -1,4 +1,4 @@
-title = "Import path harus relatif atau URL"
+title = "Import paths must be relative or a URL"
 feature = "diagnostics/strict"
-why = "Path tanpa ./ atau ../ ambigu dan tidak portabel."
+why = "A bare path is ambiguous and not portable."
 expect = "must start with"

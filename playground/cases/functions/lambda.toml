@@ -1,0 +1,3 @@
+title = "Lambdas are ordinary values"
+feature = "functions/lambda"
+why = "map and filter take an inline fn; the parameter type comes from the receiver."

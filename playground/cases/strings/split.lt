@@ -1,9 +1,17 @@
 package split {
+  export fn csv(line: Str) -> List<Str> {
+    line.split(",")
+  }
+
+  export fn joined(xs: List<Str>) -> Str {
+    xs.join("-")
+  }
+
   test "splits" {
-    expect.eq("a,b,c".split(","), ["a", "b", "c"])
+    expect.eq(csv("a,b,c"), ["a", "b", "c"])
   }
 
   test "joins" {
-    expect.eq(["a", "b"].join("-"), "a-b")
+    expect.eq(joined(["a", "b"]), "a-b")
   }
 }

@@ -1,9 +1,17 @@
 package precedence {
+  export fn no_parens() -> Int {
+    1 + 2 * 3
+  }
+
+  export fn with_parens() -> Int {
+    (1 + 2) * 3
+  }
+
   test "multiplication first" {
-    expect.eq(1 + 2 * 3, 7)
+    expect.eq(no_parens(), 7)
   }
 
   test "parentheses" {
-    expect.eq((1 + 2) * 3, 9)
+    expect.eq(with_parens(), 9)
   }
 }

@@ -68,6 +68,10 @@ def fdiv(a: float, b: float) -> float:
 # --- Display, equality, ordering -------------------------------------------
 
 
+def print_value(value: Any) -> None:
+    print(disp(value))
+
+
 def disp(value: Any) -> str:
     if isinstance(value, bool):
         return "true" if value else "false"

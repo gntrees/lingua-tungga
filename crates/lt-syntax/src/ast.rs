@@ -22,6 +22,12 @@ pub struct ImportDecl {
     pub items: Vec<ImportItem>,
     /// Raw path as written; `.lt` files and `https://` URLs alike.
     pub path: String,
+    /// Entries written inside one `import ( … )` block share the same id, so the
+    /// formatter can keep the block instead of exploding it into single lines.
+    pub group: Option<u32>,
+    /// A blank line separated this entry from the previous one in the source.
+    /// The formatter keeps the split and sorts each sub-group on its own.
+    pub blank_before: bool,
     pub span: Span,
 }
 

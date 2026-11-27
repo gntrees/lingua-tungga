@@ -1,10 +1,14 @@
 package float_ieee {
+  export fn divide(a: Float, b: Float) -> Float {
+    a / b
+  }
+
   test "infinity" {
-    expect.true(1.0 / 0.0 > 0.0)
-    expect.true(-1.0 / 0.0 < 0.0)
+    expect.true(divide(1.0, 0.0) > 0.0)
+    expect.true(divide(-1.0, 0.0) < 0.0)
   }
 
   test "nan is not equal" {
-    expect.false(0.0 / 0.0 == 0.0 / 0.0)
+    expect.false(divide(0.0, 0.0) == divide(0.0, 0.0))
   }
 }

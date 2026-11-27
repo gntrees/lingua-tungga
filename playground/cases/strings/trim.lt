@@ -1,10 +1,22 @@
 package trim {
+  export fn tidy(text: Str) -> Str {
+    text.trim()
+  }
+
+  export fn shouted(text: Str) -> Str {
+    text.upper()
+  }
+
+  export fn whispered(text: Str) -> Str {
+    text.lower()
+  }
+
   test "trims" {
-    expect.eq("  Hi  ".trim(), "Hi")
+    expect.eq(tidy("  Hi  "), "Hi")
   }
 
   test "cases" {
-    expect.eq("Hi".lower(), "hi")
-    expect.eq("hi".upper(), "HI")
+    expect.eq(whispered("Hi"), "hi")
+    expect.eq(shouted("hi"), "HI")
   }
 }

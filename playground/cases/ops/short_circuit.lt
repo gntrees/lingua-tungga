@@ -1,11 +1,19 @@
 package short_circuit {
-  test "and skips right" {
+  export fn and_skips() -> Bool {
     let zero = 0
-    expect.false(false && 1 / zero == 0)
+    false && 1 / zero == 0
+  }
+
+  export fn or_skips() -> Bool {
+    let zero = 0
+    true || 1 / zero == 0
+  }
+
+  test "and skips right" {
+    expect.false(and_skips())
   }
 
   test "or skips right" {
-    let zero = 0
-    expect.true(true || 1 / zero == 0)
+    expect.true(or_skips())
   }
 }

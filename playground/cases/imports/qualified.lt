@@ -1,0 +1,11 @@
+import wallet "./_wallet.lt"
+
+package qualified {
+  export fn checkout(subtotal: Int) -> Str {
+    wallet.format(wallet.add_vat(wallet.Money(amount: subtotal)))
+  }
+
+  test "qualified access reaches types, bindings and functions" {
+    expect.eq(checkout(100), "Rp111")
+  }
+}

@@ -1,4 +1,4 @@
-title = "? pada Option di method Result"
+title = "? on an Option inside a Result function"
 feature = "diagnostics/strict"
-why = "? tidak boleh mencampur Option dan Result."
+why = "? must not mix Option and Result."
 expect = "`?` on an `Option`"

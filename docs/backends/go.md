@@ -14,14 +14,14 @@ lulus di `go test`.
 | `List<T>` | `lt.List[T]` |
 | `Map<K,V>` | `lt.Map[K,V]` (entry terurut) |
 | `Set<T>` | `lt.Set[T]` |
-| `Option<T>` / `Result<T,E>` | `lt.Variant` (`Tag`, `Values []any`, `Display`) |
-| `enum` | `lt.Variant` + konstruktor `EnumVariant(...)`; enum generik memakai konstruktor generik dan type argument eksplisit di call site |
+| `Option<T>` / `Result<T,E>` | `lt.Variant` (`Tag`, `Order`, `Type`, `Values`) |
+| `enum` | `lt.Variant` dengan `Type` = nama enum + konstruktor `EnumVariant(...)`; display struktural dari `Type`/`Tag`/`Values`, tanpa fungsi display per enum |
 | `struct` | `struct` dengan field exported + `NewUser(...)` |
 | fungsi package-level | `func Name(...)` untuk `export`, `func name(...)` (camelCase) untuk private |
 | binding package | `var Name T = …` / `var name T = …` |
 | `package` | satu direktori package: `gen/<package>/<package>.go` |
 | fungsi ber-receiver | tetap fungsi package-level; `p.len()` menjadi `len(p)` saat lowering |
-| `Display`/`Eq`/`Ord` | `lt.Disp`, `lt.Eq`, `lt.Cmp` lewat method `LtDisplay`/`LtEq`/`LtCmp` pada struct dan enum |
+| `Display`/`Eq`/`Ord` | `lt.Disp`, `lt.Eq`, `lt.Cmp` lewat method `LtDisplay`/`LtEq`/`LtCmp` pada struct; `lt.Variant` merender display-nya sendiri dari `Type`/`Tag`/`Values` |
 | `?` | `if __try.Tag == "err"/"none" { return __try }` |
 | `to_string()` | `lt.Disp(value)` |
 | tagged template | pemanggilan fungsi package-level dengan `lt.List[string]` + `lt.List[T]` |

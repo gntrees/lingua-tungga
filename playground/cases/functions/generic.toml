@@ -1,0 +1,3 @@
+title = "Generic functions infer their type arguments"
+feature = "functions/generic"
+why = "identity(7) and first([...]) need no explicit type argument."

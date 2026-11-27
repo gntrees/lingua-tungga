@@ -1,11 +1,19 @@
 package parse {
+  export fn to_int(text: Str) -> Option<Int> {
+    text.parse_int()
+  }
+
+  export fn to_float(text: Str) -> Option<Float> {
+    text.parse_float()
+  }
+
   test "parses int" {
-    expect.eq(" 42 ".parse_int(), Some(42))
-    expect.eq("nope".parse_int(), None)
+    expect.eq(to_int(" 42 "), Some(42))
+    expect.eq(to_int("nope"), None)
   }
 
   test "parses float" {
-    expect.eq("1.5".parse_float(), Some(1.5))
-    expect.eq("".parse_float(), None)
+    expect.eq(to_float("1.5"), Some(1.5))
+    expect.eq(to_float(""), None)
   }
 }

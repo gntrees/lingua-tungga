@@ -1,4 +1,4 @@
-title = "Tipe tak dikenal"
+title = "Unknown type name"
 feature = "diagnostics/strict"
-why = "Typo pada tipe harus tertangkap sebelum emit."
+why = "A typo in a type must be caught before emit."
 expect = "unknown type"

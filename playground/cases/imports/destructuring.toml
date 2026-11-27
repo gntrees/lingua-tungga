@@ -1,0 +1,3 @@
+title = "Destructuring imports names directly"
+feature = "imports/destructuring"
+why = "Only `export`ed names can be listed, and they shadow no qualifier."

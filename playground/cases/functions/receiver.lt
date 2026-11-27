@@ -1,0 +1,17 @@
+package receiver {
+  export struct Counter {
+    value: Int
+  }
+
+  export fn bump(c: Counter) -> Counter {
+    Counter(value: c.value + 1)
+  }
+
+  test "calls as a function" {
+    expect.eq(bump(Counter(value: 1)), Counter(value: 2))
+  }
+
+  test "calls as a method" {
+    expect.eq(Counter(value: 1).bump(), Counter(value: 2))
+  }
+}

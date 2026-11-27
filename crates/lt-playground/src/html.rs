@@ -37,6 +37,8 @@ pub fn render(document: &Document) -> String {
                 "source": case.source,
                 "sourceHtml": case.source_html,
                 "outputs": case.outputs,
+                "usage": case.usage,
+                "usageOutput": case.usage_output,
                 "diagnostic": case.diagnostic,
                 "status": case.status,
             })
@@ -141,6 +143,7 @@ pre { margin: 0; padding: 14px 16px; background: var(--code); border: 1px solid 
 .empty { color: var(--muted); font-style: italic; }
 .diag { border-left: 3px solid var(--bad); padding: 8px 12px; background: var(--code); border-radius: 6px; font-family: ui-monospace, Menlo, monospace; font-size: 13px; white-space: pre-wrap; }
 .diag.ok { border-color: var(--ok); }
+pre.stdout { border-color: var(--ok); }
 @media (max-width: 820px) {
   .layout { grid-template-columns: 1fr; }
   aside { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--line); }
@@ -155,7 +158,7 @@ pre { margin: 0; padding: 14px 16px; background: var(--code); border: 1px solid 
 </header>
 <div class="layout">
   <aside>
-    <input id="search" type="search" placeholder="Cari kasus, fitur, atau source… (tekan /)" autocomplete="off">
+    <input id="search" type="search" placeholder="Search cases, features, or source… (press /)" autocomplete="off">
     <nav id="nav"></nav>
   </aside>
   <main id="main"></main>
@@ -165,6 +168,7 @@ const DATA = __DATA__;
 const cases = new Map(DATA.cases.map(c => [c.id, c]));
 const featureById = new Map(DATA.features.map(f => [f.id, f]));
 const TARGETS = ["ts", "py", "go"];
+const TARGET_LABEL = { ts: "TypeScript", py: "Python", go: "Go" };
 
 const nav = document.getElementById("nav");
 const main = document.getElementById("main");
@@ -173,27 +177,27 @@ const meta = document.getElementById("meta");
 
 const runCases = DATA.cases.filter(c => c.kind === "run").length;
 const diagCases = DATA.cases.filter(c => c.kind === "diagnostic").length;
-let evidence = DATA.evidenceGeneratedAt ? ` · evidence ${DATA.evidenceGeneratedAt}` : " · evidence belum ada";
+let evidence = DATA.evidenceGeneratedAt ? ` · evidence ${DATA.evidenceGeneratedAt}` : " · no evidence yet";
 if (DATA.evidenceGit && DATA.evidenceGit.commit) evidence += ` @ ${DATA.evidenceGit.commit}${DATA.evidenceGit.dirty ? " (dirty)" : ""}`;
-meta.textContent = `${runCases} kasus executable · ${diagCases} kasus diagnostik · ${DATA.features.length} fitur` + evidence;
+meta.textContent = `${runCases} executable cases · ${diagCases} diagnostic cases · ${DATA.features.length} features` + evidence;
 const t = DATA.evidenceTargets || {};
 const summaries = ["ts", "py", "go"].filter(k => t[k]).map(k => `${k}: ${t[k].passed}/${t[k].cases}` + (t[k].conformance ? ` (+${t[k].conformance_passed}/${t[k].conformance} conformance)` : ""));
 if (summaries.length) meta.textContent += " · " + summaries.join(" · ");
 if (DATA.stale) {
   const el = document.getElementById("stale");
   el.className = "banner stale";
-  el.textContent = "evidence.json tidak cocok dengan daftar kasus; jalankan scripts/playground.sh agar status terisi.";
+  el.textContent = "evidence.json does not match the current cases; run scripts/playground.sh to fill in the status and usage output.";
 }
 
 function badge(status) {
-  const label = status === "pass" ? "lulus" : status === "fail" ? "gagal" : status === "ok" ? "ok" : "belum";
+  const label = status === "pass" ? "pass" : status === "fail" ? "fail" : status === "ok" ? "ok" : "not run";
   const cls = status === "pass" || status === "ok" ? "pass" : status === "fail" ? "fail" : "not-run";
   return `<span class="badge ${cls}">${label}</span>`;
 }
 
 function statusBadges(c) {
-  if (c.kind === "diagnostic") return `<span class="badge pass">diagnostik ok</span>`;
-  return TARGETS.map(t => `<span class="badge ${c.status[t] === "pass" ? "pass" : c.status[t] === "fail" ? "fail" : "not-run"}">${t}: ${c.status[t] === "pass" ? "lulus" : c.status[t] === "fail" ? "gagal" : "belum"}</span>`).join(" ");
+  if (c.kind === "diagnostic") return `<span class="badge pass">diagnostic ok</span>`;
+  return TARGETS.map(t => `<span class="badge ${c.status[t] === "pass" ? "pass" : c.status[t] === "fail" ? "fail" : "not-run"}">${t}: ${c.status[t] === "pass" ? "pass" : c.status[t] === "fail" ? "fail" : "not run"}</span>`).join(" ");
 }
 
 function renderNav(filter = "") {
@@ -264,10 +268,83 @@ function esc(text) {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+const CODE_KEYWORDS = {
+  ts: new Set(["abstract", "as", "async", "await", "break", "case", "catch", "class", "const", "constructor", "continue", "declare", "default", "delete", "do", "else", "enum", "export", "extends", "false", "finally", "for", "from", "function", "get", "if", "implements", "import", "in", "instanceof", "interface", "keyof", "let", "new", "null", "of", "private", "protected", "public", "readonly", "return", "set", "static", "super", "switch", "this", "throw", "true", "try", "type", "typeof", "undefined", "var", "void", "while", "yield"]),
+  py: new Set(["and", "as", "assert", "async", "await", "break", "class", "continue", "def", "del", "elif", "else", "except", "False", "finally", "for", "from", "global", "if", "import", "in", "is", "lambda", "match", "None", "nonlocal", "not", "or", "pass", "raise", "return", "True", "try", "while", "with", "yield"]),
+  go: new Set(["break", "case", "chan", "const", "continue", "default", "defer", "else", "fallthrough", "false", "for", "func", "go", "goto", "if", "import", "interface", "map", "nil", "package", "range", "return", "select", "struct", "switch", "true", "type", "var"]),
+};
+
+const CODE_TYPES = {
+  ts: new Set(["any", "bigint", "boolean", "never", "number", "object", "string", "symbol", "unknown", "void"]),
+  py: new Set(["Any", "bool", "bytes", "dict", "float", "int", "list", "object", "set", "str", "tuple"]),
+  go: new Set(["any", "bool", "byte", "error", "float32", "float64", "int", "int8", "int16", "int32", "int64", "rune", "string", "uint", "uint8", "uint16", "uint32", "uint64"]),
+};
+
+// Small per-target highlighter: comments, strings, numbers, keywords, and
+// capitalized type names. Runs at render time so the page stays one file.
+function highlightCode(code, lang) {
+  const keywords = CODE_KEYWORDS[lang] || new Set();
+  const lineComment = lang === "py" ? "#" : "//";
+  const out = [];
+  let i = 0;
+  while (i < code.length) {
+    const rest = code.slice(i);
+    if (code.startsWith(lineComment, i)) {
+      const end = code.indexOf("\n", i);
+      const stop = end < 0 ? code.length : end;
+      out.push(`<span class="tok-comment">${esc(code.slice(i, stop))}</span>`);
+      i = stop;
+      continue;
+    }
+    if (lang !== "py" && code.startsWith("/*", i)) {
+      const close = code.indexOf("*/", i + 2);
+      const stop = close < 0 ? code.length : close + 2;
+      out.push(`<span class="tok-comment">${esc(code.slice(i, stop))}</span>`);
+      i = stop;
+      continue;
+    }
+    const ch = code[i];
+    if (ch === '"' || ch === "'" || ch === "`") {
+      let j = i + 1;
+      while (j < code.length) {
+        if (code[j] === "\\") { j += 2; continue; }
+        if (code[j] === ch) { j += 1; break; }
+        if (ch !== "`" && code[j] === "\n") break;
+        j += 1;
+      }
+      out.push(`<span class="tok-str">${esc(code.slice(i, j))}</span>`);
+      i = j;
+      continue;
+    }
+    const num = /^(?:0[xX][0-9a-fA-F_]+|\d[\d_]*(?:\.\d+)?(?:[eE][+-]?\d+)?n?)/.exec(rest);
+    if (num) {
+      out.push(`<span class="tok-num">${esc(num[0])}</span>`);
+      i += num[0].length;
+      continue;
+    }
+    const id = /^[A-Za-z_$][A-Za-z0-9_$]*/.exec(rest);
+    if (id) {
+      const word = id[0];
+      const types = CODE_TYPES[lang] || new Set();
+      const cls = keywords.has(word)
+        ? "tok-kw"
+        : types.has(word) || /^[A-Z]/.test(word)
+          ? "tok-type"
+          : null;
+      out.push(cls ? `<span class="${cls}">${esc(word)}</span>` : esc(word));
+      i += word.length;
+      continue;
+    }
+    out.push(esc(ch));
+    i += 1;
+  }
+  return out.join("");
+}
+
 function renderCase(id) {
   const c = cases.get(id);
   if (!c) {
-    main.innerHTML = `<h2>Kasus tidak ditemukan</h2><p class="why">Pilih kasus di sidebar.</p>`;
+    main.innerHTML = `<h2>Case not found</h2><p class="why">Pick a case in the sidebar.</p>`;
     return;
   }
   markActive(id);
@@ -278,7 +355,7 @@ function renderCase(id) {
   const feature = featureById.get(c.feature);
   const tag = document.createElement("div");
   tag.className = "feature-tag";
-  tag.textContent = feature ? `fitur: ${feature.title}${feature.spec ? " · " + feature.spec : ""}` : c.feature;
+  tag.textContent = feature ? `feature: ${feature.title}${feature.spec ? " · " + feature.spec : ""}` : c.feature;
   main.appendChild(tag);
   if (c.why) {
     const why = document.createElement("p");
@@ -288,7 +365,7 @@ function renderCase(id) {
   }
   const badges = document.createElement("div");
   badges.className = "badges";
-  badges.innerHTML = statusBadges(c) + `<span class="badge">${c.kind === "diagnostic" ? "diagnostik" : "executable"}</span>`;
+  badges.innerHTML = statusBadges(c) + `<span class="badge">${c.kind === "diagnostic" ? "diagnostic" : "executable"}</span>`;
   main.appendChild(badges);
 
   main.appendChild(block("source (.lt)", c.sourceHtml, c.source));
@@ -297,7 +374,7 @@ function renderCase(id) {
     const diag = document.createElement("div");
     diag.className = "diag ok";
     diag.textContent = c.diagnostic || "";
-    main.appendChild(block("diagnostic (wajib gagal)"));
+    main.appendChild(block("diagnostic (must fail)"));
     main.lastChild.appendChild(diag);
     return;
   }
@@ -310,14 +387,30 @@ function renderCase(id) {
     tabs.innerHTML = "";
     for (const t of TARGETS) {
       const b = document.createElement("button");
-      b.textContent = t === "ts" ? "TypeScript" : t === "py" ? "Python" : "Go";
+      b.textContent = TARGET_LABEL[t];
       b.className = t === current ? "active" : "";
       b.onclick = () => { current = t; draw(); };
       tabs.appendChild(b);
     }
     panes.innerHTML = "";
     const code = c.outputs[current] || "";
-    panes.appendChild(block("output " + current, `<code>${esc(code)}</code>`, code));
+    panes.appendChild(block("output " + current, `<code>${highlightCode(code, current)}</code>`, code));
+    const usage = (c.usage && c.usage[current]) || "";
+    if (usage) {
+      panes.appendChild(block("usage · " + TARGET_LABEL[current], `<code>${highlightCode(usage, current)}</code>`, usage));
+      const lines = (c.usageOutput && c.usageOutput[current]) || [];
+      if (lines.length) {
+        const text = lines.join("\n");
+        const out = block("stdout · " + TARGET_LABEL[current], `<code>${esc(text)}</code>`, text);
+        out.querySelector("pre").classList.add("stdout");
+        panes.appendChild(out);
+      } else {
+        const note = document.createElement("div");
+        note.className = "block empty";
+        note.textContent = `no recorded ${TARGET_LABEL[current]} output yet; run scripts/playground.sh`;
+        panes.appendChild(note);
+      }
+    }
   };
   draw();
   main.appendChild(tabs);

@@ -1,0 +1,25 @@
+package mutual {
+  export fn is_even(n: Int) -> Bool {
+    if n == 0 {
+      true
+    } else {
+      is_odd(n - 1)
+    }
+  }
+
+  export fn is_odd(n: Int) -> Bool {
+    if n == 0 {
+      false
+    } else {
+      is_even(n - 1)
+    }
+  }
+
+  test "even calls odd" {
+    expect.true(is_even(4))
+  }
+
+  test "odd calls even" {
+    expect.false(is_odd(4))
+  }
+}

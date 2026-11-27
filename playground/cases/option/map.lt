@@ -1,10 +1,14 @@
 package map {
+  export fn tripled(value: Option<Int>) -> Option<Int> {
+    value.map(fn(x) => x * 3)
+  }
+
   test "maps some" {
-    expect.eq(Some(2).map(fn(x) => x * 3), Some(6))
+    expect.eq(tripled(Some(2)), Some(6))
   }
 
   test "keeps none" {
     let none: Option<Int> = None
-    expect.eq(none.map(fn(x) => x * 3), None)
+    expect.eq(tripled(none), None)
   }
 }

@@ -16,7 +16,7 @@ lulus di `pytest`.
 | `Set<T>` | `_lt.LSet` |
 | `Option<T>` | `_lt.Opt` (`tag` = `"some"`/`"none"`, `values` tuple) |
 | `Result<T,E>` | `_lt.Res` (`tag` = `"ok"`/`"err"`) |
-| `enum` | `@dataclass(frozen=True)` dengan `tag`/`values`/`order` + konstruktor `enum_variant(...)` |
+| `enum` | `@dataclass(frozen=True)` dengan `tag`/`values`/`order`; varian adalah `Shape.circle(...)` (`@staticmethod`) dan `Shape.Point` (`ClassVar`); display lewat `to_display` |
 | `struct` | `@dataclass(frozen=True)`; field menjadi parameter konstruktor bernama, plus `lt_cmp` dan `to_display` |
 | fungsi package-level | `def name(...)` (export) / `def _name(...)` (private) |
 | binding package | `name = …` / `_name = …` |

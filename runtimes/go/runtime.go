@@ -12,21 +12,46 @@ import (
 // --- Variant: enums, Option and Result -------------------------------------
 
 type Variant struct {
-	Tag     string
-	Order   int
-	Values  []any
-	Display func(Variant) string
+	Tag   string
+	Order int
+	// Type is the enum that declared Tag; empty for Option and Result, whose
+	// names are fixed. Values is the payload, in declaration order.
+	Type   string
+	Values []any
 }
 
 type Cmper interface {
 	LtCmp(any) int
 }
 
+// LtDisplay renders the variant structurally: the value carries no renderer,
+// only the name of the enum that owns it, so one implementation covers every
+// enum.
 func (v Variant) LtDisplay() string {
-	if v.Display != nil {
-		return v.Display(v)
+	head := v.Tag
+	switch {
+	case v.Type != "":
+		head = v.Type + "." + v.Tag
+	default:
+		if name, ok := builtinVariant[v.Tag]; ok {
+			head = name
+		}
 	}
-	return v.Tag
+	if len(v.Values) == 0 {
+		return head
+	}
+	parts := make([]string, len(v.Values))
+	for index, value := range v.Values {
+		parts[index] = Disp(value)
+	}
+	return head + "(" + strings.Join(parts, ", ") + ")"
+}
+
+var builtinVariant = map[string]string{
+	"some": "Some",
+	"none": "None",
+	"ok":   "Ok",
+	"err":  "Err",
 }
 
 func (v Variant) LtEq(other any) bool {
@@ -58,6 +83,10 @@ func Eq(a, b any) bool {
 		return right.LtEq(a)
 	}
 	return a == b
+}
+
+func Print(value any) {
+	fmt.Println(Disp(value))
 }
 
 func Disp(value any) string {
@@ -160,19 +189,12 @@ func FDiv(a, b float64) float64 {
 
 // --- Option ----------------------------------------------------------------
 
-func optDisplay(value Variant) string {
-	if value.Tag == "none" {
-		return "None"
-	}
-	return "Some(" + Disp(value.Values[0]) + ")"
-}
-
 func Some[T any](value T) Variant {
-	return Variant{Tag: "some", Order: 1, Values: []any{value}, Display: optDisplay}
+	return Variant{Tag: "some", Order: 1, Values: []any{value}}
 }
 
 func None() Variant {
-	return Variant{Tag: "none", Order: 0, Display: optDisplay}
+	return Variant{Tag: "none", Order: 0}
 }
 
 func OptIsSome(value Variant) bool { return value.Tag == "some" }
@@ -208,19 +230,12 @@ func OptAndThen[T any, U any](value Variant, f func(T) Variant) Variant {
 
 // --- Result ----------------------------------------------------------------
 
-func resDisplay(value Variant) string {
-	if value.Tag == "ok" {
-		return "Ok(" + Disp(value.Values[0]) + ")"
-	}
-	return "Err(" + Disp(value.Values[0]) + ")"
-}
-
 func Ok[T any](value T) Variant {
-	return Variant{Tag: "ok", Order: 0, Values: []any{value}, Display: resDisplay}
+	return Variant{Tag: "ok", Order: 0, Values: []any{value}}
 }
 
 func Err[E any](value E) Variant {
-	return Variant{Tag: "err", Order: 1, Values: []any{value}, Display: resDisplay}
+	return Variant{Tag: "err", Order: 1, Values: []any{value}}
 }
 
 func ResIsOk(value Variant) bool  { return value.Tag == "ok" }

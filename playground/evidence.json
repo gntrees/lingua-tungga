@@ -1,9 +1,9 @@
 {
   "schema": 1,
-  "generated_at": "2026-11-27T15:27:49Z",
+  "generated_at": "2026-11-27T19:06:48Z",
   "git": {
-    "commit": "4f90f37",
-    "dirty": false
+    "commit": "6c83009",
+    "dirty": true
   },
   "tools": {
     "rustc": "rustc 1.96.0 (ac68faa20 2026-05-25)",
@@ -14,27 +14,37 @@
   "targets": {
     "ts": {
       "suite": "vitest",
-      "cases": 43,
-      "passed": 43,
+      "cases": 53,
+      "passed": 53,
       "conformance": 45,
       "conformance_passed": 45
     },
     "py": {
       "suite": "pytest+mypy",
-      "cases": 43,
-      "passed": 43,
+      "cases": 53,
+      "passed": 53,
       "conformance": 45,
       "conformance_passed": 45
     },
     "go": {
       "suite": "go test+vet",
-      "cases": 43,
-      "passed": 43,
+      "cases": 53,
+      "passed": 53,
       "conformance": 45,
       "conformance_passed": 45
     }
   },
   "cases": {
+    "bindings/export_let": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "bindings/local_let": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
     "classes/display": {
       "ts": true,
       "py": true,
@@ -110,12 +120,52 @@
       "py": true,
       "go": true
     },
+    "functions/export_fn": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "functions/generic": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "functions/lambda": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "functions/mutual": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "functions/receiver": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
     "generics/inference": {
       "ts": true,
       "py": true,
       "go": true
     },
     "generics/nested": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "imports/destructuring": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "imports/grouped": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "imports/qualified": {
       "ts": true,
       "py": true,
       "go": true

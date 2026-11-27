@@ -1,5 +1,5 @@
-import book { Book, Genre, describe } from "./book.lt"
-import catalog { Catalog, add, empty, find_by_author, newest, size } from "./catalog.lt"
+import book { Book, Genre, describe } "./book.lt"
+import catalog { Catalog, add, empty, find_by_author, newest, size } "./catalog.lt"
 
 package catalog_test {
   fn sample() -> Catalog {

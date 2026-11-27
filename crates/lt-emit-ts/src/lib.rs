@@ -64,6 +64,20 @@ pub fn emit_package_with_tests(program: &IrProgram) -> Vec<EmittedFile> {
     files
 }
 
+/// One runnable program per module: how to call this library from TypeScript.
+pub fn emit_usage(program: &IrProgram) -> Vec<EmittedFile> {
+    let mut files = Vec::new();
+    for module in &program.modules {
+        if let Some(contents) = ts::emit_usage(program, module) {
+            files.push(EmittedFile {
+                path: PathBuf::from(format!("src/{}.usage.ts", module.name)),
+                contents,
+            });
+        }
+    }
+    files
+}
+
 fn package_json() -> String {
     "{\n  \"name\": \"lingua-tungga-generated\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"scripts\": {\n    \"test\": \"vitest run\"\n  },\n  \"devDependencies\": {\n    \"typescript\": \"^5.4.0\",\n    \"vitest\": \"^3.0.0\"\n  }\n}\n".to_string()
 }

@@ -1,0 +1,3 @@
+title = "Exported package bindings"
+feature = "bindings/export-let"
+why = "Package-level let values are immutable and readable as module constants."

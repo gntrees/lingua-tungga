@@ -1,3 +1,3 @@
-title = "split dan join"
+title = "split and join"
 feature = "strings/split"
-why = "Pecah dan gabung string tanpa regex; hasil join memakai Display."
+why = "Split and join without a regex; join renders each value through Display."

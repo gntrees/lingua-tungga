@@ -1,3 +1,3 @@
-title = "Set tanpa duplikat"
+title = "Set without duplicates"
 feature = "collections/set"
-why = "insert menduplikasi? Tidak: Set menyaring nilai yang sama dan mengurutkan."
+why = "insert filters equal values instead of duplicating them, and keeps order."

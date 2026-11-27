@@ -1,4 +1,4 @@
-title = "Children tanpa field children"
+title = "JSX children need a children field"
 feature = "diagnostics/strict"
-why = "JSX anak hanya sah bila class mendeklarasikan field children."
+why = "JSX children are only valid when the struct declares a children field."
 expect = "declares no `children` field"

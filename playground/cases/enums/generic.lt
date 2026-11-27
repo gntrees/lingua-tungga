@@ -4,7 +4,7 @@ package generic {
     Value(T)
   }
 
-  fn label(value: MaybeBox<Int>) -> Str {
+  export fn label(value: MaybeBox<Int>) -> Str {
     match value {
       MaybeBox.Empty => "empty"
       MaybeBox.Value(n) => `value:${n}`

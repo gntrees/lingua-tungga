@@ -74,6 +74,20 @@ pub fn emit_package_with_tests(program: &IrProgram) -> Vec<EmittedFile> {
     files
 }
 
+/// One runnable program per module: how to call this library from Python.
+pub fn emit_usage(program: &IrProgram) -> Vec<EmittedFile> {
+    let mut files = Vec::new();
+    for module in &program.modules {
+        if let Some(contents) = py::emit_usage(program, module) {
+            files.push(EmittedFile {
+                path: PathBuf::from(format!("usage/{}.py", module.name.replace('/', "_"))),
+                contents,
+            });
+        }
+    }
+    files
+}
+
 fn pyproject() -> String {
     "[project]\nname = \"lingua-tungga-generated\"\nversion = \"0.0.0\"\nrequires-python = \">=3.11\"\n\n[tool.pytest.ini_options]\npythonpath = [\".\"]\ntestpaths = [\"tests\"]\n".to_string()
 }

@@ -1,3 +1,3 @@
-title = "unwrap dan unwrap_or"
+title = "unwrap and unwrap_or"
 feature = "option/unwrap"
-why = "unwrap adalah trap terkontrol; unwrap_or memberi nilai cadangan."
+why = "unwrap is a controlled trap; unwrap_or supplies a fallback."

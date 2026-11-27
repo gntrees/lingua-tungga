@@ -1,3 +1,3 @@
-title = "Result.map dan map_err mengubah sisi masing-masing"
+title = "Result.map and map_err transform one side each"
 feature = "result/map-err"
-why = "Transformasi nilai sukses dan error terpisah tanpa membongkar Result."
+why = "Success and error values are transformed separately without unpacking the Result."

@@ -1,3 +1,3 @@
-title = "Konstruksi memakai named arguments"
+title = "Construction uses named arguments"
 feature = "classes/named-args"
-why = "Semua field wajib diisi dengan nama, mencegah bug urutan argumen."
+why = "Every field is named, so argument order cannot silently break a value."

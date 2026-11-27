@@ -11,9 +11,15 @@
 Program        = { Import } , { PackageDecl } , EOF ;
 
 (* Import menunjuk PACKAGE, bukan file. Path wajib; nama package dinyatakan
-   eksplisit di sini dan diverifikasi ada di file target. *)
-Import         = "import" , Identifier , [ "as" , Identifier ] ,
-                 [ "{" , ImportList , "}" ] , "from" , StringLit ;
+   eksplisit di sini dan diverifikasi ada di file target.
+   Entri boleh berdiri sendiri atau dikelompokkan dalam satu blok `( ... )`,
+   satu entri per baris tanpa koma. *)
+Import         = "import" , ( ImportEntry | ImportGroup ) ;
+
+ImportGroup    = "(" , { ImportEntry } , ")" ;
+
+ImportEntry    = Identifier , [ "as" , Identifier ] ,
+                 [ "{" , ImportList , "}" ] , StringLit ;
 
 ImportList     = ImportItem , { "," , ImportItem } ;
 

@@ -1,3 +1,3 @@
-title = "Float mengikuti IEEE-754"
+title = "Float follows IEEE-754"
 feature = "types/float"
-why = "Pembagian float dengan nol menghasilkan inf/NaN, bukan trap."
+why = "Dividing by zero yields inf or NaN instead of trapping."

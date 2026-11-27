@@ -1,5 +1,9 @@
 package escape {
+  export fn literal() -> Str {
+    `a \` b \${not} ${1}`
+  }
+
   test "escapes" {
-    expect.eq(`a \` b \${not} ${1}`, "a ` b ${not} 1")
+    expect.eq(literal(), "a ` b ${not} 1")
   }
 }

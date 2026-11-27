@@ -1,5 +1,52 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Playground menampilkan **program pemakaian** di bawah output tiap bahasa: untuk
+  setiap target, halaman memuat program yang mengimpor modul hasil emit dan
+  memanggil API-nya, plus stdout nyata dari eksekusi program itu. Program
+  diturunkan dari IR (test di-replay dengan `expect.*` diganti `print`), jadi
+  tidak bisa basi terhadap perubahan API.
+- `lt test --usage` mengemit program pemakaian bersama paket + test.
+- Kasus playground baru bertema fungsi & variabel: `functions/export_fn`,
+  `functions/receiver`, `functions/lambda`, `functions/mutual`,
+  `functions/generic`, `bindings/export_let`, `bindings/local_let`.
+- Gate baru: kasus executable wajib punya minimal satu deklarasi `export` dan
+  minimal satu blok `test`; `scripts/playground.sh` menjalankan setiap program
+  pemakaian di ketiga target dan menulis `playground/usage.json`.
+
+### Changed
+
+- Sintaks `import` dipangkas mengikuti Go: `from` dihapus dan path pindah ke
+  belakang (`import money { Price, format } "./wallet/money.lt"`), plus blok
+  `import ( … )` dengan satu entri per baris dan tanpa koma. Nama package tetap
+  ditulis eksplisit dan tetap diverifikasi; destructuring, alias, dan qualifier
+  tidak berubah. `lt fmt` kini mengurutkan import berdasarkan path per blok dan
+  mempertahankan baris kosong sebagai pemisah sub-blok.
+- `import . "path"` (dot import) dan `import _ "path"` (blank import) ditolak
+  dengan pesan khusus; `{}` kosong pada import juga error. Kata kunci `from`
+  tetap dicadangkan walau tidak lagi dipakai.
+- Klarifikasi spec §13: destructuring **tidak** mematikan qualifier — perilaku
+  loader selama ini memang begitu, dokumennya yang salah.
+- Korpus playground (50 kasus) dan seluruh metadata sidecar kini berbahasa Inggris.
+- 24 kasus yang sebelumnya hanya berisi `test` sekarang mengekspor fungsi yang
+  dipanggil oleh test-nya, sehingga panel output tidak lagi kosong.
+- Output `enum` di ketiga backend kini **satu nama per enum**: varian dipanggil
+  sebagai `Shape.Circle(...)` (`Shape.Point` untuk varian tanpa payload), bukan
+  lagi simbol terpisah `Shape_Circle`/`shape_circle`/`ShapeCircle`. Fungsi display
+  per enum dihapus; display dan urutan varian menjadi metadata yang dipakai
+  bersama semua nilai, jadi nilai enum hanya membawa payload.
+  - TypeScript: `export type Shape` + `export const Shape` (dua ruang nama, satu
+    identifier), `lt.VariantMeta` per varian, 3 properti per nilai.
+  - Python: konstruktor menjadi `@staticmethod`/`ClassVar` di dalam kelas enum,
+    `_shape_display` dihapus. Varian tanpa payload tetap berupa nilai (`Shape.Point`).
+  - Go: `lt.Variant` kehilangan field `Display` dan mendapat `Type`; `LtDisplay`
+    merender `Type.Tag(payload)` secara struktural, sehingga `ShapeDisplay` hilang.
+    Konstruktor tetap fungsi package-level karena Go tidak mengizinkan nilai
+    fungsi generik.
+
 ## 0.2.1 — 2026-11-27 (breaking: v2)
 
 Ledger keputusan & alasan: [`docs/v2-decisions.md`](docs/v2-decisions.md). Spesifikasi baru:

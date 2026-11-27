@@ -1,4 +1,4 @@
-title = "match kurang satu varian"
+title = "match is missing a variant"
 feature = "diagnostics/strict"
-why = "Tanpa exhaustiveness, perilaku runtime tidak terdefinisi."
+why = "Without exhaustiveness the runtime behaviour would be undefined."
 expect = "not exhaustive"

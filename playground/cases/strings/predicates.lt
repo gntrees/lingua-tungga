@@ -1,12 +1,24 @@
 package predicates {
+  export fn mentions(text: Str, part: Str) -> Bool {
+    text.contains(part)
+  }
+
+  export fn starts(text: Str, prefix: Str) -> Bool {
+    text.starts_with(prefix)
+  }
+
+  export fn chars(text: Str) -> List<Str> {
+    text.chars()
+  }
+
   test "predicates" {
-    expect.true("hello".contains("ell"))
-    expect.true("hello".starts_with("he"))
+    expect.true(mentions("hello", "ell"))
+    expect.true(starts("hello", "he"))
     expect.false("hello".ends_with("lo!"))
   }
 
   test "chars" {
-    expect.eq("ab".chars(), ["a", "b"])
-    expect.eq("👍".chars().len(), 1)
+    expect.eq(chars("ab"), ["a", "b"])
+    expect.eq(chars("👍").len(), 1)
   }
 }

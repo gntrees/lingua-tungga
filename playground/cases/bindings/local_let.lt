@@ -1,0 +1,24 @@
+package local_let {
+  export fn count_up(limit: Int) -> Int {
+    let mut total = 0
+    let mut index = 0
+    while index < limit {
+      total = total + index
+      index = index + 1
+    }
+    total
+  }
+
+  export fn doubled(n: Int) -> Int {
+    let result = n * 2
+    result
+  }
+
+  test "mutates locals" {
+    expect.eq(count_up(4), 6)
+  }
+
+  test "reads immutable locals" {
+    expect.eq(doubled(3), 6)
+  }
+}

@@ -1,0 +1,11 @@
+import geometry { Point, distance } "./_geometry.lt"
+
+package destructuring {
+  export fn diagonal() -> Float {
+    distance(Point(x: 0.0, y: 0.0), Point(x: 3.0, y: 4.0))
+  }
+
+  test "imported names are used without a qualifier" {
+    expect.eq(diagonal(), 5.0)
+  }
+}

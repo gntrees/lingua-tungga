@@ -1,9 +1,13 @@
 package division_truncation {
+  export fn half(x: Int) -> Int {
+    x / 2
+  }
+
   test "positive" {
-    expect.eq(7 / 2, 3)
+    expect.eq(half(7), 3)
   }
 
   test "negative" {
-    expect.eq(-7 / 2, -3)
+    expect.eq(half(-7), -3)
   }
 }

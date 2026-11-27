@@ -1,0 +1,7 @@
+import user from "./user.lt"
+
+package import_from {
+  export struct Account {
+    owner: Str
+  }
+}

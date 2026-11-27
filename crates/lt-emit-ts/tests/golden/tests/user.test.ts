@@ -4,5 +4,5 @@ import * as lt from "../_lingua_rt";
 import * as m0 from "../src/user";
 
 it("label of admin", () => {
-  lt.expectEqual(m0.label(new m0.User({ name: "a", role: m0.Role_Admin })), "admin");
+  lt.expectEqual(m0.label(new m0.User({ name: "a", role: m0.Role.Admin })), "admin");
 });

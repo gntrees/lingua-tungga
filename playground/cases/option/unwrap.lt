@@ -1,10 +1,18 @@
 package unwrap {
+  export fn sure(value: Option<Int>) -> Int {
+    value.unwrap()
+  }
+
+  export fn fallback(value: Option<Int>) -> Int {
+    value.unwrap_or(9)
+  }
+
   test "unwrap some" {
-    expect.eq(Some(5).unwrap(), 5)
+    expect.eq(sure(Some(5)), 5)
   }
 
   test "unwrap or none" {
     let none: Option<Int> = None
-    expect.eq(none.unwrap_or(9), 9)
+    expect.eq(fallback(none), 9)
   }
 }

@@ -1,3 +1,3 @@
-title = "Interpolasi template memakai Display"
+title = "Template interpolation uses Display"
 feature = "template/basic"
-why = "Nilai apa pun yang punya Display bisa masuk ke template."
+why = "Any value with a Display implementation can be interpolated."

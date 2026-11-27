@@ -1,10 +1,17 @@
 package map_err {
+  export fn bumped(value: Result<Int, Str>) -> Result<Int, Str> {
+    value.map(fn(x) => x + 1)
+  }
+
+  export fn annotated(value: Result<Int, Str>) -> Result<Int, Str> {
+    value.map_err(fn(message) => `oops: ${message}`)
+  }
+
   test "maps ok" {
-    expect.eq(Ok(2).map(fn(x) => x + 1), Ok(3))
+    expect.eq(bumped(Ok(2)), Ok(3))
   }
 
   test "maps err" {
-    let failed: Result<Int, Str> = Err("bad")
-    expect.eq(failed.map_err(fn(message) => `oops: ${message}`), Err("oops: bad"))
+    expect.eq(annotated(Err("bad")), Err("oops: bad"))
   }
 }

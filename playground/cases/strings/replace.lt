@@ -1,10 +1,18 @@
 package replace {
+  export fn dash_to_plus(text: Str) -> Str {
+    text.replace("-", "+")
+  }
+
+  export fn middle(text: Str) -> Str {
+    text.slice(1, 3)
+  }
+
   test "replaces all" {
-    expect.eq("a-b-c".replace("-", "+"), "a+b+c")
+    expect.eq(dash_to_plus("a-b-c"), "a+b+c")
   }
 
   test "slices code points" {
-    expect.eq("héllo".slice(1, 3), "él")
+    expect.eq(middle("héllo"), "él")
     expect.eq("👍ab".slice(0, 1), "👍")
   }
 }

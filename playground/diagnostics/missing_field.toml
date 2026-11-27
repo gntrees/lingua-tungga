@@ -1,4 +1,4 @@
-title = "Konstruksi kurang satu field"
+title = "Construction is missing a field"
 feature = "diagnostics/strict"
-why = "Named arguments wajib lengkap agar tidak ada field setengah jadi."
+why = "Named arguments must be complete so a value is never half-built."
 expect = "missing field"

@@ -5,21 +5,12 @@ import (
 	lt "linguatungga/lt"
 )
 
-var RoleAdmin = lt.Variant{Tag: "Admin", Order: 0, Display: RoleDisplay}
+var RoleAdmin = lt.Variant{Tag: "Admin", Order: 0, Type: "Role"}
 
 func RoleMember(_0 int64) lt.Variant {
-	return lt.Variant{Tag: "Member", Order: 1, Values: []any{_0}, Display: RoleDisplay}
+	return lt.Variant{Tag: "Member", Order: 1, Type: "Role", Values: []any{_0}}
 }
 
-func RoleDisplay(value lt.Variant) string {
-	switch value.Tag {
-	case "Admin":
-		return "Role.Admin"
-	case "Member":
-		return "Role.Member(" + lt.Disp(value.Values[0]) + ")"
-	}
-	panic("unreachable")
-}
 
 type User struct {
 	Name string

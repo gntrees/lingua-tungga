@@ -54,6 +54,7 @@ usage:
   lt ast <path>             parse and dump the AST (debugging)
   lt build -t ts|py|go <entry>    compile to a package (default out/<target>)
   lt test -t ts|py|go <entry>...  emit + run the conformance suite
+                               (--usage also emits the calling examples)
   lt ir <entry>             lower to IR and dump it (debugging)
   lt update <entry>...      re-resolve URL imports and rewrite lt.lock
   lt vendor <entry>...      copy locked remote files into vendor/
@@ -193,8 +194,13 @@ fn common_root(entries: &[PathBuf]) -> PathBuf {
     }
 }
 
-fn emitted_files(target: &str, ir: &IrProgram, with_tests: bool) -> Option<Vec<(PathBuf, String)>> {
-    let files = match target {
+fn emitted_files(
+    target: &str,
+    ir: &IrProgram,
+    with_tests: bool,
+    with_usage: bool,
+) -> Option<Vec<(PathBuf, String)>> {
+    let mut files: Vec<(PathBuf, String)> = match target {
         "ts" => if with_tests {
             lt_emit_ts::emit_package_with_tests(ir)
         } else {
@@ -221,6 +227,23 @@ fn emitted_files(target: &str, ir: &IrProgram, with_tests: bool) -> Option<Vec<(
         .collect(),
         _ => return None,
     };
+    if with_usage {
+        let usage: Vec<(PathBuf, String)> = match target {
+            "ts" => lt_emit_ts::emit_usage(ir)
+                .into_iter()
+                .map(|file| (file.path, file.contents))
+                .collect(),
+            "py" => lt_emit_py::emit_usage(ir)
+                .into_iter()
+                .map(|file| (file.path, file.contents))
+                .collect(),
+            _ => lt_emit_go::emit_usage(ir)
+                .into_iter()
+                .map(|file| (file.path, file.contents))
+                .collect(),
+        };
+        files.extend(usage);
+    }
     Some(files)
 }
 
@@ -311,6 +334,7 @@ fn cmd_test(args: &[String]) -> i32 {
     let mut target = "ts".to_string();
     let mut out_dir = PathBuf::from("out");
     let mut run = false;
+    let mut usage = false;
     let mut entries: Vec<PathBuf> = Vec::new();
 
     let mut index = 0;
@@ -337,6 +361,7 @@ fn cmd_test(args: &[String]) -> i32 {
                 }
             }
             "--run" => run = true,
+            "--usage" => usage = true,
             flag if flag.starts_with('-') => {
                 eprintln!("lt: unknown flag `{flag}`");
                 return 2;
@@ -361,7 +386,7 @@ fn cmd_test(args: &[String]) -> i32 {
     };
 
     let out_dir = out_dir.join(&target);
-    let Some(files) = emitted_files(&target, &ir, true) else {
+    let Some(files) = emitted_files(&target, &ir, true, usage) else {
         eprintln!("lt: unknown target `{target}`");
         return 2;
     };
@@ -488,7 +513,7 @@ fn cmd_build(args: &[String]) -> i32 {
     };
 
     let out_dir = out_dir.join(&target);
-    let Some(files) = emitted_files(&target, &ir, false) else {
+    let Some(files) = emitted_files(&target, &ir, false, false) else {
         eprintln!("lt: unknown target `{target}`");
         return 2;
     };

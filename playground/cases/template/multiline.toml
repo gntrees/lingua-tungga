@@ -1,3 +1,3 @@
-title = "Template multiline bersifat verbatim"
+title = "Multiline templates are verbatim"
 feature = "template/multiline"
-why = "Newline dan spasi dipertahankan apa adanya; trim_indent untuk merapikan."
+why = "Newlines and spaces are preserved; trim_indent tidies them up."

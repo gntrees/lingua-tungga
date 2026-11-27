@@ -1,7 +1,11 @@
 package bool {
+  export fn negate(value: Bool) -> Bool {
+    !value
+  }
+
   test "negates" {
-    expect.true(!false)
-    expect.false(!true)
+    expect.true(negate(false))
+    expect.false(negate(true))
   }
 
   test "compares" {

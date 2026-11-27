@@ -1,9 +1,17 @@
 package list_sort {
+  export fn sorted(xs: List<Int>) -> List<Int> {
+    xs.sort()
+  }
+
+  export fn reversed(xs: List<Int>) -> List<Int> {
+    xs.reverse()
+  }
+
   test "sorts ints" {
-    expect.eq([3, 1, 2].sort(), [1, 2, 3])
+    expect.eq(sorted([3, 1, 2]), [1, 2, 3])
   }
 
   test "reverses" {
-    expect.eq([1, 2, 3].reverse(), [3, 2, 1])
+    expect.eq(reversed([1, 2, 3]), [3, 2, 1])
   }
 }

@@ -1,0 +1,3 @@
+title = "Local let and let mut"
+feature = "bindings/local-let"
+why = "Only let mut may be reassigned; a plain let is immutable."

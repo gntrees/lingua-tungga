@@ -1,0 +1,3 @@
+title = "A qualifier reaches every export"
+feature = "imports/qualified"
+why = "The package name binds as a qualifier; destructuring is optional."

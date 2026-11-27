@@ -1,3 +1,3 @@
-title = "Option.map hanya berjalan untuk Some"
+title = "Option.map only runs for Some"
 feature = "option/map"
-why = "Transformasi aman tanpa membuka Option secara manual."
+why = "The transformation is safe without opening the Option by hand."

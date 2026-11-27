@@ -1,0 +1,3 @@
+title = "Functions can call each other"
+feature = "functions/mutual"
+why = "is_even and is_odd are both exported and recurse through one another."

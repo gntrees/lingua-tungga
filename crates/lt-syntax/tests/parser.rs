@@ -42,7 +42,7 @@ fn body_stmts(package: &PackageDecl, name: &str) -> Vec<Stmt> {
 }
 
 const USERS: &str = r#"
-import common { Address } from "./common.lt"
+import common { Address } "./common.lt"
 
 package models {
 
@@ -94,8 +94,8 @@ fn empty_file() {
 #[test]
 fn imports() {
     let file = parse_ok(
-        "import user from \"./user.lt\"\n\
-         import post { Post as P } from \"https://raw.githubusercontent.com/foo/bar/v1.2.0/src/post.lt\"\n",
+        "import user \"./user.lt\"\n\
+         import post { Post as P } \"https://raw.githubusercontent.com/foo/bar/v1.2.0/src/post.lt\"\n",
     );
     assert_eq!(file.imports.len(), 2);
     assert_eq!(file.imports[0].package, "user");
@@ -578,7 +578,7 @@ fn full_program_parses_cleanly() {
 #[test]
 fn validation_example_parses_cleanly() {
     let src = r#"
-import models { User } from "./models/user.lt"
+import models { User } "./models/user.lt"
 
 package validation {
 
@@ -630,8 +630,71 @@ fn error_unclosed_class_body() {
 
 #[test]
 fn error_missing_from_in_import() {
-    let out = parse("import User \"x.lt\"");
-    assert!(!out.diagnostics.is_empty());
+    let out = parse("import User from \"x.lt\"");
+    assert!(
+        out.diagnostics
+            .iter()
+            .any(|d| d.message.contains("`from` is no longer used")),
+        "{:#?}",
+        out.diagnostics
+    );
+}
+
+#[test]
+fn import_group_entries_share_one_group() {
+    let file = parse_ok(
+        "import (\n  post { Post } \"https://example.com/post.lt\"\n\n  user \"user.lt\"\n)\n",
+    );
+    assert_eq!(file.imports.len(), 2);
+    assert_eq!(file.imports[0].package, "post");
+    assert_eq!(file.imports[0].group, file.imports[1].group);
+    assert!(file.imports[0].group.is_some());
+    assert!(!file.imports[0].blank_before);
+    assert!(file.imports[1].blank_before);
+}
+
+#[test]
+fn single_imports_have_no_group() {
+    let file = parse_ok("import a \"./a.lt\"\nimport b \"./b.lt\"\n");
+    assert_eq!(file.imports.len(), 2);
+    assert!(file.imports[0].group.is_none());
+    assert!(file.imports[1].group.is_none());
+}
+
+#[test]
+fn error_dot_import() {
+    let out = parse("import . \"./a.lt\"");
+    assert!(
+        out.diagnostics
+            .iter()
+            .any(|d| d.message.contains("dot import")),
+        "{:#?}",
+        out.diagnostics
+    );
+}
+
+#[test]
+fn error_blank_import() {
+    let out = parse("import _ \"./a.lt\"");
+    assert!(
+        out.diagnostics
+            .iter()
+            .any(|d| d.message.contains("blank import")),
+        "{:#?}",
+        out.diagnostics
+    );
+}
+
+#[test]
+fn error_empty_import_list() {
+    let out = parse("import a {} \"./a.lt\"");
+    assert!(
+        out.diagnostics
+            .iter()
+            .any(|d| d.message.contains("empty import list")),
+        "{:#?}",
+        out.diagnostics
+    );
 }
 
 #[test]

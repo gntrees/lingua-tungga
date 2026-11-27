@@ -1,0 +1,17 @@
+package generic_fn {
+  export fn identity<T>(value: T) -> T {
+    value
+  }
+
+  export fn first<T>(items: List<T>) -> Option<T> {
+    items.get(0)
+  }
+
+  test "infers from a scalar" {
+    expect.eq(identity(7), 7)
+  }
+
+  test "infers from a list" {
+    expect.eq(first(["a", "b"]), Some("a"))
+  }
+}

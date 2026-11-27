@@ -1,0 +1,4 @@
+title = "Imports no longer use `from`"
+feature = "diagnostics/strict"
+why = "The path follows the package name directly, Go style."
+expect = "`from` is no longer used"

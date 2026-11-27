@@ -1,0 +1,17 @@
+package lambda_case {
+  export fn doubled(xs: List<Int>) -> List<Int> {
+    xs.map(fn(x) => x * 2)
+  }
+
+  export fn long_words(words: List<Str>) -> List<Str> {
+    words.filter(fn(word) => word.len() > 2)
+  }
+
+  test "map takes a lambda" {
+    expect.eq(doubled([1, 2]), [2, 4])
+  }
+
+  test "filter takes a lambda" {
+    expect.eq(long_words(["ok", "long", "tiny"]), ["long", "tiny"])
+  }
+}

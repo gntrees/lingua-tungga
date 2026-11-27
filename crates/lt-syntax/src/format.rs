@@ -350,6 +350,49 @@ fn normalize_comment(src: &str, span: Span) -> Result<String, CommentError> {
     Ok(out)
 }
 
+/// Grouping helpers for imports: a block is either the entries of one
+/// `import ( … )`, or a run of consecutive single `import` lines.
+struct ImportBlocks;
+
+impl ImportBlocks {
+    fn scan(imports: &[ImportDecl]) -> Vec<Vec<&ImportDecl>> {
+        let mut blocks: Vec<Vec<&ImportDecl>> = Vec::new();
+        for import in imports {
+            let join = blocks
+                .last()
+                .and_then(|block| block.first())
+                .is_some_and(|first| first.group == import.group);
+            if join {
+                blocks.last_mut().expect("non-empty").push(import);
+            } else {
+                blocks.push(vec![import]);
+            }
+        }
+        blocks
+    }
+
+    /// Split on blank lines so an author can keep related imports together.
+    fn subgroups<'a>(block: &[&'a ImportDecl]) -> Vec<Vec<&'a ImportDecl>> {
+        let mut out: Vec<Vec<&ImportDecl>> = Vec::new();
+        for (index, import) in block.iter().enumerate() {
+            if index == 0 || import.blank_before {
+                out.push(Vec::new());
+            }
+            let current = out.last_mut().expect("just pushed");
+            current.push(import);
+        }
+        for subgroup in &mut out {
+            subgroup.sort_by(|a, b| {
+                a.path
+                    .cmp(&b.path)
+                    .then_with(|| a.package.cmp(&b.package))
+                    .then_with(|| a.alias.cmp(&b.alias))
+            });
+        }
+        out
+    }
+}
+
 #[derive(Default)]
 struct Formatter {
     attachment: Attachment,
@@ -383,10 +426,11 @@ impl Formatter {
     fn file(&self, file: &File) -> String {
         let mut out = String::new();
 
-        for import in &file.imports {
-            self.comments(&mut out, import.span.start, 0);
-            out.push_str(&self.import_text(import));
-            out.push('\n');
+        for (index, block) in ImportBlocks::scan(&file.imports).iter().enumerate() {
+            if index > 0 && block.first().is_some_and(|import| import.blank_before) {
+                out.push('\n');
+            }
+            self.import_block(&mut out, block);
         }
         if !file.imports.is_empty() && !file.packages.is_empty() {
             out.push('\n');
@@ -406,8 +450,53 @@ impl Formatter {
         out
     }
 
+    /// Emit one `import ( … )` block, or a run of single `import` lines. Each
+    /// blank-line separated sub-group is sorted by path, so the output is stable
+    /// and independent of how the author ordered dependencies.
+    fn import_block(&self, out: &mut String, block: &[&ImportDecl]) {
+        let grouped = block.first().is_some_and(|import| import.group.is_some());
+        // A comment written above `import (` belongs to the block, not to the
+        // first entry after sorting. Comments and entries are only known by
+        // source offset, so every comment before the first entry counts as a
+        // block comment and is emitted above the opener.
+        let header = grouped.then(|| block[0].span.start);
+        if let Some(start) = header {
+            self.comments(out, start, 0);
+        }
+        for (index, subgroup) in ImportBlocks::subgroups(block).iter().enumerate() {
+            if grouped {
+                if index == 0 {
+                    out.push_str("import (\n");
+                } else {
+                    out.push('\n');
+                }
+                for import in subgroup {
+                    if Some(import.span.start) != header {
+                        self.comments(out, import.span.start, 1);
+                    }
+                    out.push_str(&pad(1));
+                    out.push_str(&self.import_text(import));
+                    out.push('\n');
+                }
+            } else {
+                if index > 0 {
+                    out.push('\n');
+                }
+                for import in subgroup {
+                    self.comments(out, import.span.start, 0);
+                    out.push_str("import ");
+                    out.push_str(&self.import_text(import));
+                    out.push('\n');
+                }
+            }
+        }
+        if grouped {
+            out.push_str(")\n");
+        }
+    }
+
     fn import_text(&self, import: &ImportDecl) -> String {
-        let mut out = String::from("import ");
+        let mut out = String::new();
         out.push_str(&import.package);
         if let Some(alias) = &import.alias {
             out.push_str(" as ");
@@ -426,7 +515,7 @@ impl Formatter {
             out.push_str(&items.join(", "));
             out.push_str(" }");
         }
-        out.push_str(" from \"");
+        out.push_str(" \"");
         out.push_str(&escape_string(&import.path));
         out.push('"');
         out

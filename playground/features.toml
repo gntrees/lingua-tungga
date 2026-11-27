@@ -1,103 +1,138 @@
-# Fitur yang harus punya minimal satu kasus di playground.
+# Features that must be covered by at least one playground case.
 
 [[feature]]
 id = "types/int"
-title = "Int adalah i64 dengan wrapping"
+title = "Int is i64 with wrapping"
 spec = "#5.1"
 
 [[feature]]
 id = "types/float"
-title = "Float mengikuti IEEE-754"
+title = "Float follows IEEE-754"
 spec = "#5.1"
 
 [[feature]]
 id = "types/string"
-title = "Str dihitung per code point"
+title = "Str counts code points"
 spec = "#5.1"
 
 [[feature]]
 id = "types/bool"
-title = "Bool murni true/false"
+title = "Bool is strictly true/false"
 spec = "#5.1"
 
 [[feature]]
 id = "ops/division"
-title = "Pembagian Int truncate ke nol"
+title = "Int division truncates toward zero"
 spec = "#8"
 
 [[feature]]
 id = "ops/remainder"
-title = "Tanda sisa mengikuti dividend"
+title = "Remainder sign follows the dividend"
 spec = "#8"
 
 [[feature]]
 id = "ops/precedence"
-title = "Prioritas operator"
+title = "Operator precedence"
 spec = "#7"
 
 [[feature]]
 id = "ops/logic"
-title = "Short-circuit && dan ||"
+title = "Short-circuit && and ||"
 spec = "#8"
 
 [[feature]]
+id = "functions/export-fn"
+title = "Exported functions are the module API"
+spec = "#6.3"
+
+[[feature]]
+id = "functions/receiver"
+title = "Receiver calls bind the first argument"
+spec = "#6.3"
+
+[[feature]]
+id = "functions/lambda"
+title = "Lambdas are ordinary values"
+spec = "#7"
+
+[[feature]]
+id = "functions/mutual"
+title = "Functions can call each other"
+spec = "#6.3"
+
+[[feature]]
+id = "functions/generic"
+title = "Generic functions infer type arguments"
+spec = "#5.5"
+
+[[feature]]
+id = "bindings/export-let"
+title = "Exported package bindings"
+spec = "#6.5"
+
+[[feature]]
+id = "bindings/local-let"
+title = "Local let and let mut"
+spec = "#7"
+
+[[feature]]
 id = "classes/named-args"
-title = "Konstruksi named arguments"
+title = "Construction with named arguments"
 spec = "#6.1"
 
 [[feature]]
 id = "classes/static"
-title = "Method tanpa self = static"
+title = "Functions without a receiver are static"
 spec = "#6.1"
 
 [[feature]]
 id = "classes/equality"
-title = "Eq struktural"
+title = "Structural equality"
 spec = "#10"
 
 [[feature]]
 id = "classes/ord"
-title = "Ord menurut urutan field"
+title = "Ordering follows field order"
 spec = "#10"
 
 [[feature]]
 id = "classes/display"
-title = "Display struktural"
+title = "Structural display"
 spec = "#10"
 
 [[feature]]
 id = "enums/payload"
-title = "Varian dengan payload"
+title = "Variants carry typed payloads"
 spec = "#6.2"
 
 [[feature]]
 id = "enums/exhaustive"
-title = "match exhaustive"
+title = "match must be exhaustive"
 spec = "#7"
 
 [[feature]]
 id = "enums/order"
-title = "Ord enum menurut deklarasi"
+title = "Enum ordering follows declaration"
 spec = "#10"
 
 [[feature]]
 id = "enums/generic"
-title = "Enum generik"
+title = "Generic enums"
 spec = "#6.2"
 
 [[feature]]
 id = "generics/inference"
-title = "Inferensi tipe generik"
+title = "Generic type inference"
 spec = "#5.5"
 
 [[feature]]
 id = "generics/nested"
-title = "Generik bersarang"
+title = "Nested generics"
 spec = "#5.5"
 
 [[feature]]
 id = "option/some-none"
-title = "Option menggantikan null"
+title = "Option replaces null"
 spec = "#5.3"
 
 [[feature]]
@@ -112,37 +147,37 @@ spec = "#17"
 
 [[feature]]
 id = "option/unwrap"
-title = "unwrap / unwrap_or"
+title = "unwrap and unwrap_or"
 spec = "#17"
 
 [[feature]]
 id = "result/ok-err"
-title = "Result sebagai nilai"
+title = "Result as a value"
 spec = "#5.3"
 
 [[feature]]
 id = "result/question"
-title = "Operator ?"
+title = "The ? operator"
 spec = "#9"
 
 [[feature]]
 id = "result/map-err"
-title = "Result.map / map_err"
+title = "Result.map and map_err"
 spec = "#17"
 
 [[feature]]
 id = "collections/list-transform"
-title = "List map/filter"
+title = "List map and filter"
 spec = "#17"
 
 [[feature]]
 id = "collections/list-query"
-title = "List query"
+title = "List queries"
 spec = "#17"
 
 [[feature]]
 id = "collections/list-sort"
-title = "List sort/reverse"
+title = "List sort and reverse"
 spec = "#17"
 
 [[feature]]
@@ -152,32 +187,32 @@ spec = "#17"
 
 [[feature]]
 id = "collections/map"
-title = "Map immutable terurut"
+title = "Immutable ordered Map"
 spec = "#5.2"
 
 [[feature]]
 id = "collections/set"
-title = "Set tanpa duplikat"
+title = "Set without duplicates"
 spec = "#5.2"
 
 [[feature]]
 id = "strings/split"
-title = "split dan join"
+title = "split and join"
 spec = "#17"
 
 [[feature]]
 id = "strings/replace"
-title = "replace dan slice"
+title = "replace and slice"
 spec = "#17"
 
 [[feature]]
 id = "strings/trim"
-title = "trim dan case"
+title = "trim and case changes"
 spec = "#17"
 
 [[feature]]
 id = "strings/parse"
-title = "parse_int / parse_float"
+title = "parse_int and parse_float"
 spec = "#17"
 
 [[feature]]
@@ -187,35 +222,50 @@ spec = "#17"
 
 [[feature]]
 id = "strings/predicates"
-title = "Predikat dan chars"
+title = "Predicates and chars"
 spec = "#17"
 
 [[feature]]
 id = "template/basic"
-title = "Interpolasi template"
+title = "Template interpolation"
 spec = "#11"
 
 [[feature]]
 id = "template/escape"
-title = "Escape template"
+title = "Template escapes"
 spec = "#11"
 
 [[feature]]
 id = "template/multiline"
-title = "Template multiline verbatim"
+title = "Multiline templates are verbatim"
 spec = "#11"
 
 [[feature]]
 id = "template/tagged"
-title = "Tagged template"
+title = "Tagged templates"
 spec = "#11"
 
 [[feature]]
 id = "jsx/tree"
-title = "JSX sebagai tree bertipe"
+title = "JSX builds a typed tree"
 spec = "#12"
 
 [[feature]]
 id = "diagnostics/strict"
-title = "Error yang wajib ditolak"
+title = "Errors that must be rejected"
 spec = "#15"
+
+[[feature]]
+id = "imports/qualified"
+title = "A qualifier reaches every export"
+spec = "#13"
+
+[[feature]]
+id = "imports/destructuring"
+title = "Destructuring imports names directly"
+spec = "#13"
+
+[[feature]]
+id = "imports/grouped"
+title = "One `import ( … )` block holds many packages"
+spec = "#13"

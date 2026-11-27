@@ -1,4 +1,4 @@
-title = "Int dan Float tidak bisa dicampur"
+title = "Int and Float cannot be mixed"
 feature = "diagnostics/strict"
-why = "Konversi harus eksplisit agar hasil aritmetika tidak bergantung target."
+why = "The conversion must be explicit so arithmetic never depends on the target."
 expect = "arithmetic needs"

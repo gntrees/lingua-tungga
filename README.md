@@ -52,16 +52,18 @@ lt update examples/validator.lt        # re-resolve URL imports, rewrite lt.lock
 lt vendor examples/validator.lt        # copy locked remote files into vendor/
 ```
 
-Playground statis per aturan bahasa (43 kasus executable + 9 kasus error):
+A static playground for every language rule (50 executable cases + 9 error
+cases), with generated TypeScript/Python/Go and, for each target, a runnable
+calling example plus the values it prints:
 
 ```sh
-lt playground          # → out/playground/index.html, buka langsung di browser
-scripts/playground.sh  # verifikasi 3 target + tulis evidence + generate
+lt playground          # → out/playground/index.html, open it directly
+scripts/playground.sh  # verify 3 targets, record usage stdout + evidence, generate
 ```
 
 Lihat [docs/playground.md](docs/playground.md).
 
-URL import: `import User from "https://raw.githubusercontent.com/..."` — lihat
+URL import: `import user "https://raw.githubusercontent.com/..."` — lihat
 [docs/package-manager.md](docs/package-manager.md). Tutorial lengkap:
 [docs/tutorial.md](docs/tutorial.md); contoh proyek tiga target:
 [`examples/library`](examples/library).
@@ -107,4 +109,4 @@ Build memakai compiler cache [Kache](docs/kache.md) yang datanya disimpan di dri
 ADATA. `cargo build`/`cargo test` tidak butuh langkah tambahan; untuk CLI Kache
 lihat [docs/kache.md](docs/kache.md).
 
-Struktur saat ini: `lt-syntax` (lexer, AST, parser, formatter), `lt-hir` (loader modul, tabel simbol, typechecker), `lt-ir` (typed IR + lowering), `lt-emit-ts`/`lt-emit-py`/`lt-emit-go` (backend + runtime inline), `lt-pkg` (URL import, lockfile, vendor), `lt-playground`, dan `lt-cli` (binary `lt`). Total 183 test Rust + 45 test conformance di tiga target + 43 kasus playground.
+Struktur saat ini: `lt-syntax` (lexer, AST, parser, formatter), `lt-hir` (loader modul, tabel simbol, typechecker), `lt-ir` (typed IR + lowering), `lt-emit-ts`/`lt-emit-py`/`lt-emit-go` (backend + runtime inline), `lt-pkg` (URL import, lockfile, vendor), `lt-playground`, dan `lt-cli` (binary `lt`). Total 183 test Rust + 45 test conformance di tiga target + 50 kasus playground.

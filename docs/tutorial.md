@@ -208,7 +208,7 @@ supaya tetap bisa dipakai file test package itu sendiri tanpa dianggap API publi
 ## 7. Import dari GitHub
 
 ```lt
-import user { User } from "https://raw.githubusercontent.com/foo/bar/v1.2.0/src/user.lt"
+import user { User } "https://raw.githubusercontent.com/foo/bar/v1.2.0/src/user.lt"
 ```
 
 Build pertama menulis `lt.lock` (commit + sha256). Build berikutnya offline. Perintah terkait:

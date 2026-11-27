@@ -106,8 +106,8 @@ fn emits_a_python_package() {
     assert!(module.contains("import lt_runtime as _lt"));
     assert!(module.contains("from dataclasses import dataclass"));
     assert!(module.contains("@dataclass(frozen=True)\nclass Role:"));
-    assert!(module.contains("role_admin = Role(\"Admin\", (), 0)"));
-    assert!(module.contains("def role_member(_0: int) -> Role:"));
+    assert!(module.contains("    def member(_0: int) -> Role:"));
+    assert!(module.contains("Role.admin = Role(\"Admin\", (), 0)"));
     assert!(module.contains("@dataclass(frozen=True)\nclass User:"));
     assert!(module.contains("    name: str\n"));
     assert!(module.contains("def greet(u: User) -> str:"));
@@ -132,7 +132,7 @@ fn imports_between_modules_are_absolute() {
 }
 
 const VALIDATOR: &str = r#"
-import user { User } from "./user.lt"
+import user { User } "./user.lt"
 
 package validator {
 
@@ -224,7 +224,7 @@ fn nested_modules_get_init_files() {
             ("models/user.lt", USER),
             (
                 "app.lt",
-                "import user { User } from \"./models/user.lt\"\n\npackage app {\n\nexport struct App {\n  user: User\n}\n}\n",
+                "import user { User } \"./models/user.lt\"\n\npackage app {\n\nexport struct App {\n  user: User\n}\n}\n",
             ),
         ],
         "app.lt",

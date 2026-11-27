@@ -208,6 +208,13 @@ pub enum IrExpr {
         name: String,
         args: Vec<IrExpr>,
     },
+    /// Write a value to standard output using its `Display` implementation.
+    ///
+    /// `lower` never produces this; it exists so the playground can synthesize
+    /// a runnable "how to call this from the target language" program.
+    Print {
+        value: Box<IrExpr>,
+    },
     /// Render a value with its `Display` implementation (`to_string()`).
     ToStr {
         value: Box<IrExpr>,

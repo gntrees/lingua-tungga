@@ -102,7 +102,11 @@ Formatter (`lt fmt`) menghasilkan bentuk kanonik:
 - Indentasi 2 spasi, tanpa tab.
 - Lebar maksimum 100 kolom; container yang melebihi batas dipecah satu item per baris.
 - Trailing comma pada argumen/list yang multiline.
-- Satu baris kosong antar item package dan antar import; varian enum ditulis rapat.
+- Satu baris kosong antar item package; varian enum ditulis rapat.
+- Import diurutkan berdasarkan path. Beberapa entri `import` yang berdampingan
+  membentuk satu blok yang diurutkan; baris kosong memisahkan sub-blok dan
+  masing-masing diurutkan sendiri. Entri di dalam `import ( … )` tetap berada di
+  bloknya, satu per baris.
 - Beberapa blok `package` dalam satu file dipisah **satu baris kosong**, dan urutannya
   dipertahankan seperti di sumber (formatter tidak mengurutkan ulang package).
 - Kurung kurawal selalu di baris yang sama dengan header (`fn f() {`).
@@ -465,26 +469,39 @@ let q = query`SELECT * FROM users WHERE id = ${SqlArg.I(id)}`
 
 ```lt
 // alternatif 1 — destructuring
-import money { Price, format } from "./wallet/money.lt"
+import money { Price, format } "./wallet/money.lt"
 
 // alternatif 2 — qualifier (money.Price, money.format(...))
-import money from "./wallet/money.lt"
+import money "./wallet/money.lt"
 
 // alternatif 3 — alias
-import money as cash { Price as P } from "./wallet/money.lt"
+import money as cash { Price as P } "./wallet/money.lt"
 
 // remote
-import post from "https://raw.githubusercontent.com/foo/bar/v1.2.0/src/post.lt"
+import post "https://raw.githubusercontent.com/foo/bar/v1.2.0/src/post.lt"
+
+// grup: satu entri per baris, tanpa koma
+import (
+  money { Price }
+  post  "https://raw.githubusercontent.com/foo/bar/v1.2.0/src/post.lt"
+)
 ```
 
 - Yang bisa di-import **hanya package**, bukan file dan bukan simbol lepas. Path wajib; nama
   package ditulis eksplisit dan diverifikasi benar-benar ada di file target.
 - Nama package harus unik dalam satu build. Import cycle = compile error, dengan pesan yang
   menampilkan siklusnya.
-- Satu baris `import` menunjuk satu package. Satu file berisi tiga package = tiga baris import.
+- Satu entri `import` menunjuk satu package. Satu file berisi tiga package = tiga entri import.
 - **Destructuring** (`{ … }`) opsional dan hanya bisa menyebut deklarasi ber-`export`. Bila
-  dihilangkan, package diikat sebagai qualifier.
+  dihilangkan, package diikat sebagai qualifier. Destructuring **tidak** mematikan qualifier:
+  `import money { Price }` tetap boleh memakai `money.format(...)`. Daftar kosong `{}` = error.
 - **Alias** (`as`) diizinkan pada qualifier maupun pada nama hasil destructuring.
+- **Grup** `import ( … )` setara dengan menulis entri satu per satu; hanya pengelompokan, tanpa
+  arti tambahan di level semantik. `import . "path"` (dot import) dan `import _ "path"` (blank
+  import) ditolak: setiap nama selalu dirujuk lewat qualifier, dan package hanya dimuat bila ada
+  nama yang dipakai.
+- Kata kunci `from` sudah tidak dipakai di import; penulisannya menghasilkan error yang
+  menyarankan bentuk baru.
 - Nama import yang bentrok dengan deklarasi lokal, atau sesama nama import, = compile error
   (tidak ada aturan "lokal menang").
 - Memakai tipe/fungsi dari package yang tidak di-import = compile error (tidak ada resolusi

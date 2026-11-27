@@ -29,24 +29,24 @@ fn fixture(root: &Path) {
         r##"
 [[feature]]
 id = "demo/run"
-title = "Kasus bisa dijalankan"
+title = "Runnable cases"
 spec = "#1"
 
 [[feature]]
 id = "demo/diag"
-title = "Kasus error"
+title = "Error cases"
 spec = "#15"
 "##,
     );
     write(
         root,
         "cases/demo/ok.lt",
-        "package ok {\n\n  test \"passes\" {\n    expect.eq(1, 1)\n  }\n\n}\n",
+        "package ok {\n\n  export fn identity(n: Int) -> Int {\n    n\n  }\n\n  test \"passes\" {\n    expect.eq(identity(1), 1)\n  }\n\n}\n",
     );
     write(
         root,
         "cases/demo/ok.toml",
-        "title = \"Kasus ok\"\nfeature = \"demo/run\"\nwhy = \"karena\"\n",
+        "title = \"A runnable case\"\nfeature = \"demo/run\"\nwhy = \"because\"\n",
     );
     write(
         root,
@@ -56,7 +56,7 @@ spec = "#15"
     write(
         root,
         "diagnostics/bad.toml",
-        "title = \"Kasus gagal\"\nfeature = \"demo/diag\"\nwhy = \"harus gagal\"\nexpect = \"unknown type\"\n",
+        "title = \"A failing case\"\nfeature = \"demo/diag\"\nwhy = \"must fail\"\nexpect = \"unknown type\"\n",
     );
 }
 
@@ -79,10 +79,53 @@ fn generates_a_page_from_cases() {
     assert!(!summary.stale_evidence);
 
     let html = std::fs::read_to_string(root.join("out/index.html")).unwrap();
-    assert!(html.contains("Kasus ok"), "case missing from page");
-    assert!(html.contains("Kasus gagal"), "diagnostic missing from page");
+    assert!(html.contains("A runnable case"), "case missing from page");
+    assert!(
+        html.contains("A failing case"),
+        "diagnostic missing from page"
+    );
     assert!(html.contains("unknown type"), "diagnostic message missing");
     assert!(html.contains("const DATA ="), "data missing");
+}
+
+#[test]
+fn page_carries_usage_programs_and_recorded_output() {
+    let root = temp_root("usage");
+    fixture(&root);
+    write(
+        &root,
+        "usage.json",
+        r#"{"schema":1,"cases":{"demo/ok":{"ts":{"status":"pass","lines":["1"]},"py":{"status":"pass","lines":["1"]},"go":{"status":"fail","lines":[]}}}}"#,
+    );
+    generate(&options(&root, true)).unwrap();
+
+    let html = std::fs::read_to_string(root.join("out/index.html")).unwrap();
+    assert!(
+        html.contains("m0.identity(1"),
+        "usage program missing from page"
+    );
+    assert!(
+        html.contains("lt.print("),
+        "usage program should print instead of assert"
+    );
+    assert!(html.contains("\"usageOutput\""), "usage output missing");
+    assert!(
+        html.contains("\"go\":\"fail\""),
+        "usage failure should mark go"
+    );
+}
+
+#[test]
+fn rejects_cases_that_export_nothing() {
+    let root = temp_root("noexport");
+    fixture(&root);
+    write(
+        &root,
+        "cases/demo/ok.lt",
+        "package ok {\n\n  test \"passes\" {\n    expect.eq(1, 1)\n  }\n\n}\n",
+    );
+    let error = generate(&options(&root, true)).unwrap_err();
+    assert!(error.contains("exports nothing"), "{error}");
 }
 
 #[test]

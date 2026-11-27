@@ -1,7 +1,11 @@
 package set {
-  test "deduplicates" {
+  export fn dedupe(xs: List<Int>) -> Set<Int> {
     let empty: Set<Int> = set.empty()
-    expect.eq(empty.insert(1).insert(1).len(), 1)
+    xs.fold(empty, fn(acc, x) => acc.insert(x))
+  }
+
+  test "deduplicates" {
+    expect.eq(dedupe([1, 1]).len(), 1)
   }
 
   test "combines" {

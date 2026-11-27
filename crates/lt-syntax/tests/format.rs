@@ -64,18 +64,72 @@ package b {
 }
 
 #[test]
-fn imports_then_blank_line() {
-    let src =
-        "import b from \"./b.lt\"\nimport a { A } from \"./a.lt\"\npackage c { let x: Int = 1 }\n";
+fn imports_are_sorted_by_path() {
+    let src = "import b \"./b.lt\"\nimport a { A } \"./a.lt\"\npackage c { let x: Int = 1 }\n";
     let expected = "\
-import b from \"./b.lt\"
-import a { A } from \"./a.lt\"
+import a { A } \"./a.lt\"
+import b \"./b.lt\"
 
 package c {
   let x: Int = 1
 }
 ";
     assert_eq!(fmt(src), expected);
+    assert_stable(src);
+}
+
+#[test]
+fn import_group_keeps_block_and_sorts_subgroups() {
+    let src = "\
+import (
+  z \"./z.lt\"
+  m { M } \"./m.lt\"
+
+  b \"./b.lt\"
+  a \"./a.lt\"
+)
+package c { let x: Int = 1 }
+";
+    let expected = "\
+import (
+  m { M } \"./m.lt\"
+  z \"./z.lt\"
+
+  a \"./a.lt\"
+  b \"./b.lt\"
+)
+
+package c {
+  let x: Int = 1
+}
+";
+    assert_eq!(fmt(src), expected);
+    assert_stable(src);
+}
+
+#[test]
+fn comments_above_an_import_group_stay_above_it() {
+    let src = "\
+// header
+import (
+  z \"./z.lt\"
+  a \"./a.lt\"
+)
+package c { let x: Int = 1 }
+";
+    let expected = "\
+// header
+import (
+  a \"./a.lt\"
+  z \"./z.lt\"
+)
+
+package c {
+  let x: Int = 1
+}
+";
+    assert_eq!(fmt_comments(src), expected);
+    assert_eq!(fmt_comments(&fmt_comments(src)), expected);
 }
 
 #[test]
@@ -145,7 +199,7 @@ fn tagged_template_has_no_space() {
 #[test]
 fn healthy_program_is_stable() {
     let src = r#"
-import models { User } from "./models/user.lt"
+import models { User } "./models/user.lt"
 
 package validation {
 
@@ -220,7 +274,7 @@ fn fmt_comments(src: &str) -> String {
 fn keeps_comments_on_items_and_members() {
     let src = "\
 // file header
-import b from \"./b.lt\"
+import b \"./b.lt\"
 
 // the package
 package a {

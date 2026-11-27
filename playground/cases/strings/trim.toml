@@ -1,3 +1,3 @@
-title = "trim dan perubahan huruf"
+title = "trim and case changes"
 feature = "strings/trim"
-why = "trim membuang spasi tepi; lower/upper tidak mengubah isi lain."
+why = "trim strips surrounding whitespace; lower and upper leave the rest alone."

@@ -3,28 +3,27 @@ from __future__ import annotations
 
 import lt_runtime as _lt
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, ClassVar
 
 @dataclass(frozen=True)
 class Role:
     tag: str
     values: tuple[Any, ...]
     order: int
+    admin: ClassVar[Role]
 
     def to_display(self) -> str:
-        return _role_display(self)
+        if self.tag == "Admin":
+            return "Role.Admin"
+        if self.tag == "Member":
+            return "Role.Member(" + _lt.disp(self.values[0]) + ")"
+        raise AssertionError("unreachable")
 
-role_admin = Role("Admin", (), 0)
+    @staticmethod
+    def member(_0: int) -> Role:
+        return Role("Member", (_0,), 1)
 
-def role_member(_0: int) -> Role:
-    return Role("Member", (_0,), 1)
-
-def _role_display(value: Role) -> str:
-    if value.tag == "Admin":
-        return "Role.Admin"
-    if value.tag == "Member":
-        return "Role.Member(" + _lt.disp(value.values[0]) + ")"
-    raise AssertionError("unreachable")
+Role.admin = Role("Admin", (), 0)
 
 @dataclass(frozen=True)
 class User:

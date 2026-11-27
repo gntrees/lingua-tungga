@@ -1,3 +1,3 @@
-title = "Prioritas operator"
+title = "Operator precedence"
 feature = "ops/precedence"
-why = "Perkalian mengikat lebih kuat daripada penjumlahan; kurung mengubahnya."
+why = "Multiplication binds tighter than addition; parentheses change the order."

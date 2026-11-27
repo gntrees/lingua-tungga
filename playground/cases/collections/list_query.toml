@@ -1,3 +1,3 @@
-title = "Query pada List"
+title = "Queries on a List"
 feature = "collections/list-query"
-why = "contains, index_of, get, any, all memakai kesamaan struktural."
+why = "contains, index_of, get, any, and all use structural equality."

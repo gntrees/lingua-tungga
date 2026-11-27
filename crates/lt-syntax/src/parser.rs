@@ -60,6 +60,8 @@ struct Parser<'a> {
     bracket_depth: u32,
     last_end: usize,
     last_end_line: u32,
+    /// Id handed to the next `import ( … )` block.
+    next_group: u32,
 }
 
 impl<'a> Parser<'a> {
@@ -72,6 +74,7 @@ impl<'a> Parser<'a> {
             bracket_depth: 0,
             last_end: 0,
             last_end_line: 1,
+            next_group: 0,
         }
     }
 
@@ -215,10 +218,8 @@ impl<'a> Parser<'a> {
         let mut imports = Vec::new();
         while self.at(&TokenKind::Import) {
             let before = self.pos;
-            match self.parse_import() {
-                Some(import) => imports.push(import),
-                None => self.recover_item(),
-            }
+            let mut parsed = self.parse_import();
+            imports.append(&mut parsed);
             if self.at_eof() {
                 break;
             }
@@ -276,8 +277,74 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_import(&mut self) -> Option<ImportDecl> {
-        let start = self.expect(TokenKind::Import, "")?;
+    fn parse_import(&mut self) -> Vec<ImportDecl> {
+        if self.expect(TokenKind::Import, "").is_none() {
+            return Vec::new();
+        }
+
+        if self.at(&TokenKind::LParen) {
+            self.bump();
+            let group = self.next_group;
+            self.next_group += 1;
+            let mut out = Vec::new();
+            let mut last_line: Option<u32> = None;
+            while !self.at(&TokenKind::RParen) && !self.at_eof() {
+                let before = self.pos;
+                match self.parse_import_entry(Some(group), last_line) {
+                    Some(import) => {
+                        last_line = Some(self.last_end_line);
+                        out.push(import);
+                    }
+                    None => self.recover_import_entry(),
+                }
+                if self.at_eof() {
+                    break;
+                }
+                if self.pos == before {
+                    self.bump();
+                }
+            }
+            self.expect(TokenKind::RParen, "to close the import group");
+            return out;
+        }
+
+        self.parse_import_entry(None, None).into_iter().collect()
+    }
+
+    /// One `name [as alias] [{ items }] "path"` entry, inside a group or on its
+    /// own. `previous_line` is the last source line of the entry before it, used
+    /// to remember blank-line separated sub-groups.
+    fn parse_import_entry(
+        &mut self,
+        group: Option<u32>,
+        previous_line: Option<u32>,
+    ) -> Option<ImportDecl> {
+        // Go's dot and blank imports collapse the qualifier rules this language
+        // is built on, so reject them by name instead of "expected identifier".
+        match self.peek().kind {
+            TokenKind::Dot => {
+                self.error_here(
+                    "a dot import is not supported: every name is referenced through its package qualifier",
+                );
+                self.skip_line();
+                return None;
+            }
+            TokenKind::Underscore => {
+                self.error_here(
+                    "a blank import is not supported: packages are only loaded when a name from them is used",
+                );
+                self.skip_line();
+                return None;
+            }
+            _ => {}
+        }
+
+        let start = self.peek().span.start;
+        let mut blank_before = false;
+        if let Some(previous) = previous_line {
+            blank_before = self.peek().line > previous + 1;
+        }
+
         let (package, _) = self.expect_ident("after `import`")?;
         let alias = if self.eat(&TokenKind::As).is_some() {
             Some(self.expect_ident("after `as`")?.0)
@@ -286,11 +353,8 @@ impl<'a> Parser<'a> {
         };
 
         let mut items = Vec::new();
-        if self.eat(&TokenKind::LBrace).is_some() {
-            loop {
-                if self.at(&TokenKind::RBrace) {
-                    break;
-                }
+        if let Some(open) = self.eat(&TokenKind::LBrace) {
+            while !self.at(&TokenKind::RBrace) && !self.at_eof() {
                 let (name, nspan) = self.expect_ident("as imported name")?;
                 let item_alias = if self.eat(&TokenKind::As).is_some() {
                     Some(self.expect_ident("after `as`")?.0)
@@ -306,10 +370,24 @@ impl<'a> Parser<'a> {
                     break;
                 }
             }
-            self.expect(TokenKind::RBrace, "to close the import list")?;
+            let close = self.expect(TokenKind::RBrace, "to close the import list")?;
+            if items.is_empty() {
+                self.error(
+                    "an empty import list does nothing; remove the braces or name at least one item",
+                    Span::new(open.span.start, close.span.end),
+                    open.line,
+                    open.col,
+                );
+            }
         }
 
-        self.expect(TokenKind::From, "in `import`")?;
+        // `from` is gone, but recognising it turns the old spelling into a
+        // message that says how to write it now.
+        if self.at(&TokenKind::From) {
+            self.error_here("`from` is no longer used in imports; write `import name \"path\"`");
+            self.bump();
+        }
+
         let token = self.peek().clone();
         let path = match token.kind {
             TokenKind::Str(value) => {
@@ -334,8 +412,32 @@ impl<'a> Parser<'a> {
             alias,
             items,
             path,
-            span: Span::new(start.span.start, self.last_end),
+            group,
+            blank_before,
+            span: Span::new(start, self.last_end),
         })
+    }
+
+    /// Skip to the next entry boundary after a malformed import.
+    fn recover_import_entry(&mut self) {
+        while !self.at_eof() {
+            if self.at(&TokenKind::Str(String::new()))
+                || self.at(&TokenKind::RParen)
+                || self.at(&TokenKind::Import)
+            {
+                return;
+            }
+            self.bump();
+        }
+    }
+
+    /// Consume the rest of the current line, so one rejected import does not
+    /// cascade into "expected `package`" for the leftover path string.
+    fn skip_line(&mut self) {
+        let line = self.peek().line;
+        while !self.at_eof() && self.peek().line == line && !self.at(&TokenKind::RParen) {
+            self.bump();
+        }
     }
 
     // --------------------------------------------------------- packages

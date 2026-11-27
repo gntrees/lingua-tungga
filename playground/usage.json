@@ -1,0 +1,1261 @@
+{
+  "schema": 1,
+  "generated_at": "2026-11-27T19:06:48Z",
+  "cases": {
+    "bindings/export_let": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "hello",
+          "3"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "hello",
+          "3"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "hello",
+          "3"
+        ]
+      }
+    },
+    "bindings/local_let": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "6",
+          "6"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "6",
+          "6"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "6",
+          "6"
+        ]
+      }
+    },
+    "classes/display": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "User(name: Ada, age: 36)"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "User(name: Ada, age: 36)"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "User(name: Ada, age: 36)"
+        ]
+      }
+    },
+    "classes/equality": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "Point(x: 1, y: 2)",
+          "Point(x: 1, y: 2)"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "Point(x: 1, y: 2)",
+          "Point(x: 1, y: 2)"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "Point(x: 1, y: 2)",
+          "Point(x: 1, y: 2)"
+        ]
+      }
+    },
+    "classes/named_arguments": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "1",
+          "2"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "1",
+          "2"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "1",
+          "2"
+        ]
+      }
+    },
+    "classes/ord_field_order": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "List(Point(x: 2, y: 0), Point(x: 10, y: 0))"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "List(Point(x: 2, y: 0), Point(x: 10, y: 0))"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "List(Point(x: 2, y: 0), Point(x: 10, y: 0))"
+        ]
+      }
+    },
+    "classes/static_method": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "42"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "42"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "42"
+        ]
+      }
+    },
+    "collections/list_fold": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "6",
+          "ab"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "6",
+          "ab"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "6",
+          "ab"
+        ]
+      }
+    },
+    "collections/list_query": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "true",
+          "Some(2)",
+          "Some(2)",
+          "None",
+          "true",
+          "false"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "true",
+          "Some(2)",
+          "Some(2)",
+          "None",
+          "true",
+          "false"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "true",
+          "Some(2)",
+          "Some(2)",
+          "None",
+          "true",
+          "false"
+        ]
+      }
+    },
+    "collections/list_sort": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "List(1, 2, 3)",
+          "List(3, 2, 1)"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "List(1, 2, 3)",
+          "List(3, 2, 1)"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "List(1, 2, 3)",
+          "List(3, 2, 1)"
+        ]
+      }
+    },
+    "collections/list_transform": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "List(2, 4, 6)",
+          "List(2, 4)",
+          "List(1, 2)",
+          "List(1, 2, 3)"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "List(2, 4, 6)",
+          "List(2, 4)",
+          "List(1, 2)",
+          "List(1, 2, 3)"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "List(2, 4, 6)",
+          "List(2, 4)",
+          "List(1, 2)",
+          "List(1, 2, 3)"
+        ]
+      }
+    },
+    "collections/map": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "Some(1)",
+          "2",
+          "List(a, b)",
+          "0",
+          "List(Point(x: 2, y: 0), Point(x: 10, y: 0))",
+          "0"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "Some(1)",
+          "2",
+          "List(a, b)",
+          "0",
+          "List(Point(x: 2, y: 0), Point(x: 10, y: 0))",
+          "0"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "Some(1)",
+          "2",
+          "List(a, b)",
+          "0",
+          "List(Point(x: 2, y: 0), Point(x: 10, y: 0))",
+          "0"
+        ]
+      }
+    },
+    "collections/set": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "1",
+          "3",
+          "1",
+          "true"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "1",
+          "3",
+          "1",
+          "true"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "1",
+          "3",
+          "1",
+          "true"
+        ]
+      }
+    },
+    "enums/exhaustive": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "green"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "green"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "green"
+        ]
+      }
+    },
+    "enums/generic": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "empty",
+          "value:7"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "empty",
+          "value:7"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "empty",
+          "value:7"
+        ]
+      }
+    },
+    "enums/order": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "List(Grade.Low, Grade.Mid, Grade.High)"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "List(Grade.Low, Grade.Mid, Grade.High)"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "List(Grade.Low, Grade.Mid, Grade.High)"
+        ]
+      }
+    },
+    "enums/payload": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "6.0"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "6.0"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "6.0"
+        ]
+      }
+    },
+    "functions/export_fn": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "Hello, Ada!",
+          "42"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "Hello, Ada!",
+          "42"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "Hello, Ada!",
+          "42"
+        ]
+      }
+    },
+    "functions/generic": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "7",
+          "Some(a)"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "7",
+          "Some(a)"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "7",
+          "Some(a)"
+        ]
+      }
+    },
+    "functions/lambda": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "List(2, 4)",
+          "List(long, tiny)"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "List(2, 4)",
+          "List(long, tiny)"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "List(2, 4)",
+          "List(long, tiny)"
+        ]
+      }
+    },
+    "functions/mutual": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "true",
+          "false"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "true",
+          "false"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "true",
+          "false"
+        ]
+      }
+    },
+    "functions/receiver": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "Counter(value: 2)",
+          "Counter(value: 2)"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "Counter(value: 2)",
+          "Counter(value: 2)"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "Counter(value: 2)",
+          "Counter(value: 2)"
+        ]
+      }
+    },
+    "generics/inference": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "7"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "7"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "7"
+        ]
+      }
+    },
+    "generics/nested": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "5"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "5"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "5"
+        ]
+      }
+    },
+    "imports/destructuring": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "5.0"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "5.0"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "5.0"
+        ]
+      }
+    },
+    "imports/grouped": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "32000"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "32000"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "32000"
+        ]
+      }
+    },
+    "imports/qualified": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "Rp111"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "Rp111"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "Rp111"
+        ]
+      }
+    },
+    "jsx/tree": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "greeting",
+          "List(hi)"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "greeting",
+          "List(hi)"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "greeting",
+          "List(hi)"
+        ]
+      }
+    },
+    "ops/division_truncation": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "3",
+          "-3"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "3",
+          "-3"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "3",
+          "-3"
+        ]
+      }
+    },
+    "ops/precedence": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "7",
+          "9"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "7",
+          "9"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "7",
+          "9"
+        ]
+      }
+    },
+    "ops/remainder_sign": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "-1",
+          "1"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "-1",
+          "1"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "-1",
+          "1"
+        ]
+      }
+    },
+    "ops/short_circuit": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "false",
+          "true"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "false",
+          "true"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "false",
+          "true"
+        ]
+      }
+    },
+    "option/and_then": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "Some(5)",
+          "None"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "Some(5)",
+          "None"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "Some(5)",
+          "None"
+        ]
+      }
+    },
+    "option/map": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "Some(6)",
+          "None"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "Some(6)",
+          "None"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "Some(6)",
+          "None"
+        ]
+      }
+    },
+    "option/some_none": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "Some(1)",
+          "None",
+          "true",
+          "true"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "Some(1)",
+          "None",
+          "true",
+          "true"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "Some(1)",
+          "None",
+          "true",
+          "true"
+        ]
+      }
+    },
+    "option/unwrap": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "5",
+          "9"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "5",
+          "9"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "5",
+          "9"
+        ]
+      }
+    },
+    "result/map_err": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "Ok(3)",
+          "Err(oops: bad)"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "Ok(3)",
+          "Err(oops: bad)"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "Ok(3)",
+          "Err(oops: bad)"
+        ]
+      }
+    },
+    "result/ok_err": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "Ok(4)",
+          "Err(division by zero)",
+          "true",
+          "true"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "Ok(4)",
+          "Err(division by zero)",
+          "true",
+          "true"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "Ok(4)",
+          "Err(division by zero)",
+          "true",
+          "true"
+        ]
+      }
+    },
+    "result/question": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "Ok(42)",
+          "Err(not a number)"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "Ok(42)",
+          "Err(not a number)"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "Ok(42)",
+          "Err(not a number)"
+        ]
+      }
+    },
+    "strings/indent": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "a",
+          "b"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "a",
+          "b"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "a",
+          "b"
+        ]
+      }
+    },
+    "strings/parse": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "Some(42)",
+          "None",
+          "Some(1.5)",
+          "None"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "Some(42)",
+          "None",
+          "Some(1.5)",
+          "None"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "Some(42)",
+          "None",
+          "Some(1.5)",
+          "None"
+        ]
+      }
+    },
+    "strings/predicates": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "true",
+          "true",
+          "false",
+          "List(a, b)",
+          "1"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "true",
+          "true",
+          "false",
+          "List(a, b)",
+          "1"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "true",
+          "true",
+          "false",
+          "List(a, b)",
+          "1"
+        ]
+      }
+    },
+    "strings/replace": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "a+b+c",
+          "\u00e9l",
+          "\ud83d\udc4d"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "a+b+c",
+          "\u00e9l",
+          "\ud83d\udc4d"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "a+b+c",
+          "\u00e9l",
+          "\ud83d\udc4d"
+        ]
+      }
+    },
+    "strings/split": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "List(a, b, c)",
+          "a-b"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "List(a, b, c)",
+          "a-b"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "List(a, b, c)",
+          "a-b"
+        ]
+      }
+    },
+    "strings/trim": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "Hi",
+          "hi",
+          "HI"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "Hi",
+          "hi",
+          "HI"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "Hi",
+          "hi",
+          "HI"
+        ]
+      }
+    },
+    "template/basic": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "Hi Ada, age 36"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "Hi Ada, age 36"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "Hi Ada, age 36"
+        ]
+      }
+    },
+    "template/escape": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "a ` b ${not} 1"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "a ` b ${not} 1"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "a ` b ${not} 1"
+        ]
+      }
+    },
+    "template/multiline": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "",
+          "line"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "",
+          "line"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "",
+          "line"
+        ]
+      }
+    },
+    "template/tagged": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "id = | and name = |::i7|sbo"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "id = | and name = |::i7|sbo"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "id = | and name = |::i7|sbo"
+        ]
+      }
+    },
+    "types/bool": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "true",
+          "false",
+          "true",
+          "false"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "true",
+          "false",
+          "true",
+          "false"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "true",
+          "false",
+          "true",
+          "false"
+        ]
+      }
+    },
+    "types/float_ieee": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "true",
+          "true",
+          "false"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "true",
+          "true",
+          "false"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "true",
+          "true",
+          "false"
+        ]
+      }
+    },
+    "types/int_wrapping": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "-9223372036854775808"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "-9223372036854775808"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "-9223372036854775808"
+        ]
+      }
+    },
+    "types/string_code_points": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "5",
+          "1",
+          "\u00e9l"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "5",
+          "1",
+          "\u00e9l"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "5",
+          "1",
+          "\u00e9l"
+        ]
+      }
+    }
+  }
+}

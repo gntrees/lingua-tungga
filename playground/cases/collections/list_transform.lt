@@ -1,15 +1,27 @@
 package list_transform {
+  export fn doubled(xs: List<Int>) -> List<Int> {
+    xs.map(fn(x) => x * 2)
+  }
+
+  export fn evens(xs: List<Int>) -> List<Int> {
+    xs.filter(fn(x) => x % 2 == 0)
+  }
+
+  export fn appended(xs: List<Int>, x: Int) -> List<Int> {
+    xs.push(x)
+  }
+
   test "maps" {
-    expect.eq([1, 2, 3].map(fn(x) => x * 2), [2, 4, 6])
+    expect.eq(doubled([1, 2, 3]), [2, 4, 6])
   }
 
   test "filters" {
-    expect.eq([1, 2, 3, 4].filter(fn(x) => x % 2 == 0), [2, 4])
+    expect.eq(evens([1, 2, 3, 4]), [2, 4])
   }
 
   test "original unchanged" {
     let xs = [1, 2]
-    let ys = xs.push(3)
+    let ys = appended(xs, 3)
     expect.eq(xs, [1, 2])
     expect.eq(ys, [1, 2, 3])
   }
