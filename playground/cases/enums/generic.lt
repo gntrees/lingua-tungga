@@ -4,7 +4,7 @@ pub enum MaybeBox<T> {
 }
 
 test class GenericEnumTest {
-  fn describe(value: MaybeBox<Int>) -> Str {
+  fn label(value: MaybeBox<Int>) -> Str {
     match value {
       MaybeBox.Empty => "empty"
       MaybeBox.Value(n) => `value:${n}`
@@ -13,7 +13,7 @@ test class GenericEnumTest {
 
   test fn generic_enum_keeps_type_arguments() {
     let empty: MaybeBox<Int> = MaybeBox.Empty
-    Expect.equal(describe(empty), "empty")
-    Expect.equal(describe(MaybeBox.Value(7)), "value:7")
+    Expect.equal(label(empty), "empty")
+    Expect.equal(label(MaybeBox.Value(7)), "value:7")
   }
 }

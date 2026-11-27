@@ -1,6 +1,6 @@
 # Backend Go
 
-Target ketiga. Conformance suite yang sama (17 test) lulus di sini juga.
+Target ketiga. Conformance suite yang sama (44 test) lulus di sini juga.
 
 ## Representasi
 
@@ -14,12 +14,14 @@ Target ketiga. Conformance suite yang sama (17 test) lulus di sini juga.
 | `Map<K,V>` | `lt.Map[K,V]` (entry terurut) |
 | `Set<T>` | `lt.Set[T]` |
 | `Option<T>` / `Result<T,E>` | `lt.Variant` (`Tag`, `Values []any`, `Display`) |
-| `enum` | `lt.Variant` (`Tag`/`Order`/`Values`) + konstruktor `RoleMember(...)` / variabel `RoleAdmin` |
+| `enum` | `lt.Variant` (`Tag`/`Order`/`Values`) + konstruktor `RoleMember(...)` / variabel `RoleAdmin`; enum generik memakai konstruktor `ArgV[T any](...)` dan type argument eksplisit di call site |
 | `class` | `struct` dengan field exported + `NewUser(...)` |
 | method instance | method pada struct, receiver `self` |
 | method tanpa `self` | fungsi package `UserAnonymous()` |
 | `Display`/`Eq` | `lt.Disp`, `lt.Eq` (memakai `LtDisplay`/`LtEq` pada tipe generik & struct) |
 | `?` | `if __try.Tag == "err"/"none" { return __try }` |
+| `to_string()` | `lt.Disp(value)` |
+| tagged template | pemanggilan static method dengan `lt.List[string]` + `lt.List[T]`; nilai tidak di-`Disp` |
 | `match` | `switch __m.Tag { case "Some": ... }` |
 | JSX | pemanggilan `New<Class>(...)` |
 

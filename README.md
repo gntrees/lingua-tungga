@@ -50,7 +50,7 @@ lt update examples/validator.lt        # re-resolve URL imports, rewrite lt.lock
 lt vendor examples/validator.lt        # copy locked remote files into vendor/
 ```
 
-Playground statis per aturan bahasa (42 kasus executable + 9 kasus error):
+Playground statis per aturan bahasa (43 kasus executable + 9 kasus error):
 
 ```sh
 lt playground          # → out/playground/index.html, buka langsung di browser
@@ -105,4 +105,4 @@ Build memakai compiler cache [Kache](docs/kache.md) yang datanya disimpan di dri
 ADATA. `cargo build`/`cargo test` tidak butuh langkah tambahan; untuk CLI Kache
 lihat [docs/kache.md](docs/kache.md).
 
-Struktur saat ini: `lt-syntax` (lexer, AST, parser, formatter), `lt-hir` (loader modul, tabel simbol, typechecker), `lt-ir` (typed IR + lowering), `lt-emit-ts`/`lt-emit-py`/`lt-emit-go` (backend + runtime inline), `lt-pkg` (URL import, lockfile, vendor), `lt-playground`, dan `lt-cli` (binary `lt`). Total 165 test Rust + 38 test conformance di tiga target + 42 kasus playground.
+Struktur saat ini: `lt-syntax` (lexer, AST, parser, formatter), `lt-hir` (loader modul, tabel simbol, typechecker), `lt-ir` (typed IR + lowering), `lt-emit-ts`/`lt-emit-py`/`lt-emit-go` (backend + runtime inline), `lt-pkg` (URL import, lockfile, vendor), `lt-playground`, dan `lt-cli` (binary `lt`). Total 182 test Rust + 44 test conformance di tiga target + 43 kasus playground.
