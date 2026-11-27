@@ -1,23 +1,34 @@
+pub enum SqlArg {
+  I(Int)
+  S(Str)
+}
+
 pub class Query {
   text: Str
 }
 
 pub class Sql {
-  pub fn compose(parts: List<Str>, values: List<Str>) -> Query {
-    Query(text: `${parts.join("|")}::${values.join("|")}`)
+  pub fn compose(parts: List<Str>, values: List<SqlArg>) -> Query {
+    let rendered = values.map(fn(value) =>
+      match value {
+        SqlArg.I(n) => `i${n}`
+        SqlArg.S(s) => `s${s}`
+      }
+    )
+    Query(text: `${parts.join("|")}::${rendered.join("|")}`)
   }
 }
 
 test class TaggedTest {
-  test fn splits_parts_and_values() {
+  test fn keeps_parts_and_typed_values_apart() {
     let id = 7
     let name = "bo"
-    let query = Sql.compose`SELECT * FROM t WHERE id = ${id} AND name = ${name}`
-    Expect.equal(query.text, "SELECT * FROM t WHERE id = | AND name = |::7|bo")
+    let query = Sql.compose`SELECT * FROM t WHERE id = ${SqlArg.I(id)} AND name = ${SqlArg.S(name)}`
+    Expect.equal(query.text, "SELECT * FROM t WHERE id = | AND name = |::i7|sbo")
   }
 
   test fn handles_empty_tail() {
-    let query = Sql.compose`x ${1}`
-    Expect.equal(query.text, "x |::1")
+    let query = Sql.compose`x ${SqlArg.I(1)}`
+    Expect.equal(query.text, "x |::i1")
   }
 }

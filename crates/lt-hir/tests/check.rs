@@ -583,5 +583,113 @@ pub class A {
   }
 }
 "#;
-    assert_has(&[("a.lt", src)], "a.lt", "cannot be interpolated");
+    assert_has(&[("a.lt", src)], "a.lt", "found `Unit`");
+}
+
+#[test]
+fn tagged_template_values_must_match_the_declared_type() {
+    let src = r#"
+pub class Sql {
+  static fn tag(parts: List<Str>, values: List<Int>) -> Str {
+    parts.join("|")
+  }
+}
+
+pub class A {
+  fn f() -> Str {
+    Sql.tag`x ${"text"}`
+  }
+}
+"#;
+    assert_has(
+        &[("a.lt", src)],
+        "a.lt",
+        "expected `Int` in this tagged template value, found `Str`",
+    );
+}
+
+#[test]
+fn tagged_template_does_not_display_convert_values() {
+    let src = r#"
+pub class Sql {
+  static fn tag(parts: List<Str>, values: List<Str>) -> Str {
+    parts.join("|")
+  }
+}
+
+pub class A {
+  fn f() -> Str {
+    Sql.tag`x ${1}`
+  }
+}
+"#;
+    assert_has(
+        &[("a.lt", src)],
+        "a.lt",
+        "expected `Str` in this tagged template value, found `Int`",
+    );
+}
+
+#[test]
+fn tagged_template_accepts_option_values() {
+    let src = r#"
+pub class Sql {
+  static fn tag(parts: List<Str>, values: List<Option<Int>>) -> Str {
+    parts.join("|")
+  }
+}
+
+pub class A {
+  fn f() -> Str {
+    Sql.tag`a ${Some(1)} b ${None}`
+  }
+}
+"#;
+    assert_ok(&[("a.lt", src)], "a.lt");
+}
+
+#[test]
+fn tagged_template_does_not_implicitly_wrap_some() {
+    let src = r#"
+pub class Sql {
+  static fn tag(parts: List<Str>, values: List<Option<Int>>) -> Str {
+    parts.join("|")
+  }
+}
+
+pub class A {
+  fn f() -> Str {
+    Sql.tag`a ${1}`
+  }
+}
+"#;
+    assert_has(
+        &[("a.lt", src)],
+        "a.lt",
+        "expected `Option<Int>` in this tagged template value, found `Int`",
+    );
+}
+
+#[test]
+fn tagged_template_accepts_a_user_enum_umbrella() {
+    let src = r#"
+pub enum SqlArg {
+  I(Int)
+  S(Str)
+}
+
+pub class Sql {
+  static fn tag(parts: List<Str>, values: List<SqlArg>) -> Str {
+    parts.join("|")
+  }
+}
+
+pub class A {
+  fn f() -> Str {
+    let id = 7
+    Sql.tag`id = ${SqlArg.I(id)} name = ${SqlArg.S("bo")}`
+  }
+}
+"#;
+    assert_ok(&[("a.lt", src)], "a.lt");
 }
