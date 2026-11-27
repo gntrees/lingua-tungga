@@ -18,8 +18,8 @@ pub use loader::{
     ResolvedRemote, SourceLoader,
 };
 pub use program::{
-    builtin_enum, ClassInfo, DeclKind, EnumInfo, FieldInfo, ImportInfo, MethodInfo, Module, ModuleId,
-    Program, VariantInfo,
+    builtin_enum, ClassInfo, DeclKind, EnumInfo, FieldInfo, ImportInfo, MethodInfo, Module,
+    ModuleId, Program, VariantInfo,
 };
 pub use types::{Ty, TypeName, TypeTable};
 
@@ -71,12 +71,14 @@ pub fn check_entries_with_remote(
         .map(|(path, diagnostic)| FileDiagnostic { path, diagnostic })
         .collect();
 
-    diagnostics.extend(module_diagnostics.into_iter().map(|(module, diagnostic)| {
-        FileDiagnostic {
-            path: program.modules[module].path.clone(),
-            diagnostic,
-        }
-    }));
+    diagnostics.extend(
+        module_diagnostics
+            .into_iter()
+            .map(|(module, diagnostic)| FileDiagnostic {
+                path: program.modules[module].path.clone(),
+                diagnostic,
+            }),
+    );
 
     CheckOutput {
         program,

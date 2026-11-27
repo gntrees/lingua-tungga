@@ -18,7 +18,8 @@ impl FakeFetcher {
     }
 
     fn with(mut self, url: &str, body: &str) -> Self {
-        self.responses.insert(url.to_string(), body.as_bytes().to_vec());
+        self.responses
+            .insert(url.to_string(), body.as_bytes().to_vec());
         self
     }
 }
@@ -47,7 +48,12 @@ fn temp_project(tag: &str) -> PathBuf {
     dir
 }
 
-fn manager(root: &std::path::Path, mode: Mode, cache: &std::path::Path, fetcher: FakeFetcher) -> Manager {
+fn manager(
+    root: &std::path::Path,
+    mode: Mode,
+    cache: &std::path::Path,
+    fetcher: FakeFetcher,
+) -> Manager {
     let mut manager = Manager::with_fetcher(root, mode, Box::new(fetcher));
     manager.cache_dir = cache.to_path_buf();
     manager

@@ -132,11 +132,7 @@ fn ast_dumps_without_error() {
     let file = dir.join("a.lt");
     std::fs::write(&file, "pub class A { x: Int }\n").unwrap();
 
-    let output = Command::new(bin())
-        .arg("ast")
-        .arg(&file)
-        .output()
-        .unwrap();
+    let output = Command::new(bin()).arg("ast").arg(&file).output().unwrap();
     assert_eq!(output.status.code(), Some(0));
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("ClassDecl"), "{stdout}");
@@ -162,7 +158,11 @@ fn examples_typecheck() {
 fn build_emits_a_typescript_package() {
     let dir = temp_dir("build");
     let entry = dir.join("user.lt");
-    std::fs::write(&entry, "pub class User {\n  name: Str\n  pub fn greet(self) -> Str { `hi ${self.name}` }\n}\n").unwrap();
+    std::fs::write(
+        &entry,
+        "pub class User {\n  name: Str\n  pub fn greet(self) -> Str { `hi ${self.name}` }\n}\n",
+    )
+    .unwrap();
 
     let out = dir.join("out");
     let output = Command::new(bin())
@@ -278,7 +278,10 @@ test class AdderTest {
 
     let test_file = out.join("ts/tests/suite.test.ts");
     let contents = std::fs::read_to_string(&test_file).unwrap();
-    assert!(contents.contains("import { describe, it } from \"vitest\";"), "{contents}");
+    assert!(
+        contents.contains("import { describe, it } from \"vitest\";"),
+        "{contents}"
+    );
     assert!(contents.contains("describe(\"AdderTest\""), "{contents}");
     assert!(contents.contains("it(\"adds\""), "{contents}");
 
@@ -404,7 +407,10 @@ fn build_go_package() {
     assert!(out.join("go/lt/runtime.go").is_file());
     let module = std::fs::read_to_string(out.join("go/gen/user/user.go")).unwrap();
     assert!(module.contains("package user"), "{module}");
-    assert!(module.contains("func NewUser(name string) User"), "{module}");
+    assert!(
+        module.contains("func NewUser(name string) User"),
+        "{module}"
+    );
     assert!(module.contains("lt \"linguatungga/lt\""), "{module}");
     assert!(!out.join("go/gen/user/user_test.go").exists());
 }
@@ -452,7 +458,10 @@ fn local_projects_do_not_get_a_lockfile() {
         .output()
         .unwrap();
     assert_eq!(output.status.code(), Some(0));
-    assert!(!dir.join("lt.lock").exists(), "no remote imports means no lockfile");
+    assert!(
+        !dir.join("lt.lock").exists(),
+        "no remote imports means no lockfile"
+    );
 }
 
 #[test]

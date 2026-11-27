@@ -2,7 +2,10 @@
 
 use std::collections::HashMap;
 
-use lt_hir::{builtin_enum, types::substitute, ClassInfo, EnumInfo, ModuleId, Program, Ty, TypeName, TypeTable};
+use lt_hir::{
+    builtin_enum, types::substitute, ClassInfo, EnumInfo, ModuleId, Program, Ty, TypeName,
+    TypeTable,
+};
 use lt_syntax::ast::{self, LambdaBody, MatchBody, Pattern};
 use lt_syntax::span::line_col_at;
 use lt_syntax::{BinOp as AstBinOp, Diagnostic, Span, UnOp as AstUnOp};
@@ -243,7 +246,11 @@ impl<'a> Lowerer<'a> {
         self.class_generics = class.generics.clone();
         self.self_ty = Some(Ty::Named(
             type_name,
-            class.generics.iter().map(|g| Ty::Generic(g.clone())).collect(),
+            class
+                .generics
+                .iter()
+                .map(|g| Ty::Generic(g.clone()))
+                .collect(),
         ));
 
         let mut methods = Vec::new();
@@ -381,7 +388,11 @@ impl<'a> Lowerer<'a> {
 
     fn type_annotation(&self, ty: &ast::Type) -> Ty {
         let name = ty.path.last().cloned().unwrap_or_default();
-        let args: Vec<Ty> = ty.args.iter().map(|arg| self.type_annotation(arg)).collect();
+        let args: Vec<Ty> = ty
+            .args
+            .iter()
+            .map(|arg| self.type_annotation(arg))
+            .collect();
         let base = match name.as_str() {
             "Int" => Ty::Int,
             "Float" => Ty::Float,

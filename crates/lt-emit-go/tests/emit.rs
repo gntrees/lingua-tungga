@@ -92,13 +92,28 @@ fn emits_a_go_package() {
     assert!(module.contains("type User struct {"), "{module}");
     assert!(module.contains("\tName string"), "{module}");
     assert!(module.contains("\tRole lt.Variant"), "{module}");
-    assert!(module.contains("func NewUser(name string, age int64, role lt.Variant) User"), "{module}");
-    assert!(module.contains("func (self User) Greet() string"), "{module}");
+    assert!(
+        module.contains("func NewUser(name string, age int64, role lt.Variant) User"),
+        "{module}"
+    );
+    assert!(
+        module.contains("func (self User) Greet() string"),
+        "{module}"
+    );
     assert!(module.contains("\"Hi \" + lt.Disp(self.Name)"), "{module}");
     assert!(module.contains("func UserAnonymous() User"), "{module}");
-    assert!(module.contains("func (self User) LtEq(other any) bool"), "{module}");
-    assert!(module.contains("var RoleAdmin = lt.Variant{Tag: \"Admin\""), "{module}");
-    assert!(module.contains("func RoleMember(_0 int64) lt.Variant"), "{module}");
+    assert!(
+        module.contains("func (self User) LtEq(other any) bool"),
+        "{module}"
+    );
+    assert!(
+        module.contains("var RoleAdmin = lt.Variant{Tag: \"Admin\""),
+        "{module}"
+    );
+    assert!(
+        module.contains("func RoleMember(_0 int64) lt.Variant"),
+        "{module}"
+    );
     assert!(module.contains("switch __match1.Tag {"), "{module}");
 }
 
@@ -114,7 +129,10 @@ fn imports_between_modules_use_go_import_paths() {
         validator.contains("m1 \"linguatungga/gen/user\""),
         "{validator}"
     );
-    assert!(validator.contains("func ValidatorCheck(u m1.User) lt.Variant"), "{validator}");
+    assert!(
+        validator.contains("func ValidatorCheck(u m1.User) lt.Variant"),
+        "{validator}"
+    );
 }
 
 const VALIDATOR: &str = r#"
@@ -207,7 +225,10 @@ test class AdderTest {
     let tests = find(&files, "gen/suite/suite_test.go");
     assert!(tests.contains("package suite_test"), "{tests}");
     assert!(tests.contains("func TestAdds(t *testing.T)"), "{tests}");
-    assert!(tests.contains("lt.ExpectEqual(m0.AdderAdd(int64(1), int64(2)), int64(3))"), "{tests}");
+    assert!(
+        tests.contains("lt.ExpectEqual(m0.AdderAdd(int64(1), int64(2)), int64(3))"),
+        "{tests}"
+    );
 
     let library = emit(&[("suite.lt", src)], "suite.lt", false);
     assert!(!library.iter().any(|f| f.path.ends_with("suite_test.go")));

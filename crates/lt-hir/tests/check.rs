@@ -129,7 +129,11 @@ fn private_class_cannot_be_imported() {
 
 #[test]
 fn unknown_type_is_reported() {
-    assert_has(&[("a.lt", "pub class A { x: Missing }\n")], "a.lt", "unknown type `Missing`");
+    assert_has(
+        &[("a.lt", "pub class A { x: Missing }\n")],
+        "a.lt",
+        "unknown type `Missing`",
+    );
 }
 
 #[test]
@@ -308,7 +312,11 @@ pub class A {
   }
 }
 "#;
-    assert_has(&[("a.lt", src)], "a.lt", "only available inside a `test class`");
+    assert_has(
+        &[("a.lt", src)],
+        "a.lt",
+        "only available inside a `test class`",
+    );
 }
 
 #[test]
@@ -469,7 +477,11 @@ pub class Box<T> {
   }
 }
 "#;
-    assert_has(&[("a.lt", src)], "a.lt", "cannot use the class type parameters");
+    assert_has(
+        &[("a.lt", src)],
+        "a.lt",
+        "cannot use the class type parameters",
+    );
 }
 
 #[test]
@@ -515,5 +527,9 @@ pub class A {
   }
 }
 "#;
-    assert_has(&[("a.lt", src)], "a.lt", "`?` cannot be used inside a lambda");
+    assert_has(
+        &[("a.lt", src)],
+        "a.lt",
+        "`?` cannot be used inside a lambda",
+    );
 }

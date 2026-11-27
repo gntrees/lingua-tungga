@@ -36,7 +36,11 @@ pub fn emit_package(program: &IrProgram) -> Vec<EmittedFile> {
 
     for module in &program.modules {
         files.push(EmittedFile {
-            path: PathBuf::from(format!("{}/{}.go", module_dir(&module.name), module_base(&module.name))),
+            path: PathBuf::from(format!(
+                "{}/{}.go",
+                module_dir(&module.name),
+                module_base(&module.name)
+            )),
             contents: go::emit_module(program, module),
         });
     }

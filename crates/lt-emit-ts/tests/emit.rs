@@ -10,11 +10,7 @@ fn emit(files: &[(&str, &str)], entry: &str) -> Vec<EmittedFile> {
         loader.add(path, source);
     }
     let checked = check_entries(&[PathBuf::from(entry)], &mut loader);
-    assert!(
-        checked.is_ok(),
-        "type errors: {:#?}",
-        checked.diagnostics
-    );
+    assert!(checked.is_ok(), "type errors: {:#?}", checked.diagnostics);
 
     let root = Path::new(entry)
         .parent()
@@ -86,9 +82,15 @@ pub class User {
 #[test]
 fn emits_a_typed_package() {
     let files = emit(&[("user.lt", USER)], "user.lt");
-    assert!(files.iter().any(|f| f.path == std::path::Path::new("package.json")));
-    assert!(files.iter().any(|f| f.path == std::path::Path::new("tsconfig.json")));
-    assert!(files.iter().any(|f| f.path == std::path::Path::new("src/user.ts")));
+    assert!(files
+        .iter()
+        .any(|f| f.path == std::path::Path::new("package.json")));
+    assert!(files
+        .iter()
+        .any(|f| f.path == std::path::Path::new("tsconfig.json")));
+    assert!(files
+        .iter()
+        .any(|f| f.path == std::path::Path::new("src/user.ts")));
 
     let runtime = find(&files, "_lingua_rt.ts");
     assert!(runtime.contains("export function disp"));
@@ -150,9 +152,15 @@ pub class Validator {
 
 #[test]
 fn option_and_result_use_runtime_tags() {
-    let files = emit(&[("user.lt", USER), ("validator.lt", VALIDATOR)], "validator.lt");
+    let files = emit(
+        &[("user.lt", USER), ("validator.lt", VALIDATOR)],
+        "validator.lt",
+    );
     let validator = find(&files, "src/validator.ts");
-    assert!(validator.contains("return lt.Err(\"age must be >= 0\");"), "{validator}");
+    assert!(
+        validator.contains("return lt.Err(\"age must be >= 0\");"),
+        "{validator}"
+    );
     assert!(validator.contains("case \"ok\": {"), "{validator}");
     assert!(validator.contains("case \"err\": {"), "{validator}");
     assert!(validator.contains("return valid.greet();"), "{validator}");
@@ -176,7 +184,10 @@ pub class Outer {
 "#;
     let files = emit(&[("main.lt", src)], "main.lt");
     let main = find(&files, "src/main.ts");
-    assert!(main.contains("if (__try1.tag === \"none\") return __try1;"), "{main}");
+    assert!(
+        main.contains("if (__try1.tag === \"none\") return __try1;"),
+        "{main}"
+    );
     assert!(main.contains("__try1.values[0]"), "{main}");
 }
 
@@ -195,7 +206,10 @@ pub class A {
 "#;
     let files = emit(&[("main.lt", src)], "main.lt");
     let main = find(&files, "src/main.ts");
-    assert!(main.contains("xs.fold(0n, (acc: bigint, x: bigint) => lt.iadd(acc, x))"), "{main}");
+    assert!(
+        main.contains("xs.fold(0n, (acc: bigint, x: bigint) => lt.iadd(acc, x))"),
+        "{main}"
+    );
     assert!(main.contains("xs.join(\", \")"), "{main}");
 }
 

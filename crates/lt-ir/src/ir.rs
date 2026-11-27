@@ -288,7 +288,10 @@ pub struct IrArm {
 pub enum IrPattern {
     Wildcard,
     /// Binds the whole scrutinee (a catch-all).
-    Binding { name: String, ty: Ty },
+    Binding {
+        name: String,
+        ty: Ty,
+    },
     Variant {
         variant: String,
         bindings: Vec<(String, Ty)>,

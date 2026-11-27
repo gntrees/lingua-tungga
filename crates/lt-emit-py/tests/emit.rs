@@ -119,7 +119,10 @@ fn imports_between_modules_are_absolute() {
     );
     let validator = find(&files, "gen/validator.py");
     assert!(validator.contains("import gen.user as m1"), "{validator}");
-    assert!(validator.contains("def check(u: m1.User) -> _lt.Res"), "{validator}");
+    assert!(
+        validator.contains("def check(u: m1.User) -> _lt.Res"),
+        "{validator}"
+    );
 }
 
 const VALIDATOR: &str = r#"
@@ -194,13 +197,14 @@ test class AdderTest {
     assert!(tests.contains("import lt_runtime as _lt"), "{tests}");
     assert!(tests.contains("import gen.suite as m0"), "{tests}");
     assert!(tests.contains("def test_adds() -> None:"), "{tests}");
-    assert!(tests.contains("lt.expect_equal(m0.Adder.add(1, 2), 3)"), "{tests}");
+    assert!(
+        tests.contains("lt.expect_equal(m0.Adder.add(1, 2), 3)"),
+        "{tests}"
+    );
 
     // `emit_package` alone never emits tests.
     let library = emit(&[("suite.lt", src)], "suite.lt", false);
-    assert!(!library
-        .iter()
-        .any(|file| file.path.starts_with("tests/")));
+    assert!(!library.iter().any(|file| file.path.starts_with("tests/")));
 }
 
 #[test]
@@ -208,7 +212,10 @@ fn nested_modules_get_init_files() {
     let files = emit(
         &[
             ("models/user.lt", USER),
-            ("app.lt", "import User from \"./models/user.lt\"\n\npub class App {\n  user: User\n}\n"),
+            (
+                "app.lt",
+                "import User from \"./models/user.lt\"\n\npub class App {\n  user: User\n}\n",
+            ),
         ],
         "app.lt",
         false,
@@ -233,7 +240,13 @@ fn emission_is_deterministic() {
     let first = emit(&[("user.lt", USER)], "user.lt", true);
     let second = emit(&[("user.lt", USER)], "user.lt", true);
     assert_eq!(
-        first.iter().map(|f| (f.path.clone(), f.contents.clone())).collect::<Vec<_>>(),
-        second.iter().map(|f| (f.path.clone(), f.contents.clone())).collect::<Vec<_>>()
+        first
+            .iter()
+            .map(|f| (f.path.clone(), f.contents.clone()))
+            .collect::<Vec<_>>(),
+        second
+            .iter()
+            .map(|f| (f.path.clone(), f.contents.clone()))
+            .collect::<Vec<_>>()
     );
 }

@@ -212,7 +212,10 @@ impl<'a> Loader<'a> {
                 self.diagnostics.push((
                     self.modules[id].path.clone(),
                     Diagnostic::error(
-                        format!("import path `{}` must start with `./`, `../`, or `https://`", decl.path),
+                        format!(
+                            "import path `{}` must start with `./`, `../`, or `https://`",
+                            decl.path
+                        ),
                         decl.span,
                         loc.line,
                         loc.col,

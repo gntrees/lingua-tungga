@@ -11,9 +11,7 @@ use crate::program::{
 };
 use crate::types::{mentions_any_generic, substitute, Subst, Ty, TypeName, TypeTable};
 
-pub fn check_program(
-    mut program: Program,
-) -> (Program, Vec<(ModuleId, Diagnostic)>, TypeTable) {
+pub fn check_program(mut program: Program) -> (Program, Vec<(ModuleId, Diagnostic)>, TypeTable) {
     let mut diagnostics = Vec::new();
     let mut types = TypeTable::default();
     collect_declarations(&mut program, &mut diagnostics);
@@ -29,10 +27,7 @@ fn diag(diagnostics: &mut Vec<Diagnostic>, src: &str, span: Span, message: Strin
 
 // ---------------------------------------------------------------- declarations
 
-fn collect_declarations(
-    program: &mut Program,
-    diagnostics: &mut Vec<(ModuleId, Diagnostic)>,
-) {
+fn collect_declarations(program: &mut Program, diagnostics: &mut Vec<(ModuleId, Diagnostic)>) {
     for module_id in 0..program.modules.len() {
         let mut classes = Vec::new();
         let mut enums = Vec::new();
@@ -92,10 +87,7 @@ fn collect_declarations(
     }
 }
 
-fn resolve_declarations(
-    program: &mut Program,
-    diagnostics: &mut Vec<(ModuleId, Diagnostic)>,
-) {
+fn resolve_declarations(program: &mut Program, diagnostics: &mut Vec<(ModuleId, Diagnostic)>) {
     for module_id in 0..program.modules.len() {
         let mut classes = Vec::new();
         let mut enums = Vec::new();
@@ -133,7 +125,10 @@ fn resolve_class(
     let mut methods = Vec::new();
 
     for field in &class.fields {
-        if fields.iter().any(|f: &crate::program::FieldInfo| f.name == field.name) {
+        if fields
+            .iter()
+            .any(|f: &crate::program::FieldInfo| f.name == field.name)
+        {
             diag(
                 diagnostics,
                 source,
@@ -250,7 +245,10 @@ fn resolve_enum(
 
     let mut variants = Vec::new();
     for variant in &decl.variants {
-        if variants.iter().any(|v: &VariantInfo| v.name == variant.name) {
+        if variants
+            .iter()
+            .any(|v: &VariantInfo| v.name == variant.name)
+        {
             diag(
                 diagnostics,
                 source,
@@ -479,7 +477,11 @@ fn check_bodies(
                                 module: module.id,
                                 name: class.name.clone(),
                             },
-                            class.generics.iter().map(|g| Ty::Generic(g.clone())).collect(),
+                            class
+                                .generics
+                                .iter()
+                                .map(|g| Ty::Generic(g.clone()))
+                                .collect(),
                         ));
                         checker.ret = method_info.ret.clone();
 
@@ -536,8 +538,7 @@ fn check_bodies(
                         checker.ret = helper_ret.clone();
                         checker.scopes.push(HashMap::new());
                         for param in &helper.params {
-                            let ty =
-                                resolve_type(program, module.id, &[], &param.ty, &mut local);
+                            let ty = resolve_type(program, module.id, &[], &param.ty, &mut local);
                             checker.declare(&param.name, ty, false, param.span);
                         }
                         let body_ty = checker.check_block(&helper.body, Some(&helper_ret));
@@ -675,16 +676,14 @@ impl<'a> Checker<'a> {
             | (Ty::Str, Ty::Str)
             | (Ty::Unit, Ty::Unit) => true,
             (Ty::Generic(a), Ty::Generic(b)) => a == b,
-            (Ty::List(a), Ty::List(b)) | (Ty::Set(a), Ty::Set(b)) | (Ty::Option(a), Ty::Option(b)) => {
-                self.unify(a, b)
-            }
+            (Ty::List(a), Ty::List(b))
+            | (Ty::Set(a), Ty::Set(b))
+            | (Ty::Option(a), Ty::Option(b)) => self.unify(a, b),
             (Ty::Map(a1, a2), Ty::Map(b1, b2)) | (Ty::Result(a1, a2), Ty::Result(b1, b2)) => {
                 self.unify(a1, b1) && self.unify(a2, b2)
             }
             (Ty::Named(a1, a2), Ty::Named(b1, b2)) => {
-                a1 == b1
-                    && a2.len() == b2.len()
-                    && a2.iter().zip(b2).all(|(x, y)| self.unify(x, y))
+                a1 == b1 && a2.len() == b2.len() && a2.iter().zip(b2).all(|(x, y)| self.unify(x, y))
             }
             _ => false,
         }
@@ -708,10 +707,7 @@ impl<'a> Checker<'a> {
     fn declare(&mut self, name: &str, ty: Ty, mutable: bool, span: Span) {
         let scope = self.scopes.last_mut().expect("a scope is always open");
         if scope.contains_key(name) {
-            self.diag(
-                span,
-                format!("`{name}` is already declared in this scope"),
-            );
+            self.diag(span, format!("`{name}` is already declared in this scope"));
             return;
         }
         scope.insert(name.to_string(), VarInfo { ty, mutable });
@@ -797,9 +793,7 @@ impl<'a> Checker<'a> {
                     return Some(
                         variants
                             .iter()
-                            .map(|(variant, arity)| {
-                                (variant.to_string(), vec![Ty::Error; *arity])
-                            })
+                            .map(|(variant, arity)| (variant.to_string(), vec![Ty::Error; *arity]))
                             .collect(),
                     );
                 }
@@ -849,14 +843,13 @@ impl<'a> Checker<'a> {
                 } => {
                     let declared = match ty {
                         Some(ty) => {
-                            let declared =
-                                crate::check::resolve_type(
-                                    self.program,
-                                    self.module,
-                                    &self.class_generics,
-                                    ty,
-                                    &mut self.diags,
-                                );
+                            let declared = crate::check::resolve_type(
+                                self.program,
+                                self.module,
+                                &self.class_generics,
+                                ty,
+                                &mut self.diags,
+                            );
                             let value_ty = self.check_expr(value, Some(&declared));
                             self.expect(value.span(), &declared, &value_ty, " in this binding");
                             declared
@@ -901,7 +894,10 @@ impl<'a> Checker<'a> {
                     last = None;
                 }
                 ast::Stmt::For {
-                    var, iter, body, span,
+                    var,
+                    iter,
+                    body,
+                    span,
                 } => {
                     let iter_ty = self.check_expr(iter, None);
                     match self.resolve_deep(&iter_ty) {
@@ -913,7 +909,9 @@ impl<'a> Checker<'a> {
                                 let body_ty = self.display_ty(&body_ty);
                                 self.diag(
                                     body.span,
-                                    format!("a loop body must not produce a value, found `{body_ty}`"),
+                                    format!(
+                                        "a loop body must not produce a value, found `{body_ty}`"
+                                    ),
                                 );
                             }
                             self.scopes.pop();
@@ -1109,8 +1107,18 @@ impl<'a> Checker<'a> {
                 Ty::Bool
             }
             BinOp::And | BinOp::Or => {
-                self.expect(lhs.span(), &Ty::Bool, &left, " on the left of this operator");
-                self.expect(rhs.span(), &Ty::Bool, &right, " on the right of this operator");
+                self.expect(
+                    lhs.span(),
+                    &Ty::Bool,
+                    &left,
+                    " on the left of this operator",
+                );
+                self.expect(
+                    rhs.span(),
+                    &Ty::Bool,
+                    &right,
+                    " on the right of this operator",
+                );
                 Ty::Bool
             }
         }
@@ -1215,18 +1223,16 @@ impl<'a> Checker<'a> {
             Ty::Error => Ty::Error,
             other => {
                 let other = other.to_string();
-                self.diag(span, format!("`?` needs an `Option` or `Result`, found `{other}`"));
+                self.diag(
+                    span,
+                    format!("`?` needs an `Option` or `Result`, found `{other}`"),
+                );
                 Ty::Error
             }
         }
     }
 
-    fn check_match(
-        &mut self,
-        scrutinee: &ast::Expr,
-        arms: &[ast::MatchArm],
-        span: Span,
-    ) -> Ty {
+    fn check_match(&mut self, scrutinee: &ast::Expr, arms: &[ast::MatchArm], span: Span) -> Ty {
         let scrutinee_ty = self.check_expr(scrutinee, None);
         let scrutinee_ty = self.resolve_deep(&scrutinee_ty);
 
@@ -1263,7 +1269,12 @@ impl<'a> Checker<'a> {
                 None => result = Some(body_ty),
                 Some(existing) => {
                     let existing = existing.clone();
-                    self.expect(arm.pattern.span(), &existing, &body_ty, " in this match arm");
+                    self.expect(
+                        arm.pattern.span(),
+                        &existing,
+                        &body_ty,
+                        " in this match arm",
+                    );
                 }
             }
         }
@@ -1339,7 +1350,9 @@ impl<'a> Checker<'a> {
 
     fn check_field(&mut self, base: &ast::Expr, name: &str, span: Span) -> Ty {
         if let ast::Expr::Ident {
-            name: owner, span: owner_span, ..
+            name: owner,
+            span: owner_span,
+            ..
         } = base
         {
             if let Some((decl, type_name)) = self.enum_ref(owner) {
@@ -1369,10 +1382,7 @@ impl<'a> Checker<'a> {
                     if let Some(field) = class.fields.iter().find(|field| field.name == name) {
                         return self.resolve_deep(&substitute(&field.ty, &subst));
                     }
-                    self.diag(
-                        span,
-                        format!("`{}` has no field `{name}`", class.name),
-                    );
+                    self.diag(span, format!("`{}` has no field `{name}`", class.name));
                     return Ty::Error;
                 }
                 let shown = base_ty.to_string();
@@ -1459,8 +1469,11 @@ impl<'a> Checker<'a> {
                     }
                     _ => {}
                 }
-                if let Some((_, params, ret)) =
-                    self.test_helpers.iter().find(|(helper, _, _)| helper == name).cloned()
+                if let Some((_, params, ret)) = self
+                    .test_helpers
+                    .iter()
+                    .find(|(helper, _, _)| helper == name)
+                    .cloned()
                 {
                     let Some(items) = self.positional(args, span, name) else {
                         return Ty::Error;
@@ -1514,10 +1527,7 @@ impl<'a> Checker<'a> {
                                 return Ty::Error;
                             };
                             if !items.is_empty() {
-                                self.diag(
-                                    span,
-                                    format!("`{owner}.empty` takes no arguments"),
-                                );
+                                self.diag(span, format!("`{owner}.empty` takes no arguments"));
                                 return Ty::Error;
                             }
                             return if owner == "Map" {
@@ -1529,19 +1539,13 @@ impl<'a> Checker<'a> {
                         "Math" => return self.call_math(name, args, span),
                         "Expect" => return self.call_expect(name, args, span),
                         "Json" => {
-                            self.diag(
-                                *owner_span,
-                                "`Json` is not available in v1 yet",
-                            );
+                            self.diag(*owner_span, "`Json` is not available in v1 yet");
                             return Ty::Error;
                         }
                         _ => {}
                     }
                     if self.lookup_var(owner).is_none() {
-                        self.diag(
-                            *owner_span,
-                            format!("unknown type or value `{owner}`"),
-                        );
+                        self.diag(*owner_span, format!("unknown type or value `{owner}`"));
                         return Ty::Error;
                     }
                 }
@@ -1566,10 +1570,7 @@ impl<'a> Checker<'a> {
             ast::Args::Empty => Some(Vec::new()),
             ast::Args::Positional(items) => Some(items.iter().collect()),
             ast::Args::Named(_) => {
-                self.diag(
-                    span,
-                    format!("`{context}` takes positional arguments only"),
-                );
+                self.diag(span, format!("`{context}` takes positional arguments only"));
                 None
             }
         }
@@ -1806,10 +1807,7 @@ impl<'a> Checker<'a> {
                             ),
                         );
                     } else {
-                        self.diag(
-                            span,
-                            format!("`{}` has no method `{name}`", class.name),
-                        );
+                        self.diag(span, format!("`{}` has no method `{name}`", class.name));
                     }
                     return Ty::Error;
                 };
@@ -1877,10 +1875,7 @@ impl<'a> Checker<'a> {
             .iter()
             .find(|method| method.name == *name && method.is_static)
         else {
-            self.diag(
-                span,
-                format!("`{owner}.{name}` is not a static method"),
-            );
+            self.diag(span, format!("`{owner}.{name}` is not a static method"));
             return Ty::Error;
         };
         let expected = [Ty::list(Ty::Str), Ty::list(Ty::Str)];
@@ -2052,7 +2047,10 @@ impl<'a> Checker<'a> {
         if items.len() != arity {
             self.diag(
                 span,
-                format!("`Math.{name}` expects {arity} argument(s), found {}", items.len()),
+                format!(
+                    "`Math.{name}` expects {arity} argument(s), found {}",
+                    items.len()
+                ),
             );
             return Ty::Error;
         }
@@ -2120,7 +2118,10 @@ impl<'a> Checker<'a> {
                 if items.len() != arity {
                     self.diag(
                         span,
-                        format!("`Str.{name}` expects {arity} argument(s), found {}", items.len()),
+                        format!(
+                            "`Str.{name}` expects {arity} argument(s), found {}",
+                            items.len()
+                        ),
                     );
                     return Ty::Error;
                 }
@@ -2174,7 +2175,10 @@ impl<'a> Checker<'a> {
                 if items.len() != arity {
                     self.diag(
                         span,
-                        format!("`Set.{name}` expects {arity} argument(s), found {}", items.len()),
+                        format!(
+                            "`Set.{name}` expects {arity} argument(s), found {}",
+                            items.len()
+                        ),
                     );
                     return Ty::Error;
                 }
@@ -2279,8 +2283,7 @@ impl<'a> Checker<'a> {
                             self.diag(span, "`Option.and_then` expects 1 argument".to_string());
                             return Ty::Error;
                         }
-                        let Some(result) = self.check_lambda(items[0], &[inner], "and_then")
-                        else {
+                        let Some(result) = self.check_lambda(items[0], &[inner], "and_then") else {
                             return Ty::Error;
                         };
                         match self.resolve_deep(&result) {
@@ -2394,7 +2397,10 @@ impl<'a> Checker<'a> {
             if items.len() != arity {
                 self.diag(
                     span,
-                    format!("`{name}` expects {arity} argument(s), found {}", items.len()),
+                    format!(
+                        "`{name}` expects {arity} argument(s), found {}",
+                        items.len()
+                    ),
                 );
             }
         }
@@ -2458,11 +2464,17 @@ impl<'a> Checker<'a> {
                     self.diag(span, "`List.filter` expects 1 argument".to_string());
                     return Ty::Error;
                 }
-                let Some(result) = self.check_lambda(items[0], std::slice::from_ref(&element), "filter")
+                let Some(result) =
+                    self.check_lambda(items[0], std::slice::from_ref(&element), "filter")
                 else {
                     return Ty::Error;
                 };
-                self.expect(items[0].span(), &Ty::Bool, &result, " as the `filter` predicate");
+                self.expect(
+                    items[0].span(),
+                    &Ty::Bool,
+                    &result,
+                    " as the `filter` predicate",
+                );
                 list_ty
             }
             "fold" => {
@@ -2474,14 +2486,17 @@ impl<'a> Checker<'a> {
                     return Ty::Error;
                 }
                 let accumulator = self.check_expr(items[0], None);
-                let Some(result) = self.check_lambda(
-                    items[1],
-                    &[accumulator.clone(), element],
-                    "fold",
-                ) else {
+                let Some(result) =
+                    self.check_lambda(items[1], &[accumulator.clone(), element], "fold")
+                else {
                     return Ty::Error;
                 };
-                self.expect(items[1].span(), &accumulator, &result, " as the `fold` result");
+                self.expect(
+                    items[1].span(),
+                    &accumulator,
+                    &result,
+                    " as the `fold` result",
+                );
                 accumulator
             }
             "any" | "all" => {
@@ -2495,7 +2510,12 @@ impl<'a> Checker<'a> {
                 let Some(result) = self.check_lambda(items[0], &[element], name) else {
                     return Ty::Error;
                 };
-                self.expect(items[0].span(), &Ty::Bool, &result, &format!(" as the `{name}` predicate"));
+                self.expect(
+                    items[0].span(),
+                    &Ty::Bool,
+                    &result,
+                    &format!(" as the `{name}` predicate"),
+                );
                 Ty::Bool
             }
             "sort" | "reverse" => {
@@ -2546,7 +2566,12 @@ impl<'a> Checker<'a> {
                     self.diag(span, "`List.join` expects 1 argument".to_string());
                     return Ty::Error;
                 }
-                self.expect(span, &Ty::Str, &element, " for `List.join`; it needs `List<Str>`");
+                self.expect(
+                    span,
+                    &Ty::Str,
+                    &element,
+                    " for `List.join`; it needs `List<Str>`",
+                );
                 let ty = self.check_expr(items[0], Some(&Ty::Str));
                 self.expect(items[0].span(), &Ty::Str, &ty, " in `List.join`");
                 Ty::Str
@@ -2558,12 +2583,7 @@ impl<'a> Checker<'a> {
         }
     }
 
-    fn check_lambda(
-        &mut self,
-        expr: &ast::Expr,
-        params: &[Ty],
-        context: &str,
-    ) -> Option<Ty> {
+    fn check_lambda(&mut self, expr: &ast::Expr, params: &[Ty], context: &str) -> Option<Ty> {
         let ast::Expr::Lambda {
             params: names,
             body,

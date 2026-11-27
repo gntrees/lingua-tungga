@@ -95,7 +95,8 @@ fn emitter_output_matches_golden_files() {
             )
         });
         assert_eq!(
-            contents, &expected,
+            contents,
+            &expected,
             "emitted file {} differs from its golden copy",
             path.display()
         );

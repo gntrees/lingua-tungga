@@ -7,9 +7,9 @@ use std::process::exit;
 use std::collections::HashMap;
 
 use lt_hir::{check_entries_with_remote, normalize, FsLoader};
-use lt_pkg::{Manager, Mode};
 use lt_ir::lower_program;
 use lt_ir::IrProgram;
+use lt_pkg::{Manager, Mode};
 use lt_syntax::{format_file_with_comments, parse, tokenize_full, Diagnostic};
 
 fn main() {
@@ -130,7 +130,14 @@ fn cmd_check(inputs: &[String]) -> i32 {
             .map(Path::to_path_buf)
             .unwrap_or_else(|| PathBuf::from(".")),
     );
-    let mut manager = Manager::new(if root == Path::new(".") { Path::new("") } else { &root }, Mode::Locked);
+    let mut manager = Manager::new(
+        if root == Path::new(".") {
+            Path::new("")
+        } else {
+            &root
+        },
+        Mode::Locked,
+    );
     let mut loader = FsLoader;
     let out = check_entries_with_remote(&paths, &mut loader, &mut manager);
     if let Err(error) = manager.save() {
@@ -162,8 +169,10 @@ fn common_root(entries: &[PathBuf]) -> PathBuf {
         root = Some(match root {
             None => parent,
             Some(current) => {
-                let parts: Vec<&std::ffi::OsStr> = current.components().map(|c| c.as_os_str()).collect();
-                let other: Vec<&std::ffi::OsStr> = parent.components().map(|c| c.as_os_str()).collect();
+                let parts: Vec<&std::ffi::OsStr> =
+                    current.components().map(|c| c.as_os_str()).collect();
+                let other: Vec<&std::ffi::OsStr> =
+                    parent.components().map(|c| c.as_os_str()).collect();
                 let mut prefix = PathBuf::new();
                 for (left, right) in parts.iter().zip(other.iter()) {
                     if left == right {
@@ -184,42 +193,32 @@ fn common_root(entries: &[PathBuf]) -> PathBuf {
     }
 }
 
-fn emitted_files(
-    target: &str,
-    ir: &IrProgram,
-    with_tests: bool,
-) -> Option<Vec<(PathBuf, String)>> {
+fn emitted_files(target: &str, ir: &IrProgram, with_tests: bool) -> Option<Vec<(PathBuf, String)>> {
     let files = match target {
-        "ts" => {
-            if with_tests {
-                lt_emit_ts::emit_package_with_tests(ir)
-            } else {
-                lt_emit_ts::emit_package(ir)
-            }
-            .into_iter()
-            .map(|file| (file.path, file.contents))
-            .collect()
+        "ts" => if with_tests {
+            lt_emit_ts::emit_package_with_tests(ir)
+        } else {
+            lt_emit_ts::emit_package(ir)
         }
-        "py" => {
-            if with_tests {
-                lt_emit_py::emit_package_with_tests(ir)
-            } else {
-                lt_emit_py::emit_package(ir)
-            }
-            .into_iter()
-            .map(|file| (file.path, file.contents))
-            .collect()
+        .into_iter()
+        .map(|file| (file.path, file.contents))
+        .collect(),
+        "py" => if with_tests {
+            lt_emit_py::emit_package_with_tests(ir)
+        } else {
+            lt_emit_py::emit_package(ir)
         }
-        "go" => {
-            if with_tests {
-                lt_emit_go::emit_package_with_tests(ir)
-            } else {
-                lt_emit_go::emit_package(ir)
-            }
-            .into_iter()
-            .map(|file| (file.path, file.contents))
-            .collect()
+        .into_iter()
+        .map(|file| (file.path, file.contents))
+        .collect(),
+        "go" => if with_tests {
+            lt_emit_go::emit_package_with_tests(ir)
+        } else {
+            lt_emit_go::emit_package(ir)
         }
+        .into_iter()
+        .map(|file| (file.path, file.contents))
+        .collect(),
         _ => return None,
     };
     Some(files)
@@ -574,7 +573,10 @@ fn cmd_vendor(args: &[String]) -> i32 {
     match prepare(&entries, Mode::Locked) {
         Ok((_checked, _ir, mut manager)) => match manager.vendor() {
             Ok(count) => {
-                println!("vendored {count} package(s) into {}", manager.vendor_dir.display());
+                println!(
+                    "vendored {count} package(s) into {}",
+                    manager.vendor_dir.display()
+                );
                 0
             }
             Err(error) => {

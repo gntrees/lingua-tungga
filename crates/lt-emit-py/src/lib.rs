@@ -60,10 +60,7 @@ pub fn emit_tests(program: &IrProgram) -> Vec<EmittedFile> {
     for module in &program.modules {
         if let Some(contents) = py::emit_tests(program, module) {
             files.push(EmittedFile {
-                path: PathBuf::from(format!(
-                    "tests/test_{}.py",
-                    module.name.replace('/', "_")
-                )),
+                path: PathBuf::from(format!("tests/test_{}.py", module.name.replace('/', "_"))),
                 contents,
             });
         }

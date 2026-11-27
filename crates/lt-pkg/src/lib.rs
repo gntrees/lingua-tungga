@@ -111,7 +111,9 @@ impl HttpFetcher for CurlFetcher {
         command.args(["-fsSL", "--max-time", "60", "--retry", "2"]);
         if let Ok(token) = std::env::var("GITHUB_TOKEN") {
             if url.contains("api.github.com") {
-                command.arg("-H").arg(format!("Authorization: Bearer {token}"));
+                command
+                    .arg("-H")
+                    .arg(format!("Authorization: Bearer {token}"));
             }
         }
         command.arg(url);
@@ -144,11 +146,7 @@ impl Manager {
         Self::with_fetcher(project_root, mode, Box::new(CurlFetcher))
     }
 
-    pub fn with_fetcher(
-        project_root: &Path,
-        mode: Mode,
-        http: Box<dyn HttpFetcher>,
-    ) -> Self {
+    pub fn with_fetcher(project_root: &Path, mode: Mode, http: Box<dyn HttpFetcher>) -> Self {
         let lock_path = project_root.join("lt.lock");
         let lock = Lockfile::load(&lock_path).unwrap_or_default();
         Self {

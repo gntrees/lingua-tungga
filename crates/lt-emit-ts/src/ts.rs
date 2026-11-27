@@ -6,11 +6,53 @@ use lt_hir::{ModuleId, Ty};
 use lt_ir::*;
 
 const RESERVED: &[&str] = &[
-    "break", "case", "catch", "class", "const", "continue", "debugger", "default", "delete", "do",
-    "else", "enum", "export", "extends", "false", "finally", "for", "function", "if", "import",
-    "in", "instanceof", "new", "null", "return", "super", "switch", "this", "throw", "true", "try",
-    "typeof", "var", "void", "while", "with", "yield", "let", "static", "await", "implements",
-    "interface", "package", "private", "protected", "public", "constructor",
+    "break",
+    "case",
+    "catch",
+    "class",
+    "const",
+    "continue",
+    "debugger",
+    "default",
+    "delete",
+    "do",
+    "else",
+    "enum",
+    "export",
+    "extends",
+    "false",
+    "finally",
+    "for",
+    "function",
+    "if",
+    "import",
+    "in",
+    "instanceof",
+    "new",
+    "null",
+    "return",
+    "super",
+    "switch",
+    "this",
+    "throw",
+    "true",
+    "try",
+    "typeof",
+    "var",
+    "void",
+    "while",
+    "with",
+    "yield",
+    "let",
+    "static",
+    "await",
+    "implements",
+    "interface",
+    "package",
+    "private",
+    "protected",
+    "public",
+    "constructor",
 ];
 
 fn camel(name: &str) -> String {
@@ -276,7 +318,14 @@ impl<'a> Emitter<'a> {
         if names.is_empty() {
             String::new()
         } else {
-            format!("<{}>", names.iter().map(AsRef::as_ref).collect::<Vec<_>>().join(", "))
+            format!(
+                "<{}>",
+                names
+                    .iter()
+                    .map(AsRef::as_ref)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
         }
     }
 
@@ -388,7 +437,10 @@ impl<'a> Emitter<'a> {
                 .iter()
                 .map(|field| format!("{}: {}", camel(&field.name), self.type_ref(&field.ty)))
                 .collect();
-            out.push_str(&format!("\n  constructor(fields: {{ {} }}) {{\n", fields.join("; ")));
+            out.push_str(&format!(
+                "\n  constructor(fields: {{ {} }}) {{\n",
+                fields.join("; ")
+            ));
             for field in &class.fields {
                 let name = camel(&field.name);
                 out.push_str(&format!("    this.{name} = fields.{name};\n"));
@@ -402,7 +454,10 @@ impl<'a> Emitter<'a> {
         }
 
         out.push_str("\n  __lt_eq(other: unknown): boolean {\n");
-        out.push_str(&format!("    if (!(other instanceof {})) return false;\n", class.name));
+        out.push_str(&format!(
+            "    if (!(other instanceof {})) return false;\n",
+            class.name
+        ));
         if class.fields.is_empty() {
             out.push_str("    return true;\n");
         } else {
@@ -429,7 +484,10 @@ impl<'a> Emitter<'a> {
         } else {
             format!("{}<any>", class.name)
         };
-        out.push_str(&format!("    if (!(other instanceof {})) return 0;\n", class.name));
+        out.push_str(&format!(
+            "    if (!(other instanceof {})) return 0;\n",
+            class.name
+        ));
         out.push_str(&format!("    const peer = other as {cast};\n"));
         for field in &class.fields {
             let name = camel(&field.name);
@@ -451,13 +509,7 @@ impl<'a> Emitter<'a> {
             let pieces: Vec<String> = class
                 .fields
                 .iter()
-                .map(|field| {
-                    format!(
-                        "{}: ${{lt.disp(this.{})}}",
-                        field.name,
-                        camel(&field.name)
-                    )
-                })
+                .map(|field| format!("{}: ${{lt.disp(this.{})}}", field.name, camel(&field.name)))
                 .collect();
             out.push_str(&format!(
                 "    return `{}({})`;\n",
@@ -529,11 +581,7 @@ impl<'a> Emitter<'a> {
         let count = block.stmts.len();
         for (index, stmt) in block.stmts.iter().enumerate() {
             let is_last = index + 1 == count;
-            let stmt_tail = if is_last {
-                tail.clone()
-            } else {
-                Tail::Plain
-            };
+            let stmt_tail = if is_last { tail.clone() } else { Tail::Plain };
             lines.extend(self.stmt(stmt, level, &stmt_tail));
         }
         lines
@@ -578,10 +626,7 @@ impl<'a> Emitter<'a> {
                 lines
             }
             IrStmt::For {
-                var,
-                iter,
-                body,
-                ..
+                var, iter, body, ..
             } => {
                 let frag = self.expr(iter, level);
                 let mut lines = frag.prelude;
@@ -684,10 +729,7 @@ impl<'a> Emitter<'a> {
         let scrutinee_frag = self.expr(scrutinee, level);
         let binding = self.temp("match");
         let mut lines = scrutinee_frag.prelude;
-        lines.push(format!(
-            "{pad}const {binding} = {};",
-            scrutinee_frag.code
-        ));
+        lines.push(format!("{pad}const {binding} = {};", scrutinee_frag.code));
         lines.push(format!("{pad}switch ({binding}.tag) {{"));
 
         let needs_break = !matches!(tail, Tail::Return);
@@ -836,7 +878,10 @@ impl<'a> Emitter<'a> {
                 }
             }
             IrExpr::NewVariant {
-                target, variant, args, ..
+                target,
+                variant,
+                args,
+                ..
             } => {
                 let mut prelude = Vec::new();
                 let rendered: Vec<String> = args
@@ -1036,10 +1081,7 @@ impl<'a> Emitter<'a> {
             IrExpr::If { ty, .. } => {
                 let target = self.temp("if");
                 let pad = indent(level);
-                let mut prelude = vec![format!(
-                    "{pad}let {target}: {};",
-                    self.type_ref(ty)
-                )];
+                let mut prelude = vec![format!("{pad}let {target}: {};", self.type_ref(ty))];
                 prelude.extend(self.if_stmt(expr, level, &Tail::Assign(target.clone())));
                 Frag {
                     prelude,
@@ -1049,10 +1091,7 @@ impl<'a> Emitter<'a> {
             IrExpr::Match { ty, .. } => {
                 let target = self.temp("match");
                 let pad = indent(level);
-                let mut prelude = vec![format!(
-                    "{pad}let {target}: {};",
-                    self.type_ref(ty)
-                )];
+                let mut prelude = vec![format!("{pad}let {target}: {};", self.type_ref(ty))];
                 prelude.extend(self.match_stmt(expr, level, &Tail::Assign(target.clone())));
                 Frag {
                     prelude,

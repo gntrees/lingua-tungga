@@ -39,7 +39,14 @@ fn emit() -> Vec<(PathBuf, String)> {
         .program
         .modules
         .iter()
-        .map(|module| module.path.file_stem().unwrap().to_string_lossy().to_string())
+        .map(|module| {
+            module
+                .path
+                .file_stem()
+                .unwrap()
+                .to_string_lossy()
+                .to_string()
+        })
         .collect();
 
     let (ir, diagnostics) = lower_program(&checked.program, &checked.types, names);

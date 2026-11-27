@@ -274,11 +274,9 @@ impl<'a> Emitter<'a> {
             Ty::Unit => "None".to_string(),
             Ty::List(inner) => format!("_lt.LList[{}]", self.type_ref(inner)),
             Ty::Set(inner) => format!("_lt.LSet[{}]", self.type_ref(inner)),
-            Ty::Map(key, value) => format!(
-                "_lt.LMap[{}, {}]",
-                self.type_ref(key),
-                self.type_ref(value)
-            ),
+            Ty::Map(key, value) => {
+                format!("_lt.LMap[{}, {}]", self.type_ref(key), self.type_ref(value))
+            }
             Ty::Option(inner) => format!("_lt.Opt[{}]", self.type_ref(inner)),
             Ty::Result(ok, err) => {
                 format!("_lt.Res[{}, {}]", self.type_ref(ok), self.type_ref(err))
@@ -323,7 +321,10 @@ impl<'a> Emitter<'a> {
         out.push_str("    tag: str\n    values: tuple[Any, ...]\n    order: int\n\n");
         let display_ret = self.primitive("str");
         out.push_str(&format!("    def to_display(self) -> {display_ret}:\n"));
-        out.push_str(&format!("        return _{}_display(self)\n\n", snake(&decl.name)));
+        out.push_str(&format!(
+            "        return _{}_display(self)\n\n",
+            snake(&decl.name)
+        ));
 
         for (order, variant) in decl.variants.iter().enumerate() {
             let name = member(&format!("{}_{}", decl.name, variant.name));
@@ -356,12 +357,13 @@ impl<'a> Emitter<'a> {
             }
         }
 
-        out.push_str(&format!("def _{}_display(value: {}) -> str:\n", snake(&decl.name), decl.name));
+        out.push_str(&format!(
+            "def _{}_display(value: {}) -> str:\n",
+            snake(&decl.name),
+            decl.name
+        ));
         for variant in &decl.variants {
-            out.push_str(&format!(
-                "    if value.tag == {}:\n",
-                quote(&variant.name)
-            ));
+            out.push_str(&format!("    if value.tag == {}:\n", quote(&variant.name)));
             if variant.payload.is_empty() {
                 out.push_str(&format!(
                     "        return {}\n",
@@ -373,9 +375,7 @@ impl<'a> Emitter<'a> {
                     if index > 0 {
                         expression.push_str(" + \", \"");
                     }
-                    expression.push_str(&format!(
-                        " + _lt.disp(value.values[{index}])"
-                    ));
+                    expression.push_str(&format!(" + _lt.disp(value.values[{index}])"));
                 }
                 expression.push_str(" + \")\"");
                 out.push_str(&format!("        return {}\n", expression));
@@ -392,7 +392,9 @@ impl<'a> Emitter<'a> {
 
         // A method named `int`/`str`/... would shadow the type name inside the
         // class body, so primitive annotations there must be qualified.
-        let primitives = ["int", "float", "bool", "str", "list", "dict", "set", "object"];
+        let primitives = [
+            "int", "float", "bool", "str", "list", "dict", "set", "object",
+        ];
         self.shadowed = class
             .methods
             .iter()
@@ -537,11 +539,7 @@ impl<'a> Emitter<'a> {
         let count = block.stmts.len();
         for (index, stmt) in block.stmts.iter().enumerate() {
             let is_last = index + 1 == count;
-            let stmt_tail = if is_last {
-                tail.clone()
-            } else {
-                Tail::Plain
-            };
+            let stmt_tail = if is_last { tail.clone() } else { Tail::Plain };
             lines.extend(self.stmt(stmt, level, &stmt_tail));
         }
         self.aliases.pop();
@@ -551,7 +549,9 @@ impl<'a> Emitter<'a> {
     fn stmt(&mut self, stmt: &IrStmt, level: usize, tail: &Tail) -> Vec<String> {
         let pad = indent(level);
         match stmt {
-            IrStmt::Let { name, ty, value, .. } => {
+            IrStmt::Let {
+                name, ty, value, ..
+            } => {
                 let frag = self.expr(value, level);
                 let declared = self.type_ref(ty);
                 let local = self.bind_local(name);
@@ -750,9 +750,15 @@ impl<'a> Emitter<'a> {
 
         if first {
             lines.push(format!("{pad}raise AssertionError(\"unreachable\")"));
-        } else if !matches!(arms.last().map(|arm| &arm.pattern), Some(IrPattern::Binding { .. }) | Some(IrPattern::Wildcard)) {
+        } else if !matches!(
+            arms.last().map(|arm| &arm.pattern),
+            Some(IrPattern::Binding { .. }) | Some(IrPattern::Wildcard)
+        ) {
             lines.push(format!("{pad}else:"));
-            lines.push(format!("{}raise AssertionError(\"unreachable\")", indent(level + 1)));
+            lines.push(format!(
+                "{}raise AssertionError(\"unreachable\")",
+                indent(level + 1)
+            ));
         }
 
         lines
@@ -846,7 +852,10 @@ impl<'a> Emitter<'a> {
                 }
             }
             IrExpr::NewVariant {
-                target, variant, args, ..
+                target,
+                variant,
+                args,
+                ..
             } => {
                 let mut prelude = Vec::new();
                 let rendered: Vec<String> = args
@@ -1025,7 +1034,9 @@ impl<'a> Emitter<'a> {
                 }
                 Frag { prelude, code }
             }
-            IrExpr::Try { value, source_ty, .. } => {
+            IrExpr::Try {
+                value, source_ty, ..
+            } => {
                 let frag = self.expr(value, level);
                 let mut prelude = frag.prelude;
                 let temp = self.temp("try");
@@ -1035,10 +1046,7 @@ impl<'a> Emitter<'a> {
                     _ => "err",
                 };
                 prelude.push(format!("{pad}{temp} = {}", frag.code));
-                prelude.push(format!(
-                    "{pad}if {temp}.tag == {}:",
-                    quote(error_tag)
-                ));
+                prelude.push(format!("{pad}if {temp}.tag == {}:", quote(error_tag)));
                 prelude.push(format!("{}return {temp}", indent(level + 1)));
                 Frag {
                     prelude,
@@ -1088,10 +1096,8 @@ impl<'a> Emitter<'a> {
                 }
             }
             IrExpr::Lambda { params, body, .. } => {
-                let rendered: Vec<String> = params
-                    .iter()
-                    .map(|param| member(&param.name))
-                    .collect();
+                let rendered: Vec<String> =
+                    params.iter().map(|param| member(&param.name)).collect();
                 match body {
                     IrLambdaBody::Expr(inner) => {
                         let frag = self.expr(inner, level);
@@ -1104,20 +1110,13 @@ impl<'a> Emitter<'a> {
                             self.lambda_function(params, &[IrStmt::Expr((**inner).clone())], level)
                         }
                     }
-                    IrLambdaBody::Block(block) => {
-                        self.lambda_function(params, &block.stmts, level)
-                    }
+                    IrLambdaBody::Block(block) => self.lambda_function(params, &block.stmts, level),
                 }
             }
         }
     }
 
-    fn lambda_function(
-        &mut self,
-        params: &[IrParam],
-        stmts: &[IrStmt],
-        level: usize,
-    ) -> Frag {
+    fn lambda_function(&mut self, params: &[IrParam], stmts: &[IrStmt], level: usize) -> Frag {
         let name = self.temp("lambda");
         let pad = indent(level);
         let rendered: Vec<String> = params

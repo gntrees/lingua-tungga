@@ -213,14 +213,21 @@ pub class A {
   }
 }
 ";
-    let src = src.replace("import B from \"./b.lt\" // inline is rejected later, keep out", "import B from \"./b.lt\"");
+    let src = src.replace(
+        "import B from \"./b.lt\" // inline is rejected later, keep out",
+        "import B from \"./b.lt\"",
+    );
     let once = fmt_comments(&src);
     assert!(once.contains("// file header"), "{once}");
     assert!(once.contains("// the class"), "{once}");
     assert!(once.contains("  // a field"), "{once}");
     assert!(once.contains("  // a method"), "{once}");
     assert!(once.contains("    // body comment"), "{once}");
-    assert_eq!(once, fmt_comments(&once), "comment formatting must be idempotent");
+    assert_eq!(
+        once,
+        fmt_comments(&once),
+        "comment formatting must be idempotent"
+    );
 }
 
 #[test]
@@ -281,10 +288,7 @@ pub class A {
 }
 ";
     let once = fmt_comments(src);
-    assert!(
-        once.starts_with("/*\n * multi\n * line\n */\n"),
-        "{once}"
-    );
+    assert!(once.starts_with("/*\n * multi\n * line\n */\n"), "{once}");
     assert_eq!(once, fmt_comments(&once));
 }
 

@@ -90,7 +90,11 @@ impl Attachment {
 }
 
 fn collect_file(file: &File, out: &mut Vec<Container>) {
-    let mut children: Vec<usize> = file.imports.iter().map(|import| import.span.start).collect();
+    let mut children: Vec<usize> = file
+        .imports
+        .iter()
+        .map(|import| import.span.start)
+        .collect();
     children.extend(file.items.iter().map(|item| item.span().start));
     children.sort_unstable();
     out.push(Container {
@@ -102,7 +106,8 @@ fn collect_file(file: &File, out: &mut Vec<Container>) {
     for item in &file.items {
         match item {
             Item::Class(class) => {
-                let mut children: Vec<usize> = class.fields.iter().map(|field| field.span.start).collect();
+                let mut children: Vec<usize> =
+                    class.fields.iter().map(|field| field.span.start).collect();
                 children.extend(class.methods.iter().map(|method| method.span.start));
                 children.sort_unstable();
                 out.push(Container {
@@ -118,11 +123,19 @@ fn collect_file(file: &File, out: &mut Vec<Container>) {
                 out.push(Container {
                     start: decl.span.start,
                     end: decl.span.end,
-                    children: decl.variants.iter().map(|variant| variant.span.start).collect(),
+                    children: decl
+                        .variants
+                        .iter()
+                        .map(|variant| variant.span.start)
+                        .collect(),
                 });
             }
             Item::TestClass(decl) => {
-                let mut children: Vec<usize> = decl.helpers.iter().map(|helper| helper.span.start).collect();
+                let mut children: Vec<usize> = decl
+                    .helpers
+                    .iter()
+                    .map(|helper| helper.span.start)
+                    .collect();
                 children.extend(decl.tests.iter().map(|test| test.span.start));
                 children.sort_unstable();
                 out.push(Container {
@@ -277,7 +290,10 @@ fn collect_jsx(element: &JsxElement, out: &mut Vec<Container>) {
 
 fn normalize_comment(src: &str, span: Span) -> Result<String, CommentError> {
     let text = &src[span.start..span.end];
-    let line_start = src[..span.start].rfind('\n').map(|index| index + 1).unwrap_or(0);
+    let line_start = src[..span.start]
+        .rfind('\n')
+        .map(|index| index + 1)
+        .unwrap_or(0);
     let prefix = &src[line_start..span.start];
     let line_end = src[span.end..]
         .find('\n')
@@ -629,7 +645,11 @@ impl Formatter {
                 self.block(body, indent)
             ),
             Stmt::While { cond, body, .. } => {
-                format!("while {} {}", self.expr(cond, indent), self.block(body, indent))
+                format!(
+                    "while {} {}",
+                    self.expr(cond, indent),
+                    self.block(body, indent)
+                )
             }
             Stmt::Expr(expr) => self.expr(expr, indent),
         }
@@ -746,7 +766,10 @@ impl Formatter {
         if items.is_empty() {
             return "[]".to_string();
         }
-        let rendered: Vec<String> = items.iter().map(|item| self.expr(item, indent + 1)).collect();
+        let rendered: Vec<String> = items
+            .iter()
+            .map(|item| self.expr(item, indent + 1))
+            .collect();
         let single = format!("[{}]", rendered.join(", "));
         if fits_at(indent, &single) {
             return single;
@@ -766,7 +789,10 @@ impl Formatter {
         let head = self.expr_with_min(callee, indent, 8);
         let rendered: Vec<String> = match args {
             Args::Empty => Vec::new(),
-            Args::Positional(items) => items.iter().map(|item| self.expr(item, indent + 1)).collect(),
+            Args::Positional(items) => items
+                .iter()
+                .map(|item| self.expr(item, indent + 1))
+                .collect(),
             Args::Named(items) => items
                 .iter()
                 .map(|item| format!("{}: {}", item.name, self.expr(&item.value, indent + 1)))

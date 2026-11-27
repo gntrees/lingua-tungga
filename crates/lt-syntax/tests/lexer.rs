@@ -355,13 +355,16 @@ fn empty_source_has_only_eof() {
 
 #[test]
 fn semicolon_is_lexed_so_the_parser_can_reject_it() {
-    assert_eq!(kinds("let x = 1;"), vec![
-        TokenKind::Let,
-        TokenKind::Ident("x".into()),
-        TokenKind::Eq,
-        TokenKind::Int,
-        TokenKind::Semicolon,
-    ]);
+    assert_eq!(
+        kinds("let x = 1;"),
+        vec![
+            TokenKind::Let,
+            TokenKind::Ident("x".into()),
+            TokenKind::Eq,
+            TokenKind::Int,
+            TokenKind::Semicolon,
+        ]
+    );
 }
 
 #[test]

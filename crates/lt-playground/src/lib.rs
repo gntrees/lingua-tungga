@@ -87,15 +87,20 @@ pub fn generate(options: &Options) -> Result<Summary, String> {
     let features_path = options.root.join("features.toml");
     let feature_text = std::fs::read_to_string(&features_path)
         .map_err(|error| format!("{}: {error}", features_path.display()))?;
-    let feature_file: FeatureFile =
-        toml::from_str(&feature_text).map_err(|error| format!("{}: {error}", features_path.display()))?;
+    let feature_file: FeatureFile = toml::from_str(&feature_text)
+        .map_err(|error| format!("{}: {error}", features_path.display()))?;
     if feature_file.feature.is_empty() {
         return Err("playground/features.toml has no [[feature]] entries".to_string());
     }
 
     let mut cases = Vec::new();
     load_dir(&options.root.join("cases"), "", "run", &mut cases)?;
-    load_dir(&options.root.join("diagnostics"), "diag/", "diagnostic", &mut cases)?;
+    load_dir(
+        &options.root.join("diagnostics"),
+        "diag/",
+        "diagnostic",
+        &mut cases,
+    )?;
     cases.sort_by(|a, b| a.id.cmp(&b.id));
 
     let known: BTreeSet<String> = feature_file.feature.iter().map(|f| f.id.clone()).collect();
@@ -116,10 +121,7 @@ pub fn generate(options: &Options) -> Result<Summary, String> {
         .map(|feature| feature.id.as_str())
         .collect();
     if !missing.is_empty() {
-        return Err(format!(
-            "features without a case: {}",
-            missing.join(", ")
-        ));
+        return Err(format!("features without a case: {}", missing.join(", ")));
     }
 
     let evidence_path = options.root.join("evidence.json");
@@ -210,12 +212,7 @@ pub fn generate(options: &Options) -> Result<Summary, String> {
     Ok(summary)
 }
 
-fn load_dir(
-    dir: &Path,
-    prefix: &str,
-    kind: &str,
-    cases: &mut Vec<Case>,
-) -> Result<(), String> {
+fn load_dir(dir: &Path, prefix: &str, kind: &str, cases: &mut Vec<Case>) -> Result<(), String> {
     if !dir.is_dir() {
         return Ok(());
     }
@@ -228,7 +225,10 @@ fn load_dir(
 
     for path in entries {
         if path.is_dir() {
-            let name = path.file_name().and_then(|name| name.to_str()).unwrap_or("");
+            let name = path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or("");
             load_dir(&path, &format!("{prefix}{name}/"), kind, cases)?;
             continue;
         }
@@ -247,14 +247,22 @@ fn load_dir(
 }
 
 fn build_case(path: &Path, stem: &str, id: &str, kind: &str) -> Result<Case, String> {
-    let source = std::fs::read_to_string(path)
-        .map_err(|error| format!("{}: {error}", path.display()))?;
+    let source =
+        std::fs::read_to_string(path).map_err(|error| format!("{}: {error}", path.display()))?;
     let meta_path = path.with_extension("toml");
-    let meta_text = std::fs::read_to_string(&meta_path)
-        .map_err(|error| format!("{}: {error} (every case needs a sidecar .toml)", meta_path.display()))?;
-    let meta: CaseMeta = toml::from_str(&meta_text)
-        .map_err(|error| format!("{}: {error}", meta_path.display()))?;
-    let effective_kind = if meta.kind.is_empty() { kind } else { meta.kind.as_str() };
+    let meta_text = std::fs::read_to_string(&meta_path).map_err(|error| {
+        format!(
+            "{}: {error} (every case needs a sidecar .toml)",
+            meta_path.display()
+        )
+    })?;
+    let meta: CaseMeta =
+        toml::from_str(&meta_text).map_err(|error| format!("{}: {error}", meta_path.display()))?;
+    let effective_kind = if meta.kind.is_empty() {
+        kind
+    } else {
+        meta.kind.as_str()
+    };
 
     let mut loader = MapLoader::new();
     loader.add("case.lt", &source);
@@ -272,16 +280,26 @@ fn build_case(path: &Path, stem: &str, id: &str, kind: &str) -> Result<Case, Str
         if checked.is_ok() {
             let (_, lower_diagnostics) =
                 lower_program(&checked.program, &checked.types, vec![stem.to_string()]);
-            messages.extend(lower_diagnostics.into_iter().map(|(_, diagnostic)| diagnostic.message));
+            messages.extend(
+                lower_diagnostics
+                    .into_iter()
+                    .map(|(_, diagnostic)| diagnostic.message),
+            );
         }
         if messages.is_empty() {
-            return Err(format!("{}: expected a compile error, but it type checked", id));
+            return Err(format!(
+                "{}: expected a compile error, but it type checked",
+                id
+            ));
         }
         let expect = meta
             .expect
             .as_deref()
             .ok_or_else(|| format!("{}: diagnostic cases need `expect = \"...\"`", id))?;
-        let found = messages.iter().find(|message| message.contains(expect)).cloned();
+        let found = messages
+            .iter()
+            .find(|message| message.contains(expect))
+            .cloned();
         let Some(message) = found else {
             let actual: Vec<String> = checked
                 .diagnostics
@@ -313,10 +331,7 @@ fn build_case(path: &Path, stem: &str, id: &str, kind: &str) -> Result<Case, Str
         let go = lt_emit_go::emit_package(&ir);
         outputs.insert("ts".to_string(), pick(ts, &stems("src", stem, "ts")));
         outputs.insert("py".to_string(), pick(py, &stems("gen", stem, "py")));
-        outputs.insert(
-            "go".to_string(),
-            pick(go, &format!("gen/{stem}/{stem}.go")),
-        );
+        outputs.insert("go".to_string(), pick(go, &format!("gen/{stem}/{stem}.go")));
     }
 
     Ok(Case {

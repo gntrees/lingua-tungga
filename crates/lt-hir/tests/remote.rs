@@ -1,9 +1,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use lt_hir::{
-    check_entries_with_remote, join_url, MapLoader, RemoteResolver, ResolvedRemote,
-};
+use lt_hir::{check_entries_with_remote, join_url, MapLoader, RemoteResolver, ResolvedRemote};
 use sha2::{Digest, Sha256};
 
 fn sha256_hex(bytes: &[u8]) -> String {
@@ -137,7 +135,10 @@ fn remote_cycle_is_reported() {
 #[test]
 fn url_join_normalizes_relative_segments() {
     assert_eq!(
-        join_url("https://raw.githubusercontent.com/o/r/sha/src/user.lt", "./helper.lt"),
+        join_url(
+            "https://raw.githubusercontent.com/o/r/sha/src/user.lt",
+            "./helper.lt"
+        ),
         "https://raw.githubusercontent.com/o/r/sha/src/helper.lt"
     );
     assert_eq!(

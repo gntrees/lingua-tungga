@@ -158,7 +158,10 @@ impl<'a> Parser<'a> {
                 format!(" {ctx}")
             };
             self.error(
-                format!("expected an identifier{suffix}, found {}", self.peek().kind.describe()),
+                format!(
+                    "expected an identifier{suffix}, found {}",
+                    self.peek().kind.describe()
+                ),
                 token.span,
                 token.line,
                 token.col,
@@ -272,7 +275,10 @@ impl<'a> Parser<'a> {
             }
             _ => {
                 self.error(
-                    format!("expected a string literal path, found {}", token.kind.describe()),
+                    format!(
+                        "expected a string literal path, found {}",
+                        token.kind.describe()
+                    ),
                     token.span,
                     token.line,
                     token.col,
@@ -326,10 +332,7 @@ impl<'a> Parser<'a> {
             }
 
             let before = self.pos;
-            if self.at(&TokenKind::Fn)
-                || self.at(&TokenKind::Pub)
-                || self.at(&TokenKind::Static)
-            {
+            if self.at(&TokenKind::Fn) || self.at(&TokenKind::Pub) || self.at(&TokenKind::Static) {
                 if let Some(method) = self.parse_method() {
                     methods.push(method);
                 }
@@ -1036,7 +1039,10 @@ impl<'a> Parser<'a> {
                 TokenKind::TemplateEnd => break self.bump().span,
                 other => {
                     self.error(
-                        format!("expected template text or `` ` ``, found {}", other.describe()),
+                        format!(
+                            "expected template text or `` ` ``, found {}",
+                            other.describe()
+                        ),
                         token.span,
                         token.line,
                         token.col,

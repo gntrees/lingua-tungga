@@ -207,7 +207,9 @@ pub class A {
     );
     let stmts = body_stmts(first_class(&file), "f");
     match &stmts[0] {
-        Stmt::Let { mutable, name, ty, .. } => {
+        Stmt::Let {
+            mutable, name, ty, ..
+        } => {
             assert!(!mutable);
             assert_eq!(name, "a");
             assert!(ty.is_none());
@@ -350,7 +352,11 @@ pub class A {
 "#,
     );
     let stmts = body_stmts(first_class(&file), "f");
-    let Stmt::Expr(Expr::Call { args: Args::Named(items), .. }) = &stmts[0] else {
+    let Stmt::Expr(Expr::Call {
+        args: Args::Named(items),
+        ..
+    }) = &stmts[0]
+    else {
         panic!("expected named args, got {:?}", stmts[0]);
     };
     assert_eq!(items.len(), 2);
@@ -397,7 +403,10 @@ pub class A {
 "#,
     );
     let stmts = body_stmts(first_class(&file), "f");
-    let Stmt::Expr(Expr::TaggedTemplate { tag, parts, exprs, .. }) = &stmts[0] else {
+    let Stmt::Expr(Expr::TaggedTemplate {
+        tag, parts, exprs, ..
+    }) = &stmts[0]
+    else {
         panic!("expected tagged template");
     };
     assert!(matches!(tag.as_ref(), Expr::Field { name, .. } if name == "query"));
@@ -454,8 +463,10 @@ pub class A {
         panic!("expected match");
     };
     assert_eq!(arms.len(), 4);
-    assert!(matches!(&arms[0].pattern, Pattern::Variant { path, args, .. }
-        if path == &vec!["Role".to_string(), "Member".to_string()] && args.len() == 1));
+    assert!(
+        matches!(&arms[0].pattern, Pattern::Variant { path, args, .. }
+        if path == &vec!["Role".to_string(), "Member".to_string()] && args.len() == 1)
+    );
     assert!(matches!(&arms[2].pattern, Pattern::NoneLit { .. }));
     assert!(matches!(&arms[3].pattern, Pattern::Wildcard { .. }));
 }
@@ -473,7 +484,11 @@ pub class A {
 "#,
     );
     let stmts = body_stmts(first_class(&file), "f");
-    let Stmt::Expr(Expr::Call { args: Args::Positional(items), .. }) = &stmts[0] else {
+    let Stmt::Expr(Expr::Call {
+        args: Args::Positional(items),
+        ..
+    }) = &stmts[0]
+    else {
         panic!("expected call");
     };
     let Expr::Lambda { body, .. } = &items[0] else {
@@ -481,7 +496,11 @@ pub class A {
     };
     assert!(matches!(body, LambdaBody::Expr(_)));
 
-    let Stmt::Expr(Expr::Call { args: Args::Positional(items), .. }) = &stmts[1] else {
+    let Stmt::Expr(Expr::Call {
+        args: Args::Positional(items),
+        ..
+    }) = &stmts[1]
+    else {
         panic!("expected call");
     };
     let Expr::Lambda { body, .. } = &items[0] else {
