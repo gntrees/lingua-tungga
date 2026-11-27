@@ -92,16 +92,10 @@ jobs:
           printf '%s\n' "$lines" | sed 's/^/::error::/' || true
           exit 0
 
-  conformance:
-    name: conformance (${{ matrix.target }})
+  conformance-ts:
+    name: conformance (ts)
     needs: build-lt
-    # PRs get the TypeScript target only; the full matrix runs on main.
-    if: matrix.target == 'ts' || github.event_name == 'push'
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        target: [ts, py, go]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -121,11 +115,7 @@ jobs:
       - name: run conformance suite
         env:
           LT_BIN: ${{ github.workspace }}/lt-bin/lt
-        run: |
-          set -o pipefail
-          script="scripts/conformance-${{ matrix.target }}.sh"
-          if [ "${{ matrix.target }}" = "ts" ]; then script="scripts/conformance.sh"; fi
-          bash "$script" 2>&1 | tee conformance.log
+        run: set -o pipefail; bash scripts/conformance.sh 2>&1 | tee conformance.log
       - name: annotate failure
         if: failure()
         run: |
@@ -133,3 +123,53 @@ jobs:
           if [ -z "$lines" ]; then lines="$(tail -10 conformance.log 2>/dev/null)"; fi
           printf '%s\n' "$lines" | sed 's/^/::error::/' || true
           exit 0
+
+  conformance-full:
+    name: conformance (${{ matrix.target }})
+    # The extra targets only run on main; PRs get TypeScript above. A job-level
+    # `if` cannot read `matrix`, so this is a separate job.
+    if: github.event_name == 'push'
+    needs: build-lt
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [py, go]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: lt-bin
+          path: lt-bin
+      - run: chmod +x lt-bin/lt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - name: run conformance suite
+        env:
+          LT_BIN: ${{ github.workspace }}/lt-bin/lt
+        run: set -o pipefail; bash scripts/conformance-${{ matrix.target }}.sh 2>&1 | tee conformance.log
+      - name: annotate failure
+        if: failure()
+        run: |
+          lines="$(grep -ahE 'error(\[E[0-9]+\])?:|panicked at|FAILED|test result: FAILED|No such file' conformance.log 2>/dev/null | tail -10)"
+          if [ -z "$lines" ]; then lines="$(tail -10 conformance.log 2>/dev/null)"; fi
+          printf '%s\n' "$lines" | sed 's/^/::error::/' || true
+          exit 0
+
+  workflows:
+    name: actionlint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - run: go install github.com/rhysd/actionlint/cmd/actionlint@latest
+      - run: '"$(go env GOPATH)/bin/actionlint"'
