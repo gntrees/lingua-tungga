@@ -8,6 +8,9 @@
 - Runtime: `lingua-tungga-runtime` (di-inline ke output, bukan dependency eksternal)
 - Lisensi: **MIT**
 - Target v1: **TypeScript, Python, Go** (100% conformance, bukan "hampir")
+- Status desain: **v2 (draft)** di branch `explore/package-struct` — `class` dihapus, diganti
+  `package` + `struct` + fungsi ber-receiver. Ledger keputusan & alasan:
+  [`docs/v2-decisions.md`](docs/v2-decisions.md).
 
 ---
 
@@ -27,6 +30,22 @@ Lingua Tungga adalah **portable core language**: satu sumber untuk logika murni 
 
 **Kasus pakai kanonik:** aturan bisnis, algoritma, validasi, model domain yang harus ada identik di backend Go, service Python, dan frontend TypeScript — tanpa triple maintenance dan tanpa drift perilaku.
 
+**Diferensiasi yang tidak boleh dilanggar** (setiap fitur baru harus lulus ketiganya):
+
+| Sumbu | Konsekuensi |
+|---|---|
+| Paritas 3 target | Fitur yang tak bisa dipetakan ke salah satu target = compile error, bukan perilaku berbeda |
+| Output readable + lulus checker host | `tsc --strict`, `mypy --strict`, `go vet`, `gofmt -l` kosong |
+| Nominal tanpa typeclass/HKT | Tidak ada abstraksi yang butuh dictionary passing atau witness |
+
+Sumbu keempat, **templating sebagai sintaks inti** (template literal, tagged template, JSX),
+adalah pembeda dari protobuf — tetapi ia tidak boleh melanggar tiga sumbu di atas.
+
+Di sumbu "bahasa fungsional murni" (eager, ADT, `Option`/`Result`, tanpa typeclass) LT memang
+mirip Elm. Yang membedakan bukan semantik ekspresi, melainkan tiga sumbu di atas. Karena itu
+LT **tidak** akan menambah typeclass, HKT, `impl` block, atau IO untuk mengejar diferensiasi di
+sumbu itu.
+
 ---
 
 ## 2. Keputusan yang Sudah Dikunci
@@ -39,11 +58,11 @@ Lingua Tungga adalah **portable core language**: satu sumber untuk logika murni 
 | 2 | Output: **kode user readable**, runtime inline tidak perlu readable. |
 | 3 | **Strict semantics**: fitur yang tidak bisa dipetakan ke suatu target = compile error, bukan perbedaan diam-diam. |
 | 4 | Nominal typing. **Tanpa null bebas** (`Option<T>`), **tanpa exception sebagai alur normal** (`Result<T, E>`). |
-| 5 | **Semua immutable.** `mut` hanya untuk variabel lokal. Field class tidak pernah mutable. |
-| 6 | Generik: hanya pada `class`, `enum`, method, dengan constraint built-in (`Eq`, `Ord`, `Display`). Tanpa higher-kinded types. |
-| 7 | **Tanpa interface user-defined** di v1. Hanya built-in trait. |
+| 5 | **Semua nilai immutable.** `mut` hanya untuk variabel lokal. Field struct tidak pernah mutable; binding package immutable. |
+| 6 | Generik: hanya pada `struct`, `enum`, fungsi, dengan constraint built-in (`Eq`, `Ord`, `Display`). Tanpa higher-kinded types. |
+| 7 | **Tanpa interface/trait/typeclass user-defined.** Hanya built-in trait. |
 | 8 | **Tanpa inheritance**, tanpa `override`, tanpa `abstract`. |
-| 9 | **Tanpa fungsi bebas sama sekali.** Semua kode hidup di dalam `class` atau `enum`. |
+| 9 | **Semua kode adalah fungsi package-level.** Tidak ada method di dalam tipe; fungsi ber-receiver dideklarasikan dengan parameter pertama bertipe struct/enum. |
 
 ### 2.2 Aritmetika & string
 
@@ -59,12 +78,12 @@ Lingua Tungga adalah **portable core language**: satu sumber untuk logika murni 
 
 | # | Keputusan |
 |---|---|
-| 15 | Unit yang bisa di-import **hanya `pub class`** (dan `pub enum` untuk tipe data). `fn` top-level tidak ada. |
-| 16 | Default private; `pub` eksplisit untuk class, enum, dan method. |
-| 17 | Tidak ada namespace/blok module. Path file bukan namespace — import menunjuk langsung ke file. |
+| 15 | Unit yang bisa di-import **hanya package**, bukan file dan bukan simbol lepas. |
+| 16 | Default private; `export` eksplisit untuk struct, enum, fungsi, dan binding. |
+| 17 | Namespace = `package`, ditulis eksplisit dengan blok `{ }`. Satu file boleh berisi lebih dari satu package. Path file bukan namespace, tetapi menentukan lokasi output. |
 | 18 | **Import cycle dilarang** (Go tidak mendukung, dan melingkar = desain salah). |
 | 19 | Konstruksi **named arguments wajib**: `User(name: "a", age: 1)`. Posisional ditolak. |
-| 20 | `static fn` boleh, wajib murni (tidak menyimpan state). |
+| 20 | Fungsi ber-receiver = fungsi dengan parameter pertama bertipe struct/enum, wajib satu package dengan tipe itu. Tidak ada `self` implisit; `p.f()` ≡ `f(p)`. |
 
 ### 2.4 Fitur sintaks
 
@@ -72,14 +91,14 @@ Lingua Tungga adalah **portable core language**: satu sumber untuk logika murni 
 |---|---|
 | 21 | Template literal backtick dengan `${expr}`, `expr` wajib `Display`, hasil selalu `Str`. `Unit` ditolak. Multiline verbatim, tanpa auto-dedent. |
 | 22 | **Tagged template**: ``tag`a ${x} b` `` → `tag(parts: List<Str>, values: List<T>)`, `T` konkret di signature static method, setiap `${x}` harus persis `T` tanpa coercion, invariant `parts.len() == values.len() + 1`. Nilai campuran lewat enum user. Tidak ada built-in tag. |
-| 23 | **JSX/XML = literal typed tree**, nama tag = tipe/class, atribut = named argument, children = children. Bukan UI framework. |
+| 23 | **JSX/XML = literal struct bertipe**, nama tag = nama struct (PascalCase), atribut = named argument, children = children. Bukan UI framework. |
 | 24 | Tidak ada tipe `Dynamic` bawaan. Kebutuhan heterogen diselesaikan dengan `enum Value` biasa di library. |
 
 ### 2.5 Packaging & import
 
 | # | Keputusan |
 |---|---|
-| 25 | Import URL langsung, tanpa config: `import User from "https://raw.githubusercontent.com/..."`. |
+| 25 | Import URL langsung, tanpa config: `import money { Price } from "https://raw.githubusercontent.com/..."`. |
 | 26 | Resolusi pertama menulis **commit SHA + checksum** ke `lt.lock`; build berikutnya nol network. |
 | 27 | `lt.lock` **wajib di-commit**. `lt update` untuk refresh. |
 | 28 | Dep di dalam file remote di-resolve relatif ke URL asalnya, dikunci rekursif. |
@@ -96,7 +115,7 @@ Lingua Tungga adalah **portable core language**: satu sumber untuk logika murni 
 | 34 | `Int` di TypeScript = `bigint` + `BigInt.asIntN(64, …)`. Strict menang atas keindahan. |
 | 35 | `enum` di Go = tagged struct + type switch, bukan interface + refleksi. |
 | 36 | Generik di Go = type parameter native (Go 1.18+), tanpa erasure/simulasi. |
-| 37 | `Display` di-derive otomatis (bisa ditimpa manual). `Eq`/`Ord` juga di-derive. |
+| 37 | `Display` di-derive otomatis dan bisa ditimpa lewat fungsi ber-receiver `to_string` (berlaku juga di interpolasi). `Eq`/`Ord` di-derive otomatis dan **tidak bisa ditimpa**. |
 
 ### 2.7 Proses
 
@@ -107,101 +126,129 @@ Lingua Tungga adalah **portable core language**: satu sumber untuk logika murni 
 | 40 | Monorepo: compiler Rust + 3 runtime + conformance suite. |
 | 41 | Publik sejak M1. |
 
+### 2.8 Package & tipe (v2)
+
+| # | Keputusan |
+|---|---|
+| 42 | `package` wajib membungkus semua deklarasi; tidak ada deklarasi telanjang, tidak ada nesting; 1..N package per file. |
+| 43 | Package bersifat nominal & file-scoped: tidak bisa di-merge lintas file. Nama package wajib unik per build. |
+| 44 | Identitas nominal = `(package, nama)`. Satu package = satu modul host = satu `ModuleId` internal; satu file dengan 3 package menghasilkan 3 modul output. |
+| 45 | Path berkualifikasi maksimum 3 segmen: `package.{tipe\|fungsi\|binding}`, `package.Type.Variant`. Resolusi segmen pertama: binding lokal → nama hasil destructuring → qualifier package; ambigu = error. |
+| 46 | Nama dalam satu package unik tanpa memandang huruf besar/kecil (syarat output Go yang valid). |
+| 47 | Aturan penamaan **ditegakkan compiler**, bukan hanya didokumentasikan. |
+| 48 | Pseudo-class bawaan menjadi pseudo-package huruf kecil: `math`, `map`, `set`, `json`, `expect`, `str`, `list`, `option`, `result`. |
+| 49 | JSX: tag = nama `struct` (PascalCase); tag huruf kecil = compile error. |
+| 50 | Test: `test "judul" { ... }` sebagai item package; judul unik per package. |
+| 51 | `Eq`/`Ord` tidak bisa ditimpa; `Display` ditimpa lewat fungsi ber-receiver `to_string`, dan interpolasi `${…}` wajib menghormati override itu. |
+
 ---
 
 ## 3. Contoh Sintaks (target akhir v1)
 
 ```lt
 // src/models/user.lt
-import Address from "./address.lt"
+package models
 
-pub enum Role {
+import common { Address } from "./common.lt"
+
+export enum Role {
   Admin
   Member(Int)          // level
   Guest
 }
 
-pub class User {
+export struct User {
   name: Str
   age: Int
   role: Role
   address: Option<Address>
+}
 
-  pub fn greet(self) -> Str {
-    `Hi ${self.name}, you are ${self.age}`
-  }
+export fn greet(u: User) -> Str {
+  `Hi ${u.name}, you are ${u.age}`
+}
 
-  pub fn label(self) -> Str {
-    match self.role {
-      Role.Admin    => "admin"
-      Role.Member(n) => `member-${n}`
-      Role.Guest    => "guest"
-    }
+export fn label(u: User) -> Str {
+  match u.role {
+    Role.Admin     => "admin"
+    Role.Member(n) => `member-${n}`
+    Role.Guest     => "guest"
   }
+}
 
-  pub fn city(self) -> Str {
-    match self.address {
-      Some(a) => a.city
-      None    => "-"
-    }
+export fn city(u: User) -> Str {
+  match u.address {
+    Some(a) => a.city
+    None    => "-"
   }
+}
 
-  static fn anonymous() -> User {
-    User(name: "?", age: 0, role: Role.Guest, address: None)
-  }
+export fn anonymous() -> User {
+  User(name: "?", age: 0, role: Role.Guest, address: None)
 }
 ```
 
 ```lt
 // src/validation.lt
-import User from "./models/user.lt"
+package validation
 
-pub class Validator {
-  pub fn check(u: User) -> Result<User, Str> {
-    if u.age < 0 {
-      return Err("age must be >= 0")
-    }
-    if u.name.len() == 0 {
-      return Err("name required")
-    }
-    Ok(u)
-  }
+import models { User }
 
-  pub fn check_all(users: List<User>) -> List<Result<User, Str>> {
-    users.map(fn(u) => Validator.check(u))
+export fn check(u: User) -> Result<User, Str> {
+  if u.age < 0 {
+    return Err("age must be >= 0")
   }
+  if u.name.len() == 0 {
+    return Err("name required")
+  }
+  Ok(u)
+}
+
+export fn check_all(users: List<User>) -> List<Result<User, Str>> {
+  users.map(fn(u) => check(u))
 }
 ```
 
 ```lt
-// src/sql.lt  (tagged template)
-pub class Sql {
-  pub fn query(parts: List<Str>, values: List<Str>) -> Query {
-    // bagian pembuatan query aman, sesuai strategi library
-  }
+// src/sql.lt  (tagged template: tag = fungsi package-level)
+package sql
 
-  pub fn find(id: Int) -> Query {
-    Sql.query`SELECT * FROM users WHERE id = ${id}`
-  }
+export enum SqlArg {
+  I(Int)
+  S(Str)
+}
+
+export struct Query {
+  text: Str
+  args: List<SqlArg>
+}
+
+export fn query(parts: List<Str>, values: List<SqlArg>) -> Query {
+  // bagian pembuatan query aman, sesuai strategi library
+}
+
+export fn find(id: Int) -> Query {
+  query`SELECT * FROM users WHERE id = ${SqlArg.I(id)}`
 }
 ```
 
 ```lt
-// src/view.lt  (JSX = typed tree)
-import User from "./models/user.lt"
-import Element from "./element.lt"
+// src/view.lt  (JSX = literal struct bertipe)
+package view
 
-pub class UserView {
-  pub fn render(u: User) -> Element {
-    <Element tag="div" class_name="user">
-      <Element tag="span">{u.name}</Element>
-      <Element tag="span">{u.age}</Element>
-    </Element>
-  }
+import html { Element } from "./element.lt"
+import models { User } from "../models/user.lt"
+
+export fn render(u: User) -> Element {
+  <Element tag="div" class_name="user">
+    <Element tag="span">{u.name}</Element>
+    <Element tag="span">{to_string(u.age)}</Element>
+  </Element>
 }
 ```
 
-Catatan: bentuk persis `match`, lambda, dan JSX di atas masih **belum dikunci** (lihat §11). Yang sudah dikunci adalah semantiknya.
+Catatan: nama package di contoh (`models`, `validation`, `sql`, `view`, `html`, `common`) wajib
+unik dalam satu build (§2.8 #43). Contoh deklarasi test ada di §8.
 
 Cara pakai:
 
@@ -252,7 +299,8 @@ Aturan emitter:
 | `Option<T>` | `Opt<T>` union di `_rt` | `Opt[T]` dataclass | `Opt[T]` struct generik |
 | `Result<T,E>` | `Res<T,E>` union | `Res[T,E]` dataclass | `Res[T,E]` struct generik |
 | `?` (propagasi) | early return `if (isErr(x)) return x` | early return typed | `if r.IsErr() { return r }` |
-| `class` | frozen object + factory + fungsi method | `@dataclass(frozen=True)` + method | `struct` + method value receiver |
+| `package` | satu modul per package (`money.ts`) | satu modul per package (`money.py`) | satu direktori package per package (`money/`) |
+| `struct` + fungsi ber-receiver | frozen object + factory + fungsi (method sugar) | `@dataclass(frozen=True)` + method | `struct` + method value receiver |
 | `enum` | discriminated union (`{tag, ...}`) | `@dataclass(frozen=True)` per varian + union type | tagged struct + type switch |
 | `List<T>` | `LList<T>` (ReadonlyArray wrapper) | immutable tuple-based class | `LList[T]` slice wrapper (copy-on-write) |
 | `Map<K,V>` | `LMap<K,V>` wrapper | immutable dict wrapper | `LMap[K,V]` map wrapper |
@@ -263,9 +311,9 @@ Aturan emitter:
 | `Ord` | `cmp()` | `__lt__` + `__eq__` | `Compare()` |
 | template `` `a ${x}` `` | template literal / concat | f-string | `fmt.Sprintf` / concat |
 | tagged template | `tag([...parts], [...vals])` dengan `vals` bertipe `T[]` | `tag([...], [...])` dengan `vals` bertipe `List[T]` | `tag(parts, vals)` dengan `vals` bertipe `lt.List[T]` |
-| JSX | konstruktor class | konstruktor dataclass | struct literal |
+| JSX | konstruktor struct | konstruktor dataclass | struct literal |
 | import URL | tidak berlaku di output (sudah di-flatten) | idem | idem |
-| test class | file `*.test.ts` (vitest) | `test_*.py` (pytest) | `*_test.go` (`go test`) |
+| `test "judul"` | file `*.test.ts` (vitest) | `test_*.py` (pytest) | `*_test.go` (`go test`) |
 
 **Catatan risiko pada tabel ini:**
 
@@ -296,12 +344,20 @@ Sumber runtime ada di `runtimes/{ts,py,go}/` di repo dan di-embed ke binary `lt`
 ### 7.1 Deklarasi
 
 ```lt
-import User from "./models/user.lt"
-import Post from "https://raw.githubusercontent.com/foo/bar/v1.2.0/src/post.lt"
-import Validator from "https://raw.githubusercontent.com/foo/bar/v1.2.0/src/validator.lt"
+import money { Price, format } from "./wallet/money.lt"
+import money from "./wallet/money.lt"                    // qualifier: money.Price
+import money as cash { Price as P } from "./wallet/money.lt"
+import post from "https://raw.githubusercontent.com/foo/bar/v1.2.0/src/post.lt"
 ```
 
-Tidak ada `lt.toml` yang wajib untuk konsumen. Package **publisher** boleh punya `lt.toml` (nama, versi, lisensi) — itu metadata, bukan syarat resolusi.
+Tidak ada `lt.toml` yang wajib untuk konsumen. Package **publisher** boleh punya `lt.toml`
+(nama, versi, lisensi) — itu metadata, bukan syarat resolusi.
+
+- Import menunjuk **package**, bukan file. Nama package ditulis eksplisit dan diverifikasi ada
+  di file target.
+- Satu file berisi tiga package = tiga baris `import`.
+- Destructuring (`{ … }`) opsional; bila dihilangkan, package diikat sebagai qualifier.
+- Alias (`as`) diizinkan di kualifier dan di nama hasil destructuring.
 
 ### 7.2 Lockfile
 
@@ -327,8 +383,10 @@ sha256 = "a91b..."
 ### 7.4 Batasan
 
 - Import cycle = compile error (dengan pesan yang menunjukkan siklusnya).
-- Nama class yang di-import harus ada di file target; nama beda = error, tidak ada alias.
+- Nama package wajib unik per build; dua file dengan nama package sama = compile error.
+- Nama yang di-destructuring harus ada di file target **dan** ber-`export`; nama beda = error.
 - Tidak ada re-export.
+- Path berkualifikasi maksimum 3 segmen (§2.8 #45).
 
 ---
 
@@ -337,17 +395,17 @@ sha256 = "a91b..."
 ### Lapis 1 — Conformance `.lt`
 
 ```lt
-// tests/conformance/user_test.lt
-pub test class UserTest {
-  fn greet_format() {
-    let u = User(name: "Ana", age: 30, role: Role.Guest, address: None)
-    Expect.equal(u.greet(), "Hi Ana, you are 30")
-  }
+// tests/conformance/models/user.lt
+package models
 
-  fn option_none_city() {
-    let u = User.anonymous()
-    Expect.equal(u.city(), "-")
-  }
+test "greet format" {
+  let u = User(name: "Ana", age: 30, role: Role.Guest, address: None)
+  expect.eq(greet(u), "Hi Ana, you are 30")
+}
+
+test "none city" {
+  let u = anonymous()
+  expect.eq(city(u), "-")
 }
 ```
 
@@ -478,16 +536,17 @@ Diputuskan sebelum M1; detail lengkap di [`docs/spec.md`](docs/spec.md) dan [`do
 
 | # | Keputusan |
 |---|---|
-| 1 | `match` ada, wajib exhaustive. Pola: `_`, `None`, `Variant`, `Variant(p, …)`. Tanpa guard, tanpa destructuring class. |
+| 1 | `match` ada, wajib exhaustive. Pola: `_`, `None`, `Variant`, `Variant(p, …)`. Tanpa guard, tanpa destructuring struct. |
 | 2 | Lambda `fn(x) => expr`; bentuk blok `fn(x) => { … }`. Bukan `\|x\| …`. |
-| 3 | JSX: atribut = named arg; children hanya sah jika class punya field `children`; self-closing = tanpa children; atribut bernama kata kunci dilarang. |
-| 4 | `?` hanya menyilang tipe yang sama: `Option` di method `Option`, `Result` di method `Result`. Tidak boleh campur. |
+| 3 | JSX: nama tag = struct; atribut = named arg; children hanya sah jika struct punya field `children`; self-closing = tanpa children; atribut bernama kata kunci dilarang; tag huruf kecil = error. |
+| 4 | `?` hanya menyilang tipe yang sama: `Option` di fungsi `Option`, `Result` di fungsi `Result`. Tidak boleh campur. |
 | 5 | Escape: `\n \t \r \\ \" \` \$ \u{…}`. Lainnya = compile error. |
-| 6 | Formatter: 2 spasi, 100 kolom, trailing comma multiline, satu baris kosong antar member, tanpa `;`, idempoten. |
-| 7 | Test: `test class X { test fn name() { … } }`; `fn` biasa = helper. Tanpa atribut. |
-| 8 | Output 1:1 dengan source, struktur direktori dipertahankan, nama file `snake_case` (ditegakkan compiler). |
-| 9 | `pub enum` bisa di-import, setara `pub class`. |
-| 10 | Tipe dari file yang tidak di-import = compile error. Tanpa re-export, tanpa alias. |
+| 6 | Formatter: 2 spasi, 100 kolom, trailing comma multiline, satu baris kosong antar item package, tanpa `;`, idempoten. |
+| 7 | Test: `test "judul" { … }` di dalam package; judul unik per package; tidak diemit oleh `lt build`. |
+| 8 | Output: satu package = satu modul host; nama modul dari nama package; struktur direktori sumber dipertahankan. |
+| 9 | `export` berlaku pada `struct`, `enum`, fungsi, dan binding; default private. |
+| 10 | Tipe/fungsi dari package yang tidak di-import = compile error. Tanpa re-export; alias (`as`) diizinkan pada import. |
+| 11 | `class`, `pub`, `static`, `self` tetap dicadangkan: memakainya menghasilkan error yang menyebut penggantinya. |
 
 ---
 
@@ -498,7 +557,8 @@ Diputuskan sebelum M1; detail lengkap di [`docs/spec.md`](docs/spec.md) dan [`do
 | Scope creep ke "bahasa sungguhan" | Proyek tidak pernah selesai | Daftar permanen di §2.1 + aturan no-merge |
 | `bigint` di TS membuat output aneh | Adopsi turun | Dokumentasikan; sediakan helper JSON di runtime |
 | i64 masking di Python lambat | Performa buruk | Batasi pemakaian ke operasi aritmetika; benchmark awal |
-| Go import cycle vs domain model natural | Desain class dipaksa | Deteksi dini di typechecker; pesan yang menyarankan penggabungan file |
+| Go import cycle vs domain model natural | Desain dipaksa | Deteksi dini di typechecker; pesan yang menyarankan penggabungan file |
+| Package per-file vs direktori package Go | Satu file LT berisi 3 package → 3 direktori output; user bisa bingung | Dokumentasikan; `lt build` mencetak peta package → modul |
 | Runtime inline = 3 salinan kode yang harus sinkron | Bug senyap | Conformance test untuk runtime, golden per target |
 | Solo + 3 target | Burnout | Milestone kecil, rilis setelah M4 |
 | URL import = supply chain | Eksekusi kode asing | Lock + checksum + dokumentasi batas keamanan |

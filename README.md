@@ -3,13 +3,15 @@
 Satu sumber untuk logika murni dan model data yang berperilaku **identik** di TypeScript, Python, dan Go.
 
 ```lt
-pub class Price {
+package money
+
+export struct Price {
   amount: Int
   currency: Str
+}
 
-  pub fn format(self) -> Str {
-    `${self.amount / 100}.${self.amount % 100} ${self.currency}`
-  }
+export fn format(p: Price) -> Str {
+  `${p.amount / 100}.${p.amount % 100} ${p.currency}`
 }
 ```
 

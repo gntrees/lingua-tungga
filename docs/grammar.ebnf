@@ -1,50 +1,64 @@
 (* =====================================================================
-   Lingua Tungga — Grammar v0.1
-   Cakupan: v1 (lihat docs/spec.md). Ditulis sebelum parser (M1).
+   Lingua Tungga — Grammar v2.0 (draft, branch `explore/package-struct`)
+   Cakupan: v2 — `class` dihapus, diganti `package` + `struct` + fungsi
+   ber-receiver. Lihat docs/v2-decisions.md untuk alasan tiap keputusan.
    Notasi: EBNF, `,` = urutan, `[ ]` = opsional, `{ }` = nol atau lebih,
            `|` = alternatif.
    ===================================================================== *)
 
 (* ---------- Program ---------- *)
 
-Program        = { Import } , { Item } , EOF ;
+Program        = { Import } , { PackageDecl } , EOF ;
 
-Import         = "import" , Identifier , "from" , StringLit ;
+(* Import menunjuk PACKAGE, bukan file. Path wajib; nama package dinyatakan
+   eksplisit di sini dan diverifikasi ada di file target. *)
+Import         = "import" , Identifier , [ "as" , Identifier ] ,
+                 [ "{" , ImportList , "}" ] , "from" , StringLit ;
 
-Item           = ClassDecl | TestClassDecl | EnumDecl ;
+ImportList     = ImportItem , { "," , ImportItem } ;
+
+ImportItem     = Identifier , [ "as" , Identifier ] ;
+
+(* Wajib membungkus seluruh deklarasi. Tidak ada deklarasi telanjang di
+   top-level, tidak ada nesting package. Satu file boleh berisi 1..N. *)
+PackageDecl    = "package" , Identifier , "{" , { PackageItem } , "}" ;
+
+PackageItem    = StructDecl | EnumDecl | FnDecl | Binding | TestDecl ;
 
 (* ---------- Deklarasi ---------- *)
 
-ClassDecl      = [ "pub" ] , "class" , Identifier , [ Generics ] ,
-                 "{" , { Member } , "}" ;
-
-TestClassDecl  = "test" , "class" , Identifier , "{" , { TestFn | Member } , "}" ;
-
-Member         = FieldDecl | MethodDecl ;
+StructDecl     = [ "export" ] , "struct" , Identifier , [ Generics ] ,
+                 "{" , { FieldDecl } , "}" ;
 
 FieldDecl      = Identifier , ":" , Type ;
 
-MethodDecl     = [ "pub" ] , [ "static" ] , "fn" , Identifier ,
-                 "(" , [ SelfParam , [ "," , ParamList ] ] , ")" ,
-                 [ "->" , Type ] , Block ;
+EnumDecl       = [ "export" ] , "enum" , Identifier , [ Generics ] ,
+                 "{" , { Variant } , "}" ;
 
-SelfParam      = "self" ;
+Variant        = Identifier , [ "(" , Type , { "," , Type } , ")" ] ;
+
+(* Tidak ada method di dalam tipe. Fungsi ber-receiver adalah fungsi biasa
+   yang parameter pertamanya bertipe struct/enum, dan wajib berada di
+   package yang sama dengan tipe tersebut. *)
+FnDecl         = [ "export" ] , "fn" , Identifier ,
+                 "(" , [ ParamList ] , ")" , [ "->" , Type ] , Block ;
 
 ParamList      = Param , { "," , Param } ;
 
 Param          = Identifier , ":" , Type ;
 
-TestFn         = "test" , "fn" , Identifier , "(" , ")" , Block ;
+(* Binding level-package: immutable, eager, tanpa siklus inisialisasi. *)
+Binding        = [ "export" ] , "let" , Identifier , [ ":" , Type ] , "=" , Expr ;
 
-EnumDecl       = [ "pub" ] , "enum" , Identifier , [ Generics ] ,
-                 "{" , { Variant } , "}" ;
-
-Variant        = Identifier , [ "(" , Type , { "," , Type } , ")" ] ;
+(* Judul test adalah string literal, unik per package. *)
+TestDecl       = "test" , StringLit , Block ;
 
 (* ---------- Tipe ---------- *)
 
 Type           = TypePath , [ Generics ] , [ "?" ] ;
 
+(* Maksimum 3 segmen: package.Type , package.Type.Variant , package.fn.
+   Batas ini ditegakkan semantik, bukan sintaks. *)
 TypePath       = Identifier , { "." , Identifier } ;
 
 Generics       = "<" , Type , { "," , Type } , ">" ;
@@ -72,7 +86,7 @@ ExprStmt       = Expr ;
 
 (* ---------- Ekspresi ----------
    `if` dan `match` adalah ekspresi; sebagai statement-nya boleh diikuti
-   tanpa titik koma karena statement dipisah newline.  *)
+   tanpa titik koma karena statement dipisah newline. *)
 
 Expr           = Lambda | OrExpr ;
 
@@ -96,6 +110,8 @@ UnaryExpr      = [ ( "!" | "-" ) ] , PostfixExpr ;
 
 PostfixExpr    = Primary , { PostfixOp } ;
 
+(* `p.f()` pada nilai ber-tipe struct yang punya fungsi ber-receiver `f`
+   di package-nya adalah sugar untuk `f(p)`. Tidak ada dispatch dinamis. *)
 PostfixOp      = "." , Identifier
                | "(" , [ ArgList ] , ")"
                | "?" ;
@@ -103,7 +119,7 @@ PostfixOp      = "." , Identifier
 ArgList        = NamedArg , { "," , NamedArg }
                | Expr , { "," , Expr } ;      (* tidak boleh dicampur *)
 
-NamedArg       = Identifier , ":" , Expr ;    (* hanya sah pada konstruksi class / JSX *)
+NamedArg       = Identifier , ":" , Expr ;    (* hanya sah pada konstruksi struct / JSX *)
 
 Primary        = IntLit | FloatLit | StringLit | BoolLit
                | "None"
@@ -134,10 +150,13 @@ Template       = "`" , { TemplatePart } , "`" ;
 
 TemplatePart   = Text , [ "${" , Expr , "}" ] ;
 
+(* Tag adalah path ke fungsi package-level, bukan method. *)
 TaggedTemplate = TypePath , Template ;
 
 (* ---------- JSX ---------- *)
 
+(* Nama tag = nama struct yang terlihat di scope. Atribut = nama field.
+   Huruf kecil = compile error (nama tipe wajib PascalCase). *)
 Jsx            = "<" , TypePath , { JsxAttr } , ( "/>" | ">" , { JsxChild } , "</" , TypePath , ">" ) ;
 
 JsxAttr        = Identifier , "=" , ( StringLit | "{" , Expr , "}" ) ;
@@ -168,5 +187,8 @@ Comment        = "//" , { any - newline } , newline
                | "/*" , { any - "*/" } , "*/" ;     (* tidak bersarang *)
 
 (* ---------- Kata kunci (dicadangkan) ---------- *)
-(* pub class test enum fn static self let mut return if else
-   for in while match import from true false None _  *)
+(* package export struct enum fn test let mut return if else
+   for in while match import from as true false None _  *)
+
+(* Kata kunci v1 yang dihapus TETAP dicadangkan agar errornya jelas:
+   class pub static self  *)
