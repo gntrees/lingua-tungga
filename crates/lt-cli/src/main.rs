@@ -242,19 +242,16 @@ fn prepare(
         return Err(1);
     }
 
+    // One module per package: the output name is the source file's directory
+    // plus the package name. Package names are unique per build, so modules
+    // never collide.
     let mut names = Vec::new();
     for module in &checked.program.modules {
-        let name = if module.origin.is_some() {
-            module
-                .path
-                .with_extension("")
-                .components()
-                .map(|component| component.as_os_str().to_string_lossy().to_string())
-                .collect::<Vec<_>>()
-                .join("/")
+        let base = if module.origin.is_some() {
+            module.path.clone()
         } else {
-            let relative = match module.path.strip_prefix(&root) {
-                Ok(relative) => relative,
+            match module.path.strip_prefix(&root) {
+                Ok(relative) => relative.to_path_buf(),
                 Err(_) => {
                     eprintln!(
                         "lt: `{}` is outside the entry directory `{}`",
@@ -263,13 +260,20 @@ fn prepare(
                     );
                     return Err(1);
                 }
-            };
-            relative
-                .with_extension("")
-                .components()
-                .map(|component| component.as_os_str().to_string_lossy().to_string())
-                .collect::<Vec<_>>()
-                .join("/")
+            }
+        };
+        let directory = base.parent().filter(|parent| !parent.as_os_str().is_empty());
+        let name = match directory {
+            Some(directory) => format!(
+                "{}/{}",
+                directory
+                    .components()
+                    .map(|component| component.as_os_str().to_string_lossy().to_string())
+                    .collect::<Vec<_>>()
+                    .join("/"),
+                module.name
+            ),
+            None => module.name.clone(),
         };
         names.push(name);
     }
