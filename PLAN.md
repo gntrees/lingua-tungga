@@ -8,7 +8,7 @@
 - Runtime: `lingua-tungga-runtime` (di-inline ke output, bukan dependency eksternal)
 - Lisensi: **MIT**
 - Target v1: **TypeScript, Python, Go** (100% conformance, bukan "hampir")
-- Status desain: **v2 (draft)** di branch `explore/package-struct` — `class` dihapus, diganti
+- Status desain: **v2 (berlaku, sudah di `main`)** — `class` dihapus, diganti
   `package` + `struct` + fungsi ber-receiver. Ledger keputusan & alasan:
   [`docs/v2-decisions.md`](docs/v2-decisions.md).
 
@@ -448,9 +448,8 @@ mengubah lapisan deklarasi di semua crate. Yang berlaku sekarang adalah tabel st
 
 ### Urutan kerja yang tersisa
 
-1. **Keputusan merge.** Branch `explore/package-struct` bersifat breaking (`class` hilang,
-   `pub` → `export`, stdlib lowercase). Pilih: merge ke `main` sebagai v2, atau pertahankan
-   sebagai branch sampai pilot membuktikan.
+1. ~~**Keputusan merge.**~~ **Diputuskan 2026-11-27:** di-merge ke `main` sebagai v2 (breaking:
+   `class` hilang, `pub` → `export`, stdlib lowercase, `Ordering` ditolak sebagai tipe).
 2. **Pilot.** Tulis ulang SQL builder di repo pilot sebagai pembuktian bahwa model
    `package`/`struct` cukup untuk library nyata. Temuan pilot yang menetukan fitur berikutnya.
 3. **Kandidat fitur (belum diputuskan).** `Ordering` di permukaan (butuh konstanta di tiga

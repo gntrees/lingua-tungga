@@ -1,6 +1,6 @@
 # LT v2 — Ledger Keputusan: `class` → `package`
 
-Status: **draft eksplorasi**, dikunci di branch `explore/package-struct`.
+Status: **berlaku**, sudah di-merge ke `main` sebagai v2.
 Dokumen ini adalah sumber kebenaran selama eksplorasi; `PLAN.md`, `docs/spec.md`, dan
 `docs/grammar.ebnf` belum disesuaikan (lihat §12).
 

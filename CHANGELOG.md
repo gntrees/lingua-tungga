@@ -1,6 +1,6 @@
 # Changelog
 
-## v2 — BREAKING (draft, branch `explore/package-struct`)
+## v2 — BREAKING (2026-11-27)
 
 Ledger keputusan & alasan: [`docs/v2-decisions.md`](docs/v2-decisions.md). Spesifikasi baru:
 [`docs/spec.md`](docs/spec.md).

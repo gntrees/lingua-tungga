@@ -1,6 +1,6 @@
 # Lingua Tungga — Spesifikasi Bahasa v2.0
 
-Status: **draft eksplorasi** (branch `explore/package-struct`). Menggantikan v0.1, yang
+Status: **berlaku** sejak merge v2 ke `main`. Menggantikan v0.1, yang
 terkunci untuk M1–M6. Alasan tiap perubahan ada di [`v2-decisions.md`](./v2-decisions.md).
 Grammar formal: [`grammar.ebnf`](./grammar.ebnf). Rencana proyek: [`../PLAN.md`](../PLAN.md).
 
