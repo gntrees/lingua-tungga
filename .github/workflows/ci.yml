@@ -172,4 +172,7 @@ jobs:
         with:
           go-version: stable
       - run: go install github.com/rhysd/actionlint/cmd/actionlint@latest
-      - run: '"$(go env GOPATH)/bin/actionlint" .github/workflows/*.yml'
+      # shellcheck is installed on the runner (and not everywhere locally), so
+      # its findings would make this job platform-dependent. YAML, expressions
+      # and runner labels are what we want validated here.
+      - run: '"$(go env GOPATH)/bin/actionlint" -shellcheck= .github/workflows/*.yml'
