@@ -8,6 +8,12 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
+defaults:
+  run:
+    # `tee` keeps a readable log for the annotation step without hiding the
+    # exit status.
+    shell: bash
+
 jobs:
   rust:
     name: rust (${{ matrix.os }})
@@ -20,11 +26,22 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: "1.96.0"
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
-      - run: cargo fmt --all --check
-      - run: cargo clippy --workspace --all-targets -- -D warnings
-      - run: cargo test --workspace
+      - name: fmt
+        run: set -o pipefail; cargo fmt --all --check 2>&1 | tee fmt.log
+      - name: clippy
+        run: set -o pipefail; cargo clippy --workspace --all-targets -- -D warnings 2>&1 | tee clippy.log
+      - name: test
+        run: set -o pipefail; cargo test --workspace 2>&1 | tee test.log
+      - name: annotate failure
+        if: failure()
+        run: |
+          for log in fmt.log clippy.log test.log; do
+            [ -f "$log" ] && tail -40 "$log" | sed 's/^/::error::/'
+          done
+          exit 0
 
   conformance:
     name: conformance (${{ matrix.target }})
@@ -36,6 +53,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.96.0"
       - uses: Swatinem/rust-cache@v2
         with:
           key: conformance-${{ matrix.target }}
@@ -49,7 +68,10 @@ jobs:
         with:
           go-version: "1.22"
       - name: run conformance suite
-        run: bash scripts/conformance-${{ matrix.target }}.sh
+        run: set -o pipefail; bash scripts/conformance-${{ matrix.target }}.sh 2>&1 | tee conformance.log
+      - name: annotate failure
+        if: failure()
+        run: tail -60 conformance.log | sed 's/^/::error::/'; exit 0
 
   playground:
     name: playground evidence
@@ -57,6 +79,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.96.0"
       - uses: Swatinem/rust-cache@v2
         with:
           key: playground
@@ -72,7 +96,11 @@ jobs:
       # The gate is the run itself: every case is compiled and executed on all
       # three targets. evidence.json carries a timestamp and toolchain versions,
       # so diffing it would fail on every run.
-      - run: bash scripts/playground.sh
+      - name: run playground suite
+        run: set -o pipefail; bash scripts/playground.sh 2>&1 | tee playground.log
+      - name: annotate failure
+        if: failure()
+        run: tail -60 playground.log | sed 's/^/::error::/'; exit 0
       - uses: actions/upload-artifact@v4
         if: always()
         with:
