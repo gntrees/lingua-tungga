@@ -21,9 +21,9 @@ jobs:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             archive: tar.gz
-          - os: ubuntu-latest
-            target: aarch64-unknown-linux-gnu
-            archive: tar.gz
+          # aarch64 Linux is not in the matrix yet: the cross build failed at
+          # link time and the cause is not visible without job logs. Add it back
+          # once a reproducible cross toolchain (zigbuild or cross) is wired.
           - os: macos-14
             target: aarch64-apple-darwin
             archive: tar.gz
@@ -49,7 +49,15 @@ jobs:
           sudo apt-get install -y gcc-aarch64-linux-gnu
           echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> "$GITHUB_ENV"
 
-      - run: cargo build --release --bin lt --target ${{ matrix.target }}
+      - run: set -o pipefail; cargo build --release --bin lt --target ${{ matrix.target }} 2>&1 | tee build.log
+
+      - name: annotate failure
+        if: failure()
+        run: |
+          lines="$(grep -ahE 'error(\[|:)|failed|cannot find' build.log 2>/dev/null | tail -10)"
+          if [ -z "$lines" ]; then lines="$(tail -10 build.log 2>/dev/null)"; fi
+          printf '%s\n' "$lines" | sed 's/^/::error::/' || true
+          exit 0
 
       - name: package (tar.gz)
         if: matrix.archive == 'tar.gz'

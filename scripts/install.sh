@@ -34,6 +34,11 @@ case "$arch" in
     ;;
 esac
 
+if [ "$os_part" = "unknown-linux" ] && [ "$arch_part" = "aarch64" ]; then
+  echo "lt: no aarch64 Linux build yet; see https://github.com/$repo/releases" >&2
+  exit 1
+fi
+
 if [ "$os_part" = "unknown-linux" ]; then
   target="$arch_part-unknown-linux-gnu"
 else
