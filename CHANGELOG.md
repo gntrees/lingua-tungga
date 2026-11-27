@@ -1,6 +1,6 @@
 # Changelog
 
-## v2 — BREAKING (2026-11-27)
+## 0.2.1 — 2026-11-27 (breaking: v2)
 
 Ledger keputusan & alasan: [`docs/v2-decisions.md`](docs/v2-decisions.md). Spesifikasi baru:
 [`docs/spec.md`](docs/spec.md).
@@ -49,11 +49,9 @@ Ledger keputusan & alasan: [`docs/v2-decisions.md`](docs/v2-decisions.md). Spesi
 - Nominal typing, tanpa `null`, `Int` = i64 wrapping, `Str` per code point, `Map`/`Set` terurut:
   semua dipertahankan karena inilah yang membuat paritas tiga target bisa dijamin.
 
----
+### Tagged template & enum (sebelumnya di `Unreleased`)
 
-## Unreleased
-
-### Changed (breaking)
+#### Changed (breaking)
 
 - Tagged template sekarang meneruskan `values` dengan tipe statis, bukan hasil
   `Display`-nya. Signature tag menjadi `(List<Str>, List<T>) -> R`, dan setiap
@@ -67,7 +65,7 @@ Ledger keputusan & alasan: [`docs/v2-decisions.md`](docs/v2-decisions.md). Spesi
   ini (atau enum payung) sebagai jalur migrasi tag lama bertipe `List<Str>`.
   Method `to_string` milik user menang atas versi bawaan.
 
-### Fixed
+#### Fixed
 
 - Interpolasi `${expr}` pada tagged template sebelumnya tidak pernah
   di-typecheck; variabel tak dikenal atau tipe salah bisa lolos `lt check`.
