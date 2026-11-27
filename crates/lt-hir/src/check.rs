@@ -1890,28 +1890,42 @@ impl<'a> Checker<'a> {
             self.diag(span, format!("`{owner}.{name}` is not a static method"));
             return Ty::Error;
         };
-        let expected = [Ty::list(Ty::Str), Ty::list(Ty::Str)];
         if method.params.len() != 2 {
             self.diag(
                 span,
                 format!(
-                    "a tagged template needs `(List<Str>, List<Str>)`, but `{owner}.{name}` takes {} parameter(s)",
+                    "a tagged template needs `(List<Str>, List<T>)`, but `{owner}.{name}` takes {} parameter(s)",
                     method.params.len()
                 ),
             );
             return Ty::Error;
         }
-        for (index, param) in method.params.iter().enumerate() {
-            self.expect(
+        self.expect(
+            span,
+            &Ty::list(Ty::Str),
+            &method.params[0].1.clone(),
+            " in the tag signature",
+        );
+        let value_list_ty = self.resolve_deep(&method.params[1].1);
+        let Ty::List(element) = value_list_ty else {
+            let shown = self.display_ty(&method.params[1].1);
+            self.diag(
                 span,
-                &expected[index],
-                &param.1.clone(),
-                " in the tag signature",
+                format!(
+                    "the second parameter of `{owner}.{name}` must be `List<T>`, found `{shown}`"
+                ),
             );
-        }
+            return Ty::Error;
+        };
+        self.require_value(span, &element);
         for inner in exprs {
-            let inner_ty = self.check_expr(inner, None);
-            self.require_value(inner.span(), &inner_ty);
+            let actual = self.check_expr(inner, Some(&element));
+            self.expect(
+                inner.span(),
+                &element,
+                &actual,
+                " in this tagged template value",
+            );
         }
         self.resolve_deep(&method.ret)
     }

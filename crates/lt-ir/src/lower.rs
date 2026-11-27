@@ -924,17 +924,16 @@ impl<'a> Lowerer<'a> {
             return self.unsupported(tag.span(), format!("unknown tag owner `{owner}`"));
         };
 
-        let part_items: Vec<IrExpr> = parts.iter().map(|part| IrExpr::Str(part.clone())).collect();
-        let value_items: Vec<IrExpr> = exprs
+        let value_ty = class
+            .methods
             .iter()
-            .map(|inner| {
-                let inner_ty = self.ty_of(inner);
-                IrExpr::ToStr {
-                    value: Box::new(self.expr(inner)),
-                    ty: inner_ty,
-                }
-            })
-            .collect();
+            .find(|candidate| candidate.name == method && candidate.is_static)
+            .and_then(|candidate| candidate.params.get(1))
+            .map(|(_, ty, _)| ty.clone())
+            .unwrap_or_else(|| Ty::list(Ty::Str));
+
+        let part_items: Vec<IrExpr> = parts.iter().map(|part| IrExpr::Str(part.clone())).collect();
+        let value_items: Vec<IrExpr> = exprs.iter().map(|inner| self.expr(inner)).collect();
 
         IrExpr::StaticCall {
             module: type_name.module,
@@ -947,7 +946,7 @@ impl<'a> Lowerer<'a> {
                 },
                 IrExpr::List {
                     items: value_items,
-                    ty: Ty::list(Ty::Str),
+                    ty: value_ty,
                 },
             ],
             ty,
