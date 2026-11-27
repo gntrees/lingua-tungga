@@ -1,6 +1,6 @@
 # Backend Go
 
-Target ketiga. Conformance suite yang sama (44 test) lulus di sini juga.
+Target ketiga. Conformance suite yang sama (45 test) lulus di sini juga.
 
 ## Representasi
 
