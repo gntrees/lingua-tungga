@@ -1,11 +1,11 @@
-test class ParseTest {
-  test fn parses_int() {
-    Expect.equal(" 42 ".parse_int(), Some(42))
-    Expect.equal("nope".parse_int(), None)
+package parse {
+  test "parses int" {
+    expect.eq(" 42 ".parse_int(), Some(42))
+    expect.eq("nope".parse_int(), None)
   }
 
-  test fn parses_float() {
-    Expect.equal("1.5".parse_float(), Some(1.5))
-    Expect.equal("".parse_float(), None)
+  test "parses float" {
+    expect.eq("1.5".parse_float(), Some(1.5))
+    expect.eq("".parse_float(), None)
   }
 }

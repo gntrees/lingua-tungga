@@ -477,6 +477,10 @@ impl<'a> Lexer<'a> {
 
         let text = &self.src[mark.pos..self.pos];
         let kind = match text {
+            "package" => TokenKind::Package,
+            "export" => TokenKind::Export,
+            "struct" => TokenKind::Struct,
+            "as" => TokenKind::As,
             "pub" => TokenKind::Pub,
             "class" => TokenKind::Class,
             "test" => TokenKind::Test,

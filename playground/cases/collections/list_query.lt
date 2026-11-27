@@ -1,16 +1,16 @@
-test class QueryTest {
-  test fn contains_and_index() {
-    Expect.true([1, 2, 3].contains(2))
-    Expect.equal([1, 2, 3].index_of(3), Some(2))
+package list_query {
+  test "contains and index" {
+    expect.true([1, 2, 3].contains(2))
+    expect.eq([1, 2, 3].index_of(3), Some(2))
   }
 
-  test fn safe_get() {
-    Expect.equal([1, 2].get(1), Some(2))
-    Expect.equal([1, 2].get(9), None)
+  test "safe get" {
+    expect.eq([1, 2].get(1), Some(2))
+    expect.eq([1, 2].get(9), None)
   }
 
-  test fn any_and_all() {
-    Expect.true([1, 2].any(fn(x) => x > 1))
-    Expect.false([1, 2].all(fn(x) => x > 1))
+  test "any and all" {
+    expect.true([1, 2].any(fn(x) => x > 1))
+    expect.false([1, 2].all(fn(x) => x > 1))
   }
 }

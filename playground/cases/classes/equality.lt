@@ -1,11 +1,11 @@
-pub class Point {
-  x: Int
-  y: Int
-}
+package equality {
+  export struct Point {
+    x: Int
+    y: Int
+  }
 
-test class EqualityTest {
-  test fn compares_fields() {
-    Expect.equal(Point(x: 1, y: 2), Point(x: 1, y: 2))
-    Expect.not_equal(Point(x: 1, y: 2), Point(x: 1, y: 3))
+  test "compares fields" {
+    expect.eq(Point(x: 1, y: 2), Point(x: 1, y: 2))
+    expect.not_equal(Point(x: 1, y: 2), Point(x: 1, y: 3))
   }
 }

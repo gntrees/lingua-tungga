@@ -1,5 +1,7 @@
-import X from "x.lt"
+import x { X } from "x.lt"
 
-pub class A {
-  x: Str
+package import_path {
+  export struct A {
+    x: X
+  }
 }

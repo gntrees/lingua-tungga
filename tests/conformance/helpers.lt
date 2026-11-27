@@ -1,23 +1,21 @@
-pub class Mathy {
-  static fn double(x: Int) -> Int {
+package helpers {
+  export fn double(x: Int) -> Int {
     x * 2
   }
-}
 
-test class HelperTest {
   fn double_twice(x: Int) -> Int {
-    Mathy.double(Mathy.double(x))
+    double(double(x))
   }
 
   fn quadruple(x: Int) -> Int {
     double_twice(x)
   }
 
-  test fn calls_a_helper() {
-    Expect.equal(double_twice(3), 12)
+  test "calls a helper" {
+    expect.eq(double_twice(3), 12)
   }
 
-  test fn helper_calls_helper() {
-    Expect.equal(quadruple(2), 8)
+  test "helper calls helper" {
+    expect.eq(quadruple(2), 8)
   }
 }

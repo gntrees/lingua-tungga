@@ -1,21 +1,19 @@
-pub enum Color {
-  Red
-  Green
-  Blue
-}
+package exhaustive {
+  export enum Color {
+    Red
+    Green
+    Blue
+  }
 
-pub class Colors {
-  static fn label(color: Color) -> Str {
+  export fn label(color: Color) -> Str {
     match color {
       Color.Red => "red"
       Color.Green => "green"
       Color.Blue => "blue"
     }
   }
-}
 
-test class ColorTest {
-  test fn labels_every_variant() {
-    Expect.equal(Colors.label(Color.Green), "green")
+  test "labels every variant" {
+    expect.eq(label(Color.Green), "green")
   }
 }

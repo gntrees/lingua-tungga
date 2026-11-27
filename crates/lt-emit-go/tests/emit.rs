@@ -21,13 +21,11 @@ fn emit(files: &[(&str, &str)], entry: &str, with_tests: bool) -> Vec<EmittedFil
         .modules
         .iter()
         .map(|module| {
-            module
-                .path
-                .strip_prefix(&root)
-                .unwrap()
-                .with_extension("")
-                .to_string_lossy()
-                .replace('\\', "/")
+            let base = module.path.strip_prefix(&root).unwrap();
+            match base.parent().filter(|dir| !dir.as_os_str().is_empty()) {
+                Some(dir) => format!("{}/{}", dir.to_string_lossy(), module.name),
+                None => module.name.clone(),
+            }
         })
         .collect();
 
@@ -50,34 +48,39 @@ fn find<'a>(files: &'a [EmittedFile], path: &str) -> &'a str {
 }
 
 const USER: &str = r#"
-pub enum Role {
+package user {
+
+export enum Role {
   Admin
   Member(Int)
+  Guest
 }
 
-pub class User {
+export struct User {
   name: Str
   age: Int
   role: Role
+}
 
-  pub fn greet(self) -> Str {
-    `Hi ${self.name}`
-  }
+export fn greet(u: User) -> Str {
+  `Hi ${u.name}`
+}
 
-  pub fn older(self) -> Int {
-    self.age + 1
-  }
+export fn older(u: User) -> Int {
+  u.age + 1
+}
 
-  pub fn label(self) -> Str {
-    match self.role {
-      Role.Admin => "admin"
-      Role.Member(level) => `member-${level}`
-    }
+export fn label(u: User) -> Str {
+  match u.role {
+    Role.Admin => "admin"
+    Role.Member(level) => `member-${level}`
   }
+}
 
-  static fn anonymous() -> User {
-    User(name: "?", age: 0, role: Role.Admin)
-  }
+export fn anonymous() -> User {
+  User(name: "?", age: 0, role: Role.Admin)
+}
+
 }
 "#;
 
@@ -96,12 +99,9 @@ fn emits_a_go_package() {
         module.contains("func NewUser(name string, age int64, role lt.Variant) User"),
         "{module}"
     );
-    assert!(
-        module.contains("func (self User) Greet() string"),
-        "{module}"
-    );
-    assert!(module.contains("\"Hi \" + lt.Disp(self.Name)"), "{module}");
-    assert!(module.contains("func UserAnonymous() User"), "{module}");
+    assert!(module.contains("func Greet(u User) string"), "{module}");
+    assert!(module.contains("\"Hi \" + lt.Disp(u.Name)"), "{module}");
+    assert!(module.contains("func Anonymous() User"), "{module}");
     assert!(
         module.contains("func (self User) LtEq(other any) bool"),
         "{module}"
@@ -130,55 +130,59 @@ fn imports_between_modules_use_go_import_paths() {
         "{validator}"
     );
     assert!(
-        validator.contains("func ValidatorCheck(u m1.User) lt.Variant"),
+        validator.contains("func Check(u m1.User) lt.Variant"),
         "{validator}"
     );
 }
 
 const VALIDATOR: &str = r#"
-import User from "./user.lt"
+import user { User } from "./user.lt"
 
-pub class Validator {
-  pub fn check(u: User) -> Result<User, Str> {
-    if u.age < 0 {
-      return Err("age must be >= 0")
-    }
-    Ok(u)
-  }
+package validator {
 
-  pub fn describe(u: User) -> Str {
-    match Validator.check(u) {
-      Ok(valid) => valid.greet()
-      Err(message) => `invalid: ${message}`
-    }
+export fn check(u: User) -> Result<User, Str> {
+  if u.age < 0 {
+    return Err("age must be >= 0")
   }
+  Ok(u)
+}
 
-  pub fn all(users: List<User>) -> List<Result<User, Str>> {
-    users.map(fn(u) => Validator.check(u))
+export fn describe(u: User) -> Str {
+  match check(u) {
+    Ok(valid) => valid.greet()
+    Err(message) => `invalid: ${message}`
   }
+}
+
+export fn all(users: List<User>) -> List<Result<User, Str>> {
+  users.map(fn(u) => check(u))
+}
+
 }
 "#;
 
 #[test]
 fn option_and_result_use_variants() {
     let src = r#"
-pub class A {
-  fn go(value: Option<Int>) -> Option<Int> {
-    let inner = value?
-    Some(inner + 1)
-  }
+package main {
 
-  fn parse(text: Str) -> Result<Int, Str> {
-    match text.parse_int() {
-      Some(value) => Ok(value)
-      None => Err("bad")
-    }
-  }
+fn go(value: Option<Int>) -> Option<Int> {
+  let inner = value?
+  Some(inner + 1)
+}
 
-  fn run(text: Str) -> Result<Int, Str> {
-    let value = A.parse(text)?
-    Ok(value)
+fn parse(text: Str) -> Result<Int, Str> {
+  match text.parse_int() {
+    Some(value) => Ok(value)
+    None => Err("bad number")
   }
+}
+
+fn run() -> Result<Int, Str> {
+  let number = parse("42")?
+  Ok(number)
+}
+
 }
 "#;
     let files = emit(&[("main.lt", src)], "main.lt", false);
@@ -190,14 +194,16 @@ pub class A {
 #[test]
 fn lambdas_carry_parameter_and_result_types() {
     let src = r#"
-pub class A {
-  static fn total(xs: List<Int>) -> Int {
-    xs.fold(0, fn(acc, x) => acc + x)
-  }
+package main {
 
-  static fn doubled(xs: List<Int>) -> List<Int> {
-    xs.map(fn(x) => x * 2)
-  }
+fn total(xs: List<Int>) -> Int {
+  xs.fold(0, fn(acc, x) => acc + x)
+}
+
+fn doubled(xs: List<Int>) -> List<Int> {
+  xs.map(fn(x) => x * 2)
+}
+
 }
 "#;
     let files = emit(&[("main.lt", src)], "main.lt", false);
@@ -211,22 +217,22 @@ pub class A {
 #[test]
 fn tests_become_go_test_functions() {
     let src = r#"
-pub class Adder {
-  static fn add(a: Int, b: Int) -> Int { a + b }
+package suite {
+
+export fn add(a: Int, b: Int) -> Int { a + b }
+
+test "adds" {
+  expect.eq(add(1, 2), 3)
 }
 
-test class AdderTest {
-  test fn adds() {
-    Expect.equal(Adder.add(1, 2), 3)
-  }
 }
 "#;
     let files = emit(&[("suite.lt", src)], "suite.lt", true);
     let tests = find(&files, "gen/suite/suite_test.go");
-    assert!(tests.contains("package suite_test"), "{tests}");
+    assert!(tests.contains("package suite"), "{tests}");
     assert!(tests.contains("func TestAdds(t *testing.T)"), "{tests}");
     assert!(
-        tests.contains("lt.ExpectEqual(m0.AdderAdd(int64(1), int64(2)), int64(3))"),
+        tests.contains("lt.ExpectEqual(Add(int64(1), int64(2)), int64(3))"),
         "{tests}"
     );
 
@@ -253,10 +259,12 @@ fn emission_is_deterministic() {
 #[test]
 fn to_string_uses_the_display_runtime() {
     let src = r#"
-pub class A {
-  pub fn f(x: Int) -> Str {
-    x.to_string()
-  }
+package a {
+
+fn f(x: Int) -> Str {
+  x.to_string()
+}
+
 }
 "#;
     let files = emit(&[("a.lt", src)], "a.lt", false);
@@ -265,22 +273,24 @@ pub class A {
 }
 
 const GENERIC_ENUM: &str = r#"
-pub enum MaybeBox<T> {
+package a {
+
+export enum MaybeBox<T> {
   Empty
   Value(T)
 }
 
-pub class A {
-  pub fn make() -> MaybeBox<Int> {
-    MaybeBox.Value(7)
-  }
+fn make() -> MaybeBox<Int> {
+  MaybeBox.Value(7)
+}
 
-  pub fn unwrap(value: MaybeBox<Int>) -> Int {
-    match value {
-      MaybeBox.Empty => 0
-      MaybeBox.Value(n) => n
-    }
+fn unwrap(value: MaybeBox<Int>) -> Int {
+  match value {
+    MaybeBox.Empty => 0
+    MaybeBox.Value(n) => n
   }
+}
+
 }
 "#;
 

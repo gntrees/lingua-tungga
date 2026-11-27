@@ -1,13 +1,14 @@
 //! Declaration collection, type resolution, and body type checking.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use lt_syntax::ast::{self, BinOp, LambdaBody, MatchBody, Pattern, UnOp};
 use lt_syntax::span::line_col_at;
 use lt_syntax::{Diagnostic, Span};
 
 use crate::program::{
-    builtin_enum, ClassInfo, DeclKind, EnumInfo, MethodInfo, ModuleId, Program, VariantInfo,
+    builtin_enum, BindingInfo, EnumInfo, FieldInfo, FnInfo, ModuleId, Program, StructInfo,
+    TestInfo, VariantInfo,
 };
 use crate::types::{mentions_any_generic, substitute, Subst, Ty, TypeName, TypeTable};
 
@@ -16,7 +17,9 @@ pub fn check_program(mut program: Program) -> (Program, Vec<(ModuleId, Diagnosti
     let mut types = TypeTable::default();
     collect_declarations(&mut program, &mut diagnostics);
     resolve_declarations(&mut program, &mut diagnostics);
-    check_bodies(&program, &mut diagnostics, &mut types);
+    check_imports(&program, &mut diagnostics);
+    check_bindings(&mut program, &mut diagnostics, &mut types);
+    check_bodies(&mut program, &mut diagnostics, &mut types);
     (program, diagnostics, types)
 }
 
@@ -25,230 +28,287 @@ fn diag(diagnostics: &mut Vec<Diagnostic>, src: &str, span: Span, message: Strin
     diagnostics.push(Diagnostic::error(message, span, loc.line, loc.col));
 }
 
-// ---------------------------------------------------------------- declarations
+// ------------------------------------------------------------------- naming
+
+fn is_pascal_case(name: &str) -> bool {
+    let mut chars = name.chars();
+    match chars.next() {
+        Some(first) if first.is_ascii_uppercase() => {}
+        _ => return false,
+    }
+    name.chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || ch == '_')
+}
+
+fn is_snake_case(name: &str) -> bool {
+    !name.is_empty()
+        && name
+            .chars()
+            .all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '_')
+}
+
+fn check_type_name(
+    diagnostics: &mut Vec<Diagnostic>,
+    source: &str,
+    span: Span,
+    name: &str,
+    kind: &str,
+) {
+    if !is_pascal_case(name) {
+        diag(
+            diagnostics,
+            source,
+            span,
+            format!("{kind} `{name}` must be `PascalCase`"),
+        );
+    }
+}
+
+fn check_value_name(
+    diagnostics: &mut Vec<Diagnostic>,
+    source: &str,
+    span: Span,
+    name: &str,
+    kind: &str,
+) {
+    if !is_snake_case(name) {
+        diag(
+            diagnostics,
+            source,
+            span,
+            format!("{kind} `{name}` must be `snake_case`"),
+        );
+    }
+}
+
+// -------------------------------------------------------------- declarations
 
 fn collect_declarations(program: &mut Program, diagnostics: &mut Vec<(ModuleId, Diagnostic)>) {
     for module_id in 0..program.modules.len() {
-        let mut classes = Vec::new();
-        let mut enums = Vec::new();
+        let mut structs: Vec<StructInfo> = Vec::new();
+        let mut enums: Vec<EnumInfo> = Vec::new();
+        let mut functions: Vec<FnInfo> = Vec::new();
+        let mut bindings: Vec<BindingInfo> = Vec::new();
+        let mut tests: Vec<TestInfo> = Vec::new();
         let mut local = Vec::new();
+        // One namespace per package; compared case-insensitively because Go
+        // exports by capitalisation and two such names would collide there.
+        let mut taken: HashSet<String> = HashSet::new();
+
         {
             let module = &program.modules[module_id];
+            let source = &module.source;
+
+            if !is_snake_case(&module.name) {
+                diag(
+                    &mut local,
+                    source,
+                    module.ast.span,
+                    format!(
+                        "package name `{}` must be `snake_case` (lowercase, digits, `_`)",
+                        module.name
+                    ),
+                );
+            }
+
             for (index, item) in module.ast.items.iter().enumerate() {
+                let (name, span): (&str, Span) = match item {
+                    ast::PackageItem::Struct(decl) => (&decl.name, decl.span),
+                    ast::PackageItem::Enum(decl) => (&decl.name, decl.span),
+                    ast::PackageItem::Fn(decl) => (&decl.name, decl.span),
+                    ast::PackageItem::Binding(decl) => (&decl.name, decl.span),
+                    ast::PackageItem::Test(decl) => {
+                        tests.push(TestInfo {
+                            title: decl.title.clone(),
+                            span: decl.span,
+                            ast_index: index,
+                        });
+                        continue;
+                    }
+                };
+                if !taken.insert(name.to_lowercase()) {
+                    diag(
+                        &mut local,
+                        source,
+                        span,
+                        format!("`{name}` is declared more than once in this package"),
+                    );
+                    continue;
+                }
                 match item {
-                    ast::Item::Class(class) => {
-                        if classes.iter().any(|c: &ClassInfo| c.name == class.name)
-                            || enums.iter().any(|e: &EnumInfo| e.name == class.name)
-                        {
-                            diag(
-                                &mut local,
-                                &module.source,
-                                class.span,
-                                format!("`{}` is declared more than once in this file", class.name),
-                            );
-                        }
-                        classes.push(ClassInfo {
-                            name: class.name.clone(),
-                            is_pub: class.is_pub,
-                            generics: class.generics.clone(),
+                    ast::PackageItem::Struct(decl) => {
+                        check_type_name(&mut local, source, decl.span, &decl.name, "struct");
+                        structs.push(StructInfo {
+                            name: decl.name.clone(),
+                            is_export: decl.is_export,
+                            generics: decl.generics.clone(),
                             fields: Vec::new(),
-                            methods: Vec::new(),
-                            span: class.span,
+                            span: decl.span,
                             ast_index: index,
                         });
                     }
-                    ast::Item::Enum(decl) => {
-                        if classes.iter().any(|c: &ClassInfo| c.name == decl.name)
-                            || enums.iter().any(|e: &EnumInfo| e.name == decl.name)
-                        {
-                            diag(
-                                &mut local,
-                                &module.source,
-                                decl.span,
-                                format!("`{}` is declared more than once in this file", decl.name),
-                            );
-                        }
+                    ast::PackageItem::Enum(decl) => {
+                        check_type_name(&mut local, source, decl.span, &decl.name, "enum");
                         enums.push(EnumInfo {
                             name: decl.name.clone(),
-                            is_pub: decl.is_pub,
+                            is_export: decl.is_export,
                             generics: decl.generics.clone(),
                             variants: Vec::new(),
                             span: decl.span,
                             ast_index: index,
                         });
                     }
-                    ast::Item::TestClass(_) => {}
+                    ast::PackageItem::Fn(decl) => {
+                        check_value_name(&mut local, source, decl.span, &decl.name, "function");
+                        functions.push(FnInfo {
+                            name: decl.name.clone(),
+                            is_export: decl.is_export,
+                            generics: decl.generics.clone(),
+                            params: Vec::new(),
+                            ret: Ty::Error,
+                            span: decl.span,
+                            ast_index: index,
+                        });
+                    }
+                    ast::PackageItem::Binding(decl) => {
+                        check_value_name(&mut local, source, decl.span, &decl.name, "binding");
+                        bindings.push(BindingInfo {
+                            name: decl.name.clone(),
+                            is_export: decl.is_export,
+                            ty: Ty::Error,
+                            span: decl.span,
+                            ast_index: index,
+                        });
+                    }
+                    ast::PackageItem::Test(_) => {}
                 }
             }
         }
+
         diagnostics.extend(local.into_iter().map(|d| (module_id, d)));
-        program.modules[module_id].classes = classes;
+        program.modules[module_id].structs = structs;
         program.modules[module_id].enums = enums;
+        program.modules[module_id].functions = functions;
+        program.modules[module_id].bindings = bindings;
+        program.modules[module_id].tests = tests;
     }
 }
 
 fn resolve_declarations(program: &mut Program, diagnostics: &mut Vec<(ModuleId, Diagnostic)>) {
     for module_id in 0..program.modules.len() {
-        let mut classes = Vec::new();
+        let mut structs = Vec::new();
         let mut enums = Vec::new();
+        let mut functions = Vec::new();
+        let mut bindings = Vec::new();
         let mut local = Vec::new();
         {
             let module = &program.modules[module_id];
-            for (index, item) in module.ast.items.iter().enumerate() {
-                match item {
-                    ast::Item::Class(class) => {
-                        classes.push(resolve_class(program, module_id, index, class, &mut local));
-                    }
-                    ast::Item::Enum(decl) => {
-                        enums.push(resolve_enum(program, module_id, index, decl, &mut local));
-                    }
-                    ast::Item::TestClass(_) => {}
+            for struct_info in &module.structs {
+                let ast::PackageItem::Struct(decl) = &module.ast.items[struct_info.ast_index]
+                else {
+                    continue;
+                };
+                structs.push(resolve_struct(
+                    program,
+                    module_id,
+                    struct_info,
+                    decl,
+                    &mut local,
+                ));
+            }
+            for enum_info in &module.enums {
+                let ast::PackageItem::Enum(decl) = &module.ast.items[enum_info.ast_index] else {
+                    continue;
+                };
+                enums.push(resolve_enum(
+                    program, module_id, enum_info, decl, &mut local,
+                ));
+            }
+            for fn_info in &module.functions {
+                let ast::PackageItem::Fn(decl) = &module.ast.items[fn_info.ast_index] else {
+                    continue;
+                };
+                functions.push(resolve_fn(program, module_id, fn_info, decl, &mut local));
+            }
+            for binding_info in &module.bindings {
+                let ast::PackageItem::Binding(decl) = &module.ast.items[binding_info.ast_index]
+                else {
+                    continue;
+                };
+                let mut info = binding_info.clone();
+                if let Some(ty) = &decl.ty {
+                    info.ty = resolve_type(program, module_id, &[], ty, &mut local);
                 }
+                bindings.push(info);
             }
         }
         diagnostics.extend(local.into_iter().map(|d| (module_id, d)));
-        program.modules[module_id].classes = classes;
+        program.modules[module_id].structs = structs;
         program.modules[module_id].enums = enums;
+        program.modules[module_id].functions = functions;
+        program.modules[module_id].bindings = bindings;
     }
 }
 
-fn resolve_class(
+fn resolve_struct(
     program: &Program,
     module_id: ModuleId,
-    ast_index: usize,
-    class: &ast::ClassDecl,
+    info: &StructInfo,
+    decl: &ast::StructDecl,
     diagnostics: &mut Vec<Diagnostic>,
-) -> ClassInfo {
+) -> StructInfo {
     let source = &program.modules[module_id].source;
+    let mut fields: Vec<FieldInfo> = Vec::new();
+    let mut seen: HashSet<String> = HashSet::new();
 
-    let mut fields = Vec::new();
-    let mut methods = Vec::new();
-
-    for field in &class.fields {
-        if fields
-            .iter()
-            .any(|f: &crate::program::FieldInfo| f.name == field.name)
-        {
+    for field in &decl.fields {
+        check_value_name(diagnostics, source, field.span, &field.name, "field");
+        if !seen.insert(field.name.to_lowercase()) {
             diag(
                 diagnostics,
                 source,
                 field.span,
-                format!("duplicate field `{}` in `{}`", field.name, class.name),
+                format!("duplicate field `{}` in `{}`", field.name, decl.name),
             );
         }
-        let ty = resolve_type(program, module_id, &class.generics, &field.ty, diagnostics);
-        fields.push(crate::program::FieldInfo {
+        let ty = resolve_type(program, module_id, &decl.generics, &field.ty, diagnostics);
+        fields.push(FieldInfo {
             name: field.name.clone(),
             ty,
             span: field.span,
         });
     }
 
-    for method in &class.methods {
-        if methods.iter().any(|m: &MethodInfo| m.name == method.name) {
-            diag(
-                diagnostics,
-                source,
-                method.span,
-                format!(
-                    "duplicate method `{}` in `{}`; Lingua Tungga has no overloading",
-                    method.name, class.name
-                ),
-            );
-        }
-        let is_static = method.is_static || !method.has_self;
-        if method.is_static && method.has_self {
-            diag(
-                diagnostics,
-                source,
-                method.span,
-                "a `static fn` cannot take `self`".to_string(),
-            );
-        }
-        let mut seen = std::collections::HashSet::new();
-        for param in &method.params {
-            if !seen.insert(&param.name) {
-                diag(
-                    diagnostics,
-                    source,
-                    param.span,
-                    format!("duplicate parameter `{}`", param.name),
-                );
-            }
-        }
-
-        let params = method
-            .params
-            .iter()
-            .map(|param| {
-                (
-                    param.name.clone(),
-                    resolve_type(program, module_id, &class.generics, &param.ty, diagnostics),
-                    param.span,
-                )
-            })
-            .collect::<Vec<_>>();
-
-        let ret = match &method.ret {
-            Some(ty) => resolve_type(program, module_id, &class.generics, ty, diagnostics),
-            None => Ty::Unit,
-        };
-
-        if is_static {
-            let uses_class_generic = params
-                .iter()
-                .any(|(_, ty, _)| mentions_any_generic(ty, &class.generics))
-                || mentions_any_generic(&ret, &class.generics);
-            if uses_class_generic {
-                diag(
-                    diagnostics,
-                    source,
-                    method.span,
-                    format!(
-                        "static method `{}` cannot use the class type parameters of `{}`",
-                        method.name, class.name
-                    ),
-                );
-            }
-        }
-
-        methods.push(MethodInfo {
-            name: method.name.clone(),
-            is_pub: method.is_pub,
-            is_static,
-            has_self: method.has_self,
-            params,
-            ret,
-            span: method.span,
-        });
-    }
-
-    ClassInfo {
-        name: class.name.clone(),
-        is_pub: class.is_pub,
-        generics: class.generics.clone(),
+    StructInfo {
+        name: info.name.clone(),
+        is_export: info.is_export,
+        generics: info.generics.clone(),
         fields,
-        methods,
-        span: class.span,
-        ast_index,
+        span: info.span,
+        ast_index: info.ast_index,
     }
 }
 
 fn resolve_enum(
     program: &Program,
     module_id: ModuleId,
-    ast_index: usize,
+    info: &EnumInfo,
     decl: &ast::EnumDecl,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> EnumInfo {
     let source = &program.modules[module_id].source;
+    let mut variants: Vec<VariantInfo> = Vec::new();
+    let mut seen: HashSet<String> = HashSet::new();
 
-    let mut variants = Vec::new();
     for variant in &decl.variants {
-        if variants
-            .iter()
-            .any(|v: &VariantInfo| v.name == variant.name)
-        {
+        check_type_name(
+            diagnostics,
+            source,
+            variant.span,
+            &variant.name,
+            "enum variant",
+        );
+        if !seen.insert(variant.name.to_lowercase()) {
             diag(
                 diagnostics,
                 source,
@@ -272,12 +332,87 @@ fn resolve_enum(
     }
 
     EnumInfo {
-        name: decl.name.clone(),
-        is_pub: decl.is_pub,
-        generics: decl.generics.clone(),
+        name: info.name.clone(),
+        is_export: info.is_export,
+        generics: info.generics.clone(),
         variants,
-        span: decl.span,
-        ast_index,
+        span: info.span,
+        ast_index: info.ast_index,
+    }
+}
+
+fn resolve_fn(
+    program: &Program,
+    module_id: ModuleId,
+    info: &FnInfo,
+    decl: &ast::FnDecl,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> FnInfo {
+    let source = &program.modules[module_id].source;
+    let mut seen: HashSet<String> = HashSet::new();
+    for param in &decl.params {
+        check_value_name(diagnostics, source, param.span, &param.name, "parameter");
+        if !seen.insert(param.name.clone()) {
+            diag(
+                diagnostics,
+                source,
+                param.span,
+                format!("duplicate parameter `{}`", param.name),
+            );
+        }
+    }
+
+    let params = decl
+        .params
+        .iter()
+        .map(|param| {
+            (
+                param.name.clone(),
+                resolve_type(program, module_id, &decl.generics, &param.ty, diagnostics),
+                param.span,
+            )
+        })
+        .collect::<Vec<_>>();
+
+    let ret = match &decl.ret {
+        Some(ty) => resolve_type(program, module_id, &decl.generics, ty, diagnostics),
+        None => Ty::Unit,
+    };
+
+    if params
+        .iter()
+        .any(|(_, ty, _)| mentions_any_generic(ty, &decl.generics))
+        != mentions_any_generic(&ret, &decl.generics)
+    {
+        // Generics need not be used, but a generic that appears only in the
+        // return type cannot be inferred, so report it at the declaration.
+        for generic in &decl.generics {
+            if !params
+                .iter()
+                .any(|(_, ty, _)| mentions_any_generic(ty, std::slice::from_ref(generic)))
+                && mentions_any_generic(&ret, std::slice::from_ref(generic))
+            {
+                diag(
+                    diagnostics,
+                    source,
+                    decl.span,
+                    format!(
+                        "type parameter `{generic}` of `{}` appears only in the return type and cannot be inferred",
+                        decl.name
+                    ),
+                );
+            }
+        }
+    }
+
+    FnInfo {
+        name: info.name.clone(),
+        is_export: info.is_export,
+        generics: info.generics.clone(),
+        params,
+        ret,
+        span: info.span,
+        ast_index: info.ast_index,
     }
 }
 
@@ -290,16 +425,22 @@ fn resolve_type(
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Ty {
     let source = &program.modules[module_id].source;
-    if ty.path.len() != 1 {
+
+    if ty.path.len() > 2 {
         diag(
             diagnostics,
             source,
             ty.span,
-            "nested type paths are not supported; import the type instead".to_string(),
+            "type paths have at most two segments: `package.Type`".to_string(),
         );
         return Ty::Error;
     }
-    let name = &ty.path[0];
+    let name = ty.path.last().cloned().unwrap_or_default();
+    let qualifier = if ty.path.len() == 2 {
+        Some(ty.path[0].as_str())
+    } else {
+        None
+    };
 
     let args: Vec<Ty> = ty
         .args
@@ -319,20 +460,21 @@ fn resolve_type(
         );
     };
 
-    let base = if generics.iter().any(|generic| generic == name) {
-        Ty::Generic(name.clone())
-    } else if let Some(primitive) = primitive_type(name) {
+    let base = if qualifier.is_none() && generics.iter().any(|generic| generic == &name) {
+        Ty::Generic(name)
+    } else if let Some(primitive) = primitive_type(&name) {
         primitive
-    } else if let Some(expected) = builtin_arity(name) {
+    } else if qualifier.is_none() && builtin_arity(&name).is_some() {
+        let expected = builtin_arity(&name).unwrap();
         if args.len() != expected {
             arity_error(expected, diagnostics);
             Ty::Error
         } else {
-            builtin_type(name, &args)
+            builtin_type(&name, &args)
         }
     } else {
-        match lookup_decl(program, module_id, name) {
-            Some((type_name, _, arity)) => {
+        match lookup_type(program, module_id, qualifier, &name) {
+            Some((type_name, arity)) => {
                 if args.len() != arity {
                     arity_error(arity, diagnostics);
                     Ty::Error
@@ -341,11 +483,15 @@ fn resolve_type(
                 }
             }
             None => {
+                let described = match qualifier {
+                    Some(package) => format!("{package}.{name}"),
+                    None => name,
+                };
                 diag(
                     diagnostics,
                     source,
                     ty.span,
-                    format!("unknown type `{name}`"),
+                    format!("unknown type `{described}`"),
                 );
                 Ty::Error
             }
@@ -388,194 +534,259 @@ fn builtin_type(name: &str, args: &[Ty]) -> Ty {
     }
 }
 
-/// Look up a class/enum name visible from `module_id`.
-fn lookup_decl(
+/// Module a package qualifier is bound to in `module_id`.
+fn qualifier_module(program: &Program, module_id: ModuleId, qualifier: &str) -> Option<ModuleId> {
+    program.modules[module_id]
+        .imports
+        .iter()
+        .find(|import| import.binding == qualifier)
+        .map(|import| import.module)
+}
+
+/// Module that exported `name` through a destructuring import.
+fn destructured_module(program: &Program, module_id: ModuleId, name: &str) -> Option<ModuleId> {
+    for import in &program.modules[module_id].imports {
+        for item in &import.items {
+            if item.binding == name {
+                return Some(import.module);
+            }
+        }
+    }
+    None
+}
+
+/// The local module, or the module a name was imported from.
+fn visible_modules(program: &Program, module_id: ModuleId, name: &str) -> Vec<(ModuleId, bool)> {
+    let mut out = vec![(module_id, false)];
+    if let Some(module) = destructured_module(program, module_id, name) {
+        out.push((module, true));
+    }
+    out
+}
+
+/// Look up a struct/enum by bare name (no qualifier).
+fn lookup_type(
     program: &Program,
     module_id: ModuleId,
+    qualifier: Option<&str>,
     name: &str,
-) -> Option<(TypeName, DeclKind, usize)> {
-    let module = &program.modules[module_id];
-    if let Some(class) = module.classes.iter().find(|c| c.name == name) {
-        return Some((
-            TypeName {
-                module: module_id,
-                name: name.to_string(),
-            },
-            DeclKind::Class,
-            class.generics.len(),
-        ));
-    }
-    if let Some(decl) = module.enums.iter().find(|e| e.name == name) {
-        return Some((
-            TypeName {
-                module: module_id,
-                name: name.to_string(),
-            },
-            DeclKind::Enum,
-            decl.generics.len(),
-        ));
-    }
-    for import in &module.imports {
-        if import.name != name {
-            continue;
-        }
-        let target = &program.modules[import.module];
-        if let Some(class) = target.classes.iter().find(|c| c.name == name) {
-            if class.is_pub {
+) -> Option<(TypeName, usize)> {
+    let candidates: Vec<(ModuleId, bool)> = match qualifier {
+        Some(package) => qualifier_module(program, module_id, package)
+            .map(|module| vec![(module, true)])
+            .unwrap_or_default(),
+        None => visible_modules(program, module_id, name),
+    };
+
+    for (module, must_export) in candidates {
+        let target = &program.modules[module];
+        if let Some(decl) = target.structs.iter().find(|decl| decl.name == name) {
+            if !must_export || decl.is_export {
                 return Some((
                     TypeName {
-                        module: import.module,
+                        module,
                         name: name.to_string(),
                     },
-                    DeclKind::Class,
-                    class.generics.len(),
+                    decl.generics.len(),
                 ));
             }
         }
-        if let Some(decl) = target.enums.iter().find(|e| e.name == name) {
-            if decl.is_pub {
+        if let Some(decl) = target.enums.iter().find(|decl| decl.name == name) {
+            if !must_export || decl.is_export {
                 return Some((
                     TypeName {
-                        module: import.module,
+                        module,
                         name: name.to_string(),
                     },
-                    DeclKind::Enum,
                     decl.generics.len(),
                 ));
             }
         }
     }
-    if builtin_enum(name).is_some() {
-        return Some((TypeName::builtin(name), DeclKind::Enum, 0));
-    }
+
     None
 }
 
-// ---------------------------------------------------------------- body checking
-
-fn check_bodies(
-    program: &Program,
-    diagnostics: &mut Vec<(ModuleId, Diagnostic)>,
-    types: &mut TypeTable,
-) {
-    for module in &program.modules {
-        for item in &module.ast.items {
-            match item {
-                ast::Item::Class(class) => {
-                    let Some(info) = module.classes.iter().find(|c| c.name == class.name) else {
-                        continue;
-                    };
-                    for method in &class.methods {
-                        let Some(method_info) = info.methods.iter().find(|m| m.name == method.name)
-                        else {
-                            continue;
-                        };
-                        let mut checker = Checker::new(program, module.id);
-                        checker.class_generics = class.generics.clone();
-                        checker.self_ty = Some(Ty::Named(
-                            TypeName {
-                                module: module.id,
-                                name: class.name.clone(),
-                            },
-                            class
-                                .generics
-                                .iter()
-                                .map(|g| Ty::Generic(g.clone()))
-                                .collect(),
-                        ));
-                        checker.ret = method_info.ret.clone();
-
-                        checker.scopes.push(HashMap::new());
-                        if method.has_self {
-                            let self_ty = checker.self_ty.clone().unwrap();
-                            checker.declare("self", self_ty, false, method.span);
-                        }
-                        for (param, (_, ty, _)) in
-                            method.params.iter().zip(method_info.params.iter())
-                        {
-                            checker.declare(&param.name, ty.clone(), false, param.span);
-                        }
-
-                        let body_ty = checker.check_block(&method.body, Some(&method_info.ret));
-                        checker.expect(
-                            method.body.span,
-                            &method_info.ret,
-                            &body_ty,
-                            " as the method result",
-                        );
-                        checker.scopes.pop();
-                        for ((start, end), ty) in checker.types {
-                            types.insert(module.id, (start, end), ty);
-                        }
-                        diagnostics.extend(checker.diags.into_iter().map(|d| (module.id, d)));
-                    }
-                }
-                ast::Item::TestClass(decl) => {
-                    let mut local = Vec::new();
-                    let mut helpers = Vec::new();
-                    for helper in &decl.helpers {
-                        let params: Vec<Ty> = helper
-                            .params
+/// Every destructured import must name a declaration that exists **and** is
+/// exported. Reported once per import item so the message is precise instead of
+/// surfacing later as "unknown type".
+fn check_imports(program: &Program, diagnostics: &mut Vec<(ModuleId, Diagnostic)>) {
+    for module_id in 0..program.modules.len() {
+        let module = &program.modules[module_id];
+        for import in &module.imports {
+            let target = &program.modules[import.module];
+            for item in &import.items {
+                let exported = target
+                    .structs
+                    .iter()
+                    .find(|decl| decl.name == item.name)
+                    .map(|decl| decl.is_export)
+                    .or_else(|| {
+                        target
+                            .enums
                             .iter()
-                            .map(|param| {
-                                resolve_type(program, module.id, &[], &param.ty, &mut local)
-                            })
-                            .collect();
-                        let ret = match &helper.ret {
-                            Some(ty) => resolve_type(program, module.id, &[], ty, &mut local),
-                            None => Ty::Unit,
-                        };
-                        helpers.push((helper.name.clone(), params, ret));
+                            .find(|decl| decl.name == item.name)
+                            .map(|decl| decl.is_export)
+                    })
+                    .or_else(|| {
+                        target
+                            .functions
+                            .iter()
+                            .find(|decl| decl.name == item.name)
+                            .map(|decl| decl.is_export)
+                    })
+                    .or_else(|| {
+                        target
+                            .bindings
+                            .iter()
+                            .find(|decl| decl.name == item.name)
+                            .map(|decl| decl.is_export)
+                    });
+
+                match exported {
+                    Some(true) => {}
+                    Some(false) => {
+                        let loc = line_col_at(&module.source, item.span.start);
+                        diagnostics.push((
+                            module_id,
+                            Diagnostic::error(
+                                format!(
+                                    "`{}` is private to package `{}`; add `export`",
+                                    item.name, target.name
+                                ),
+                                item.span,
+                                loc.line,
+                                loc.col,
+                            ),
+                        ));
                     }
-                    for (helper_index, helper) in decl.helpers.iter().enumerate() {
-                        let helper_ret = helpers
-                            .get(helper_index)
-                            .map(|(_, _, ret)| ret.clone())
-                            .unwrap_or(Ty::Unit);
-                        let mut checker = Checker::new(program, module.id);
-                        checker.in_test = true;
-                        checker.test_helpers = helpers.clone();
-                        checker.ret = helper_ret.clone();
-                        checker.scopes.push(HashMap::new());
-                        for param in &helper.params {
-                            let ty = resolve_type(program, module.id, &[], &param.ty, &mut local);
-                            checker.declare(&param.name, ty, false, param.span);
-                        }
-                        let body_ty = checker.check_block(&helper.body, Some(&helper_ret));
-                        checker.expect(
-                            helper.body.span,
-                            &helper_ret,
-                            &body_ty,
-                            " as the helper result",
-                        );
-                        checker.scopes.pop();
-                        for ((start, end), ty) in checker.types {
-                            types.insert(module.id, (start, end), ty);
-                        }
-                        diagnostics.extend(checker.diags.into_iter().map(|d| (module.id, d)));
-                    }
-                    diagnostics.extend(local.into_iter().map(|d| (module.id, d)));
-                    for test in &decl.tests {
-                        let mut checker = Checker::new(program, module.id);
-                        checker.in_test = true;
-                        checker.test_helpers = helpers.clone();
-                        checker.ret = Ty::Unit;
-                        checker.scopes.push(HashMap::new());
-                        let body_ty = checker.check_block(&test.body, Some(&Ty::Unit));
-                        checker.expect(test.body.span, &Ty::Unit, &body_ty, " as the test result");
-                        checker.scopes.pop();
-                        for ((start, end), ty) in checker.types {
-                            types.insert(module.id, (start, end), ty);
-                        }
-                        diagnostics.extend(checker.diags.into_iter().map(|d| (module.id, d)));
+                    None => {
+                        let loc = line_col_at(&module.source, item.span.start);
+                        diagnostics.push((
+                            module_id,
+                            Diagnostic::error(
+                                format!("package `{}` has no `{}`", target.name, item.name),
+                                item.span,
+                                loc.line,
+                                loc.col,
+                            ),
+                        ));
                     }
                 }
-                ast::Item::Enum(_) => {}
             }
         }
     }
 }
 
+// ------------------------------------------------------------ body checking
+
+/// Resolve package-level bindings. Annotated bindings are checked against their
+/// annotation; unannotated ones are inferred in declaration order.
+fn check_bindings(
+    program: &mut Program,
+    diagnostics: &mut Vec<(ModuleId, Diagnostic)>,
+    types: &mut TypeTable,
+) {
+    for module_id in 0..program.modules.len() {
+        let count = program.modules[module_id].bindings.len();
+        for index in 0..count {
+            let ast_index = program.modules[module_id].bindings[index].ast_index;
+            let decl = match &program.modules[module_id].ast.items[ast_index] {
+                ast::PackageItem::Binding(decl) => decl.clone(),
+                _ => continue,
+            };
+            let annotated = program.modules[module_id].bindings[index].ty.clone();
+
+            let (ty, local_diags, local_types) = {
+                let mut checker = Checker::new(program, module_id);
+                let value_ty = checker.check_expr(&decl.value, None);
+                if !matches!(annotated, Ty::Error) {
+                    checker.expect(decl.value.span(), &annotated, &value_ty, " in this binding");
+                }
+                let ty = if matches!(annotated, Ty::Error) {
+                    checker.resolve_deep(&value_ty)
+                } else {
+                    annotated
+                };
+                (ty, checker.diags, checker.types)
+            };
+
+            program.modules[module_id].bindings[index].ty = ty;
+            for ((start, end), ty) in local_types {
+                types.insert(module_id, (start, end), ty);
+            }
+            diagnostics.extend(local_diags.into_iter().map(|d| (module_id, d)));
+        }
+    }
+}
+
+fn check_bodies(
+    program: &mut Program,
+    diagnostics: &mut Vec<(ModuleId, Diagnostic)>,
+    types: &mut TypeTable,
+) {
+    for module_id in 0..program.modules.len() {
+        let source = program.modules[module_id].source.clone();
+
+        // Functions.
+        for fn_info in program.modules[module_id].functions.clone() {
+            let ast::PackageItem::Fn(decl) =
+                &program.modules[module_id].ast.items[fn_info.ast_index]
+            else {
+                continue;
+            };
+            let decl = decl.clone();
+            let (local_diags, local_types) = {
+                let mut checker = Checker::new(program, module_id);
+                checker.fn_generics = fn_info.generics.clone();
+                checker.ret = fn_info.ret.clone();
+                checker.scopes.push(HashMap::new());
+                for (param, (_, ty, _)) in decl.params.iter().zip(fn_info.params.iter()) {
+                    checker.declare(&param.name, ty.clone(), false, param.span);
+                }
+                let body_ty = checker.check_block(&decl.body, Some(&fn_info.ret));
+                checker.expect(
+                    decl.body.span,
+                    &fn_info.ret,
+                    &body_ty,
+                    " as the function result",
+                );
+                checker.scopes.pop();
+                (checker.diags, checker.types)
+            };
+            for ((start, end), ty) in local_types {
+                types.insert(module_id, (start, end), ty);
+            }
+            diagnostics.extend(local_diags.into_iter().map(|d| (module_id, d)));
+        }
+
+        // Tests.
+        for test in program.modules[module_id].tests.clone() {
+            let ast::PackageItem::Test(decl) =
+                &program.modules[module_id].ast.items[test.ast_index]
+            else {
+                continue;
+            };
+            let decl = decl.clone();
+            let (local_diags, local_types) = {
+                let mut checker = Checker::new(program, module_id);
+                checker.in_test = true;
+                checker.ret = Ty::Unit;
+                checker.scopes.push(HashMap::new());
+                let body_ty = checker.check_block(&decl.body, Some(&Ty::Unit));
+                checker.expect(decl.body.span, &Ty::Unit, &body_ty, " as the test result");
+                checker.scopes.pop();
+                (checker.diags, checker.types)
+            };
+            for ((start, end), ty) in local_types {
+                types.insert(module_id, (start, end), ty);
+            }
+            diagnostics.extend(local_diags.into_iter().map(|d| (module_id, d)));
+        }
+
+        let _ = &source;
+    }
+}
 #[derive(Clone)]
 struct VarInfo {
     ty: Ty,
@@ -590,12 +801,10 @@ struct Checker<'a> {
     vars: HashMap<u32, Ty>,
     next_var: u32,
     scopes: Vec<HashMap<String, VarInfo>>,
-    class_generics: Vec<String>,
-    self_ty: Option<Ty>,
+    fn_generics: Vec<String>,
     ret: Ty,
     in_test: bool,
     in_lambda: bool,
-    test_helpers: Vec<(String, Vec<Ty>, Ty)>,
     types: HashMap<(usize, usize), Ty>,
 }
 
@@ -609,12 +818,10 @@ impl<'a> Checker<'a> {
             vars: HashMap::new(),
             next_var: 0,
             scopes: Vec::new(),
-            class_generics: Vec::new(),
-            self_ty: None,
+            fn_generics: Vec::new(),
             ret: Ty::Unit,
             in_test: false,
             in_lambda: false,
-            test_helpers: Vec::new(),
             types: HashMap::new(),
         }
     }
@@ -713,34 +920,31 @@ impl<'a> Checker<'a> {
         scope.insert(name.to_string(), VarInfo { ty, mutable });
     }
 
-    /// Look up a class visible from this module.
-    fn class_ref(&self, name: &str) -> Option<(&'a ClassInfo, TypeName)> {
+    /// Look up a struct visible from this module: local first, then a
+    /// destructured import, then a `package.Type` qualifier is handled by the
+    /// caller.
+    fn struct_ref(&self, name: &str) -> Option<(&'a StructInfo, TypeName)> {
         let program = self.program;
-        if let Some(class) = program.find_class(self.module, name) {
+        if let Some(decl) = program.find_struct(self.module, name) {
             return Some((
-                class,
+                decl,
                 TypeName {
                     module: self.module,
                     name: name.to_string(),
                 },
             ));
         }
-        if let Some(import) = program.modules[self.module]
-            .imports
-            .iter()
-            .find(|import| import.name == name)
-        {
-            if let Some(class) = program.find_class(import.module, name) {
-                if class.is_pub {
+        if let Some(module) = destructured_module(program, self.module, name) {
+            if let Some(decl) = program.find_struct(module, name) {
+                if decl.is_export {
                     return Some((
-                        class,
+                        decl,
                         TypeName {
-                            module: import.module,
+                            module,
                             name: name.to_string(),
                         },
                     ));
                 }
-                return None;
             }
         }
         None
@@ -757,25 +961,57 @@ impl<'a> Checker<'a> {
                 },
             ));
         }
-        if let Some(import) = program.modules[self.module]
-            .imports
-            .iter()
-            .find(|import| import.name == name)
-        {
-            if let Some(decl) = program.find_enum(import.module, name) {
-                if decl.is_pub {
+        if let Some(module) = destructured_module(program, self.module, name) {
+            if let Some(decl) = program.find_enum(module, name) {
+                if decl.is_export {
                     return Some((
                         decl,
                         TypeName {
-                            module: import.module,
+                            module,
                             name: name.to_string(),
                         },
                     ));
                 }
-                return None;
             }
         }
         None
+    }
+
+    /// Package-level function visible from this module, with the module that
+    /// declares it (needed for generic substitution and lowering).
+    fn fn_ref(&self, name: &str) -> Option<(ModuleId, &'a FnInfo)> {
+        let program = self.program;
+        if let Some(decl) = program.find_fn(self.module, name) {
+            return Some((self.module, decl));
+        }
+        if let Some(module) = destructured_module(program, self.module, name) {
+            if let Some(decl) = program.find_fn(module, name) {
+                if decl.is_export {
+                    return Some((module, decl));
+                }
+            }
+        }
+        None
+    }
+
+    fn binding_ref(&self, name: &str) -> Option<(ModuleId, &'a BindingInfo)> {
+        let program = self.program;
+        if let Some(decl) = program.find_binding(self.module, name) {
+            return Some((self.module, decl));
+        }
+        if let Some(module) = destructured_module(program, self.module, name) {
+            if let Some(decl) = program.find_binding(module, name) {
+                if decl.is_export {
+                    return Some((module, decl));
+                }
+            }
+        }
+        None
+    }
+
+    /// Module bound to a package qualifier (`money` from `import money …`).
+    fn package_ref(&self, name: &str) -> Option<ModuleId> {
+        qualifier_module(self.program, self.module, name)
     }
 
     fn variants_of(&self, ty: &Ty) -> Option<Vec<(String, Vec<Ty>)>> {
@@ -846,7 +1082,7 @@ impl<'a> Checker<'a> {
                             let declared = crate::check::resolve_type(
                                 self.program,
                                 self.module,
-                                &self.class_generics,
+                                &self.fn_generics,
                                 ty,
                                 &mut self.diags,
                             );
@@ -873,7 +1109,16 @@ impl<'a> Checker<'a> {
                                 self.expect(value.span(), &ty, &value_ty, " in this assignment");
                             }
                         }
-                        None => self.diag(*span, format!("unknown variable `{name}`")),
+                        None => {
+                            if self.binding_ref(name).is_some() {
+                                self.diag(
+                                    *span,
+                                    format!("`{name}` is immutable; package-level bindings cannot be assigned"),
+                                );
+                            } else {
+                                self.diag(*span, format!("unknown variable `{name}`"));
+                            }
+                        }
                     }
                     last = None;
                 }
@@ -990,8 +1235,12 @@ impl<'a> Checker<'a> {
             ast::Expr::Ident { name, span } => match self.lookup_var(name) {
                 Some(info) => info.ty.clone(),
                 None => {
-                    self.diag(*span, format!("unknown variable `{name}`"));
-                    Ty::Error
+                    if let Some((_, binding)) = self.binding_ref(name) {
+                        binding.ty.clone()
+                    } else {
+                        self.diag(*span, format!("unknown variable `{name}`"));
+                        Ty::Error
+                    }
                 }
             },
             ast::Expr::List { items, span } => self.check_list(items, *span, expected),
@@ -1334,6 +1583,19 @@ impl<'a> Checker<'a> {
                     }
                     let mut wildcard = false;
                     for (pattern, payload_ty) in args.iter().zip(payload.iter()) {
+                        if let Pattern::Variant {
+                            args: inner_args,
+                            span: inner_span,
+                            ..
+                        } = pattern
+                        {
+                            if !inner_args.is_empty() {
+                                self.diag(
+                                    *inner_span,
+                                    "nested patterns are not supported by the v1 backend yet",
+                                );
+                            }
+                        }
                         if self.bind_pattern(pattern, payload_ty, bindings, covered) {
                             wildcard = true;
                         }
@@ -1355,16 +1617,24 @@ impl<'a> Checker<'a> {
         if let ast::Expr::Ident {
             name: owner,
             span: owner_span,
-            ..
         } = base
         {
             if let Some((decl, type_name)) = self.enum_ref(owner) {
-                return self.enum_value(decl, type_name, name, span);
+                let decl = decl.clone();
+                return self.enum_value(&decl, type_name, name, span);
             }
-            if self.class_ref(owner).is_some() {
+            // A local binding wins over a package qualifier of the same name.
+            if self.lookup_var(owner).is_none() {
+                if let Some(module) = self.package_ref(owner) {
+                    return self.package_member(module, name, span);
+                }
+            }
+            if self.struct_ref(owner).is_some() {
                 self.diag(
                     *owner_span,
-                    format!("`{owner}.{name}` is a static member; call it with parentheses"),
+                    format!(
+                        "`{owner}.{name}` is not a value; construct `{owner}` with named arguments"
+                    ),
                 );
                 return Ty::Error;
             }
@@ -1374,18 +1644,29 @@ impl<'a> Checker<'a> {
         let base_ty = self.resolve_deep(&base_ty);
         match &base_ty {
             Ty::Named(type_name, args) => {
-                let program = self.program;
-                if let Some(class) = program.class_of(type_name) {
-                    let subst: Subst = class
+                if let Some(decl) = self.program.struct_of(type_name) {
+                    let decl = decl.clone();
+                    let subst: Subst = decl
                         .generics
                         .iter()
                         .cloned()
                         .zip(args.iter().cloned())
                         .collect();
-                    if let Some(field) = class.fields.iter().find(|field| field.name == name) {
+                    if let Some(field) = decl.fields.iter().find(|field| field.name == name) {
                         return self.resolve_deep(&substitute(&field.ty, &subst));
                     }
-                    self.diag(span, format!("`{}` has no field `{name}`", class.name));
+                    self.diag(span, format!("`{}` has no field `{name}`", decl.name));
+                    return Ty::Error;
+                }
+                if let Some(decl) = self.program.enum_of(type_name) {
+                    let decl = decl.clone();
+                    self.diag(
+                        span,
+                        format!(
+                            "`{}` is an enum; use `{}.<Variant>` to build a value",
+                            decl.name, decl.name
+                        ),
+                    );
                     return Ty::Error;
                 }
                 let shown = base_ty.to_string();
@@ -1397,11 +1678,46 @@ impl<'a> Checker<'a> {
                 let shown = other.to_string();
                 self.diag(
                     span,
-                    format!("`{shown}` has no fields; only class values have fields"),
+                    format!("`{shown}` has no fields; only struct values have fields"),
                 );
                 Ty::Error
             }
         }
+    }
+
+    /// `package.name` in value position: only exported bindings are values.
+    fn package_member(&mut self, module: ModuleId, name: &str, span: Span) -> Ty {
+        let package = self.program.modules[module].name.clone();
+
+        if let Some(binding) = self.program.find_binding(module, name) {
+            let (exported, ty) = (binding.is_export, binding.ty.clone());
+            if !exported {
+                self.diag(
+                    span,
+                    format!("`{name}` is private to package `{package}`; add `export`"),
+                );
+                return Ty::Error;
+            }
+            return self.resolve_deep(&ty);
+        }
+        if self.program.find_fn(module, name).is_some() {
+            self.diag(
+                span,
+                format!("`{name}` is a function in `{package}`; call it with parentheses"),
+            );
+            return Ty::Error;
+        }
+        if self.program.find_struct(module, name).is_some()
+            || self.program.find_enum(module, name).is_some()
+        {
+            self.diag(
+                span,
+                format!("`{name}` is a type in `{package}`, not a value"),
+            );
+            return Ty::Error;
+        }
+        self.diag(span, format!("package `{package}` has no `{name}`"));
+        Ty::Error
     }
 
     fn enum_value(
@@ -1437,9 +1753,9 @@ impl<'a> Checker<'a> {
     fn check_call(&mut self, callee: &ast::Expr, args: &ast::Args, span: Span) -> Ty {
         match callee {
             ast::Expr::Ident { name, .. } => {
-                if let Some((class, type_name)) = self.class_ref(name) {
-                    let class = class.clone();
-                    return self.construct_class(&class, type_name, args, span);
+                if let Some((decl, type_name)) = self.struct_ref(name) {
+                    let decl = decl.clone();
+                    return self.construct_struct(&decl, type_name, args, span);
                 }
                 match name.as_str() {
                     "Some" => {
@@ -1472,36 +1788,14 @@ impl<'a> Checker<'a> {
                     }
                     _ => {}
                 }
-                if let Some((_, params, ret)) = self
-                    .test_helpers
-                    .iter()
-                    .find(|(helper, _, _)| helper == name)
-                    .cloned()
-                {
-                    let Some(items) = self.positional(args, span, name) else {
-                        return Ty::Error;
-                    };
-                    if items.len() != params.len() {
-                        self.diag(
-                            span,
-                            format!(
-                                "`{name}` expects {} argument(s), found {}",
-                                params.len(),
-                                items.len()
-                            ),
-                        );
-                        return Ty::Error;
-                    }
-                    for (item, expected) in items.iter().zip(params.iter()) {
-                        let actual = self.check_expr(item, Some(expected));
-                        self.expect(item.span(), expected, &actual, " in this argument");
-                    }
-                    return ret;
+                if let Some((module, decl)) = self.fn_ref(name) {
+                    let decl = decl.clone();
+                    return self.call_fn(module, &decl, args, span, name);
                 }
-                if self.lookup_var(name).is_some() {
+                if self.lookup_var(name).is_some() || self.binding_ref(name).is_some() {
                     self.diag(span, format!("`{name}` is a value, not a function"));
                 } else {
-                    self.diag(span, format!("unknown function or class `{name}`"));
+                    self.diag(span, format!("unknown function or type `{name}`"));
                 }
                 Ty::Error
             }
@@ -1513,19 +1807,19 @@ impl<'a> Checker<'a> {
                 if let ast::Expr::Ident {
                     name: owner,
                     span: owner_span,
-                    ..
                 } = &**base
                 {
-                    if let Some((class, type_name)) = self.class_ref(owner) {
-                        let class = class.clone();
-                        return self.call_static(&class, type_name, name, args, span);
+                    if self.lookup_var(owner).is_none() {
+                        if let Some(module) = self.package_ref(owner) {
+                            return self.call_package_member(module, name, args, span);
+                        }
                     }
                     if let Some((decl, type_name)) = self.enum_ref(owner) {
                         let decl = decl.clone();
                         return self.construct_variant(&decl, type_name, name, args, span);
                     }
                     match owner.as_str() {
-                        "Map" | "Set" if name == "empty" => {
+                        "map" | "set" if name == "empty" => {
                             let Some(items) = self.positional(args, span, name) else {
                                 return Ty::Error;
                             };
@@ -1533,21 +1827,28 @@ impl<'a> Checker<'a> {
                                 self.diag(span, format!("`{owner}.empty` takes no arguments"));
                                 return Ty::Error;
                             }
-                            return if owner == "Map" {
+                            return if owner == "map" {
                                 Ty::map(self.fresh(), self.fresh())
                             } else {
                                 Ty::set(self.fresh())
                             };
                         }
-                        "Math" => return self.call_math(name, args, span),
-                        "Expect" => return self.call_expect(name, args, span),
-                        "Json" => {
-                            self.diag(*owner_span, "`Json` is not available in v1 yet");
+                        "math" => return self.call_math(name, args, span),
+                        "expect" => return self.call_expect(name, args, span),
+                        "json" => {
+                            self.diag(*owner_span, "`json` is not available yet");
                             return Ty::Error;
                         }
                         _ => {}
                     }
-                    if self.lookup_var(owner).is_none() {
+                    if self.struct_ref(owner).is_some() {
+                        self.diag(
+                            *owner_span,
+                            format!("`{owner}.{name}` is not a function; `{owner}` is a struct"),
+                        );
+                        return Ty::Error;
+                    }
+                    if self.lookup_var(owner).is_none() && self.binding_ref(owner).is_none() {
                         self.diag(*owner_span, format!("unknown type or value `{owner}`"));
                         return Ty::Error;
                     }
@@ -1579,9 +1880,9 @@ impl<'a> Checker<'a> {
         }
     }
 
-    fn construct_class(
+    fn construct_struct(
         &mut self,
-        class: &ClassInfo,
+        decl: &StructInfo,
         type_name: TypeName,
         args: &ast::Args,
         span: Span,
@@ -1591,13 +1892,13 @@ impl<'a> Checker<'a> {
                 span,
                 format!(
                     "constructing `{}` requires named arguments, e.g. `{}(field: value)`",
-                    class.name, class.name
+                    decl.name, decl.name
                 ),
             );
             return Ty::Error;
         };
 
-        let subst: Subst = class
+        let subst: Subst = decl
             .generics
             .iter()
             .cloned()
@@ -1613,7 +1914,7 @@ impl<'a> Checker<'a> {
             }
         }
 
-        for field in &class.fields {
+        for field in &decl.fields {
             match named.iter().find(|arg| arg.name == field.name) {
                 Some(arg) => {
                     let field_ty = substitute(&field.ty, &subst);
@@ -1629,22 +1930,22 @@ impl<'a> Checker<'a> {
                     span,
                     format!(
                         "missing field `{}` when constructing `{}`",
-                        field.name, class.name
+                        field.name, decl.name
                     ),
                 ),
             }
         }
 
         for arg in named {
-            if !class.fields.iter().any(|field| field.name == arg.name) {
+            if !decl.fields.iter().any(|field| field.name == arg.name) {
                 self.diag(
                     arg.span,
-                    format!("`{}` has no field `{}`", class.name, arg.name),
+                    format!("`{}` has no field `{}`", decl.name, arg.name),
                 );
             }
         }
 
-        self.instantiate_named(&type_name, &class.generics, &subst, span)
+        self.instantiate_named(&type_name, &decl.generics, &subst, span)
     }
 
     fn instantiate_named(
@@ -1724,161 +2025,227 @@ impl<'a> Checker<'a> {
         self.instantiate_named(&type_name, &decl.generics, &subst, span)
     }
 
-    fn call_static(
+    /// Call a package-level function with positional arguments.
+    fn call_fn(
         &mut self,
-        class: &ClassInfo,
-        _type_name: TypeName,
-        name: &str,
+        _module: ModuleId,
+        decl: &FnInfo,
         args: &ast::Args,
         span: Span,
+        display: &str,
     ) -> Ty {
-        let Some(method) = class
-            .methods
-            .iter()
-            .find(|method| method.name == name && !method.has_self)
-        else {
-            if class.methods.iter().any(|method| method.name == name) {
-                self.diag(
-                    span,
-                    format!(
-                        "`{}.{name}` is an instance method; call it on a value",
-                        class.name
-                    ),
-                );
-            } else {
-                self.diag(
-                    span,
-                    format!("`{}` has no static method `{name}`", class.name),
-                );
-            }
+        let Some(items) = self.positional(args, span, display) else {
             return Ty::Error;
         };
-        let method = method.clone();
-
-        let Some(items) = self.positional(args, span, name) else {
-            return Ty::Error;
-        };
-        if items.len() != method.params.len() {
+        if items.len() != decl.params.len() {
             self.diag(
                 span,
                 format!(
-                    "`{}.{name}` expects {} argument(s), found {}",
-                    class.name,
-                    method.params.len(),
+                    "`{display}` expects {} argument(s), found {}",
+                    decl.params.len(),
                     items.len()
                 ),
             );
             return Ty::Error;
         }
-        for (item, (param_name, param_ty, _)) in items.iter().zip(method.params.iter()) {
-            let actual = self.check_expr(item, Some(param_ty));
+
+        let subst: Subst = decl
+            .generics
+            .iter()
+            .cloned()
+            .map(|generic| (generic, self.fresh()))
+            .collect();
+
+        for (item, (param_name, param_ty, _)) in items.iter().zip(decl.params.iter()) {
+            let expected = substitute(param_ty, &subst);
+            let actual = self.check_expr(item, Some(&expected));
             self.expect(
                 item.span(),
-                param_ty,
+                &expected,
                 &actual,
                 &format!(" for `{param_name}`"),
             );
         }
-        self.resolve_deep(&method.ret)
+
+        self.resolve_deep(&substitute(&decl.ret, &subst))
+    }
+
+    /// `package.name(...)`: a function call, or struct construction when the
+    /// member is a type.
+    fn call_package_member(
+        &mut self,
+        module: ModuleId,
+        name: &str,
+        args: &ast::Args,
+        span: Span,
+    ) -> Ty {
+        let package = self.program.modules[module].name.clone();
+
+        if let Some(decl) = self.program.find_fn(module, name) {
+            let (exported, decl) = (decl.is_export, decl.clone());
+            if !exported {
+                self.diag(
+                    span,
+                    format!("`{name}` is private to package `{package}`; add `export`"),
+                );
+                return Ty::Error;
+            }
+            return self.call_fn(module, &decl, args, span, &format!("{package}.{name}"));
+        }
+
+        if let Some(decl) = self.program.find_struct(module, name) {
+            let (exported, decl) = (decl.is_export, decl.clone());
+            if !exported {
+                self.diag(
+                    span,
+                    format!("`{name}` is private to package `{package}`; add `export`"),
+                );
+                return Ty::Error;
+            }
+            let type_name = TypeName {
+                module,
+                name: name.to_string(),
+            };
+            return self.construct_struct(&decl, type_name, args, span);
+        }
+
+        if self.program.find_enum(module, name).is_some() {
+            self.diag(
+                span,
+                format!("`{name}` is an enum; construct a variant, e.g. `{name}.Some(...)`"),
+            );
+            return Ty::Error;
+        }
+
+        self.diag(span, format!("package `{package}` has no `{name}`"));
+        Ty::Error
+    }
+
+    /// Receiver sugar: `p.f(args)` for `fn f(p: Point, …)` declared in the
+    /// package that owns `Point`.
+    fn call_receiver_fn(
+        &mut self,
+        decl: &FnInfo,
+        receiver: &Ty,
+        type_args: &[Ty],
+        args: &ast::Args,
+        span: Span,
+    ) -> Ty {
+        let Some(items) = self.positional(args, span, &decl.name) else {
+            return Ty::Error;
+        };
+        if items.len() + 1 != decl.params.len() {
+            self.diag(
+                span,
+                format!(
+                    "`{}` expects {} argument(s) plus the receiver, found {}",
+                    decl.name,
+                    decl.params.len() - 1,
+                    items.len()
+                ),
+            );
+            return Ty::Error;
+        }
+
+        let subst: Subst = decl
+            .generics
+            .iter()
+            .cloned()
+            .zip(type_args.iter().cloned())
+            .collect();
+
+        for (item, (param_name, param_ty, _)) in items.iter().zip(decl.params.iter().skip(1)) {
+            let expected = substitute(param_ty, &subst);
+            let actual = self.check_expr(item, Some(&expected));
+            self.expect(
+                item.span(),
+                &expected,
+                &actual,
+                &format!(" for `{param_name}`"),
+            );
+        }
+
+        let _ = receiver;
+        self.resolve_deep(&substitute(&decl.ret, &subst))
     }
 
     fn call_method(&mut self, receiver: &Ty, name: &str, args: &ast::Args, span: Span) -> Ty {
         let receiver_ty = self.resolve_deep(receiver);
 
-        if name == "to_string" {
-            // A user-defined instance method wins; otherwise every value with
-            // `Display` gets the universal conversion.
-            let user_defined = match &receiver_ty {
-                Ty::Named(type_name, _) => self.program.class_of(type_name).is_some_and(|class| {
-                    class
-                        .methods
-                        .iter()
-                        .any(|method| method.name == name && method.has_self)
-                }),
-                _ => false,
-            };
-            if !user_defined {
-                let Some(items) = self.positional(args, span, name) else {
-                    return Ty::Error;
-                };
-                if !items.is_empty() {
-                    self.diag(
-                        span,
-                        format!("`to_string` expects 0 argument(s), found {}", items.len()),
-                    );
-                    return Ty::Error;
-                }
-                if matches!(&receiver_ty, Ty::Unit) {
-                    self.diag(span, "`Unit` has no value to convert to `Str`");
-                    return Ty::Error;
-                }
-                return Ty::Str;
-            }
-        }
+        // Receiver function declared in the package that owns the type. Like a
+        // plain call, it is only visible outside its package when exported.
+        let receiver_fn = match &receiver_ty {
+            Ty::Named(type_name, _) => self
+                .program
+                .find_fn(type_name.module, name)
+                .filter(|decl| {
+                    (decl.is_export || type_name.module == self.module)
+                        && decl.params.first().is_some_and(|(_, ty, _)| match ty {
+                            Ty::Named(first, _) => {
+                                first.module == type_name.module && first.name == type_name.name
+                            }
+                            _ => false,
+                        })
+                })
+                .cloned(),
+            _ => None,
+        };
 
-        if let Ty::Named(type_name, type_args) = &receiver_ty {
-            let program = self.program;
-            if let Some(class) = program.class_of(type_name) {
-                let class = class.clone();
-                let subst: Subst = class
-                    .generics
-                    .iter()
-                    .cloned()
-                    .zip(type_args.iter().cloned())
-                    .collect();
-
-                let Some(method) = class
-                    .methods
-                    .iter()
-                    .find(|method| method.name == name && method.has_self)
-                else {
-                    if class.methods.iter().any(|method| method.name == name) {
-                        self.diag(
-                            span,
-                            format!(
-                                "`{}.{name}` is a static method; call it on the class",
-                                class.name
-                            ),
-                        );
-                    } else {
-                        self.diag(span, format!("`{}` has no method `{name}`", class.name));
-                    }
-                    return Ty::Error;
-                };
-                let method = method.clone();
-
-                let Some(items) = self.positional(args, span, name) else {
-                    return Ty::Error;
-                };
-                if items.len() != method.params.len() {
+        if receiver_fn.is_none() {
+            if let Ty::Named(type_name, _) = &receiver_ty {
+                let hidden = self
+                    .program
+                    .find_fn(type_name.module, name)
+                    .filter(|decl| !decl.is_export && type_name.module != self.module);
+                if let Some(decl) = hidden {
+                    let package = self.program.modules[type_name.module].name.clone();
                     self.diag(
                         span,
                         format!(
-                            "`{}` expects {} argument(s), found {}",
-                            method.name,
-                            method.params.len(),
-                            items.len()
+                            "`{}` is private to package `{package}`; add `export`",
+                            decl.name
                         ),
                     );
                     return Ty::Error;
                 }
-                for (item, (param_name, param_ty, _)) in items.iter().zip(method.params.iter()) {
-                    let expected = substitute(param_ty, &subst);
-                    let actual = self.check_expr(item, Some(&expected));
-                    self.expect(
-                        item.span(),
-                        &expected,
-                        &actual,
-                        &format!(" for `{param_name}`"),
-                    );
-                }
-                return self.resolve_deep(&substitute(&method.ret, &subst));
             }
+        }
+
+        if name == "to_string" && receiver_fn.is_none() {
+            let Some(items) = self.positional(args, span, name) else {
+                return Ty::Error;
+            };
+            if !items.is_empty() {
+                self.diag(
+                    span,
+                    format!("`to_string` expects 0 argument(s), found {}", items.len()),
+                );
+                return Ty::Error;
+            }
+            if matches!(&receiver_ty, Ty::Unit) {
+                self.diag(span, "`Unit` has no value to convert to `Str`");
+                return Ty::Error;
+            }
+            return Ty::Str;
+        }
+
+        if let Some(decl) = receiver_fn {
+            let type_args = match &receiver_ty {
+                Ty::Named(_, args) => args.clone(),
+                _ => Vec::new(),
+            };
+            return self.call_receiver_fn(&decl, &receiver_ty, &type_args, args, span);
+        }
+
+        if let Ty::Named(type_name, _) = &receiver_ty {
             if type_name.is_builtin() {
                 let shown = self.display_ty(&receiver_ty);
                 self.diag(span, format!("`{shown}` has no methods"));
                 return Ty::Error;
             }
+            let shown = self.display_ty(&receiver_ty);
+            self.diag(span, format!("`{shown}` has no function `{name}`"));
+            return Ty::Error;
         }
 
         self.builtin_method(&receiver_ty, name, args, span)
@@ -1894,39 +2261,58 @@ impl<'a> Checker<'a> {
     }
 
     fn check_tagged(&mut self, tag: &ast::Expr, exprs: &[ast::Expr], span: Span) -> Ty {
-        let ast::Expr::Field { base, name, .. } = tag else {
-            self.diag(
-                span,
-                "a tagged template tag must be a static method on a class, e.g. `Sql.query`",
-            );
-            return Ty::Error;
+        let (display, func) = match tag {
+            ast::Expr::Ident { name, .. } => match self.fn_ref(name) {
+                Some((_, decl)) => (name.clone(), decl.clone()),
+                None => {
+                    self.diag(span, format!("unknown function `{name}` for this tag"));
+                    return Ty::Error;
+                }
+            },
+            ast::Expr::Field { base, name, .. } => {
+                let ast::Expr::Ident { name: owner, .. } = base.as_ref() else {
+                    self.diag(
+                        span,
+                        "a tagged template tag must name a package-level function",
+                    );
+                    return Ty::Error;
+                };
+                let Some(module) = self.package_ref(owner) else {
+                    self.diag(span, format!("unknown package `{owner}` for this tag"));
+                    return Ty::Error;
+                };
+                match self.program.find_fn(module, name) {
+                    Some(decl) if decl.is_export => (format!("{owner}.{name}"), decl.clone()),
+                    Some(_) => {
+                        self.diag(
+                            span,
+                            format!(
+                                "`{owner}.{name}` is private to package `{owner}`; add `export`"
+                            ),
+                        );
+                        return Ty::Error;
+                    }
+                    None => {
+                        self.diag(span, format!("`{owner}.{name}` is not a function"));
+                        return Ty::Error;
+                    }
+                }
+            }
+            _ => {
+                self.diag(
+                    span,
+                    "a tagged template tag must name a package-level function",
+                );
+                return Ty::Error;
+            }
         };
-        let ast::Expr::Ident { name: owner, .. } = base.as_ref() else {
-            self.diag(
-                span,
-                "a tagged template tag must be a static method on a class, e.g. `Sql.query`",
-            );
-            return Ty::Error;
-        };
-        let Some((class, _)) = self.class_ref(owner) else {
-            self.diag(span, format!("unknown type `{owner}` for this tag"));
-            return Ty::Error;
-        };
-        let class = class.clone();
-        let Some(method) = class
-            .methods
-            .iter()
-            .find(|method| method.name == *name && method.is_static)
-        else {
-            self.diag(span, format!("`{owner}.{name}` is not a static method"));
-            return Ty::Error;
-        };
-        if method.params.len() != 2 {
+
+        if func.params.len() != 2 {
             self.diag(
                 span,
                 format!(
-                    "a tagged template needs `(List<Str>, List<T>)`, but `{owner}.{name}` takes {} parameter(s)",
-                    method.params.len()
+                    "a tagged template needs `(List<Str>, List<T>)`, but `{display}` takes {} parameter(s)",
+                    func.params.len()
                 ),
             );
             return Ty::Error;
@@ -1934,17 +2320,15 @@ impl<'a> Checker<'a> {
         self.expect(
             span,
             &Ty::list(Ty::Str),
-            &method.params[0].1.clone(),
+            &func.params[0].1.clone(),
             " in the tag signature",
         );
-        let value_list_ty = self.resolve_deep(&method.params[1].1);
+        let value_list_ty = self.resolve_deep(&func.params[1].1);
         let Ty::List(element) = value_list_ty else {
-            let shown = self.display_ty(&method.params[1].1);
+            let shown = self.display_ty(&func.params[1].1);
             self.diag(
                 span,
-                format!(
-                    "the second parameter of `{owner}.{name}` must be `List<T>`, found `{shown}`"
-                ),
+                format!("the second parameter of `{display}` must be `List<T>`, found `{shown}`"),
             );
             return Ty::Error;
         };
@@ -1958,14 +2342,14 @@ impl<'a> Checker<'a> {
                 " in this tagged template value",
             );
         }
-        self.resolve_deep(&method.ret)
+        self.resolve_deep(&func.ret)
     }
 
     fn check_jsx(&mut self, element: &ast::JsxElement) -> Ty {
-        let Some((class, type_name)) = self.class_ref(&element.name) else {
+        let Some((class, type_name)) = self.struct_ref(&element.name) else {
             self.diag(
                 element.span,
-                format!("unknown class `{}` in JSX", element.name),
+                format!("unknown struct `{}` in JSX", element.name),
             );
             return Ty::Error;
         };
@@ -2124,16 +2508,16 @@ impl<'a> Checker<'a> {
 
     fn call_expect(&mut self, name: &str, args: &ast::Args, span: Span) -> Ty {
         if !self.in_test {
-            self.diag(span, "`Expect` is only available inside a `test class`");
+            self.diag(span, "`expect` is only available inside a `test` block");
             return Ty::Error;
         }
         let Some(items) = self.positional(args, span, name) else {
             return Ty::Error;
         };
         match name {
-            "equal" | "not_equal" => {
+            "eq" | "not_equal" => {
                 if items.len() != 2 {
-                    self.diag(span, format!("`Expect.{name}` expects 2 arguments"));
+                    self.diag(span, format!("`expect.{name}` expects 2 arguments"));
                     return Ty::Error;
                 }
                 let left = self.check_expr(items[0], None);
@@ -2143,7 +2527,7 @@ impl<'a> Checker<'a> {
             }
             "true" | "false" => {
                 if items.len() != 1 {
-                    self.diag(span, format!("`Expect.{name}` expects 1 argument"));
+                    self.diag(span, format!("`expect.{name}` expects 1 argument"));
                     return Ty::Error;
                 }
                 let ty = self.check_expr(items[0], Some(&Ty::Bool));
@@ -2151,7 +2535,7 @@ impl<'a> Checker<'a> {
                 Ty::Unit
             }
             _ => {
-                self.diag(span, format!("`Expect` has no method `{name}`"));
+                self.diag(span, format!("`expect` has no function `{name}`"));
                 Ty::Error
             }
         }

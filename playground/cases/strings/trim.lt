@@ -1,10 +1,10 @@
-test class TrimTest {
-  test fn trims() {
-    Expect.equal("  Hi  ".trim(), "Hi")
+package trim {
+  test "trims" {
+    expect.eq("  Hi  ".trim(), "Hi")
   }
 
-  test fn cases() {
-    Expect.equal("Hi".lower(), "hi")
-    Expect.equal("hi".upper(), "HI")
+  test "cases" {
+    expect.eq("Hi".lower(), "hi")
+    expect.eq("hi".upper(), "HI")
   }
 }

@@ -41,7 +41,7 @@ spec = "#15"
     write(
         root,
         "cases/demo/ok.lt",
-        "test class OkTest {\n  test fn passes() {\n    Expect.equal(1, 1)\n  }\n}\n",
+        "package ok {\n\n  test \"passes\" {\n    expect.eq(1, 1)\n  }\n\n}\n",
     );
     write(
         root,
@@ -51,7 +51,7 @@ spec = "#15"
     write(
         root,
         "diagnostics/bad.lt",
-        "pub class A { field: Missing }\n",
+        "package bad {\n\n  export struct A {\n    field: Missing\n  }\n\n}\n",
     );
     write(
         root,

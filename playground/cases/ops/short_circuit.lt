@@ -1,11 +1,11 @@
-test class LogicTest {
-  test fn and_skips_right() {
+package short_circuit {
+  test "and skips right" {
     let zero = 0
-    Expect.false(false && 1 / zero == 0)
+    expect.false(false && 1 / zero == 0)
   }
 
-  test fn or_skips_right() {
+  test "or skips right" {
     let zero = 0
-    Expect.true(true || 1 / zero == 0)
+    expect.true(true || 1 / zero == 0)
   }
 }

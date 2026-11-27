@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use lt_emit_ts::{emit_package, EmittedFile};
 use lt_hir::{check_entries, MapLoader};
@@ -12,23 +12,11 @@ fn emit(files: &[(&str, &str)], entry: &str) -> Vec<EmittedFile> {
     let checked = check_entries(&[PathBuf::from(entry)], &mut loader);
     assert!(checked.is_ok(), "type errors: {:#?}", checked.diagnostics);
 
-    let root = Path::new(entry)
-        .parent()
-        .unwrap_or_else(|| Path::new("."))
-        .to_path_buf();
     let names = checked
         .program
         .modules
         .iter()
-        .map(|module| {
-            module
-                .path
-                .strip_prefix(&root)
-                .unwrap()
-                .with_extension("")
-                .to_string_lossy()
-                .replace('\\', "/")
-        })
+        .map(|module| module.name.clone())
         .collect();
 
     let (ir, diagnostics) = lower_program(&checked.program, &checked.types, names);
@@ -46,36 +34,40 @@ fn find<'a>(files: &'a [EmittedFile], path: &str) -> &'a str {
 }
 
 const USER: &str = r#"
-pub enum Role {
+package user {
+
+export enum Role {
   Admin
   Member(Int)
   Guest
 }
 
-pub class User {
+export struct User {
   name: Str
   age: Int
   role: Role
+}
 
-  pub fn greet(self) -> Str {
-    `Hi ${self.name}, you are ${self.age}`
-  }
+export fn greet(u: User) -> Str {
+  `Hi ${u.name}, you are ${u.age}`
+}
 
-  pub fn older(self) -> Int {
-    self.age + 1
-  }
+export fn older(u: User) -> Int {
+  u.age + 1
+}
 
-  pub fn label(self) -> Str {
-    match self.role {
-      Role.Admin => "admin"
-      Role.Member(n) => `member-${n}`
-      Role.Guest => "guest"
-    }
+export fn label(u: User) -> Str {
+  match u.role {
+    Role.Admin => "admin"
+    Role.Member(n) => `member-${n}`
+    Role.Guest => "guest"
   }
+}
 
-  static fn anonymous() -> User {
-    User(name: "?", age: 0, role: Role.Guest)
-  }
+export fn anonymous() -> User {
+  User(name: "?", age: 0, role: Role.Guest)
+}
+
 }
 "#;
 
@@ -103,9 +95,9 @@ fn emits_a_typed_package() {
     assert!(user.contains("export function Role_Member(_0: bigint): Role"));
     assert!(user.contains("export class User"));
     assert!(user.contains("readonly age: bigint;"));
-    assert!(user.contains("greet(): string"));
-    assert!(user.contains("lt.iadd(this.age, 1n)"), "{user}");
-    assert!(user.contains("static anonymous(): User"));
+    assert!(user.contains("export function greet(u: User): string"));
+    assert!(user.contains("lt.iadd(u.age, 1n)"), "{user}");
+    assert!(user.contains("export function anonymous(): User"));
     assert!(user.contains("new User({ name: \"?\", age: 0n, role: Role_Guest })"));
     assert!(user.contains("__lt_eq(other: unknown): boolean"));
     assert!(user.contains("switch (__match1.tag)"));
@@ -123,30 +115,32 @@ fn imports_between_modules_are_relative() {
         validator.contains("import * as m1 from \"./user\";"),
         "{validator}"
     );
-    assert!(validator.contains("static check(u: m1.User)"));
+    assert!(validator.contains("export function check(u: m1.User)"));
 }
 
 const VALIDATOR: &str = r#"
-import User from "./user.lt"
+import user { User } from "./user.lt"
 
-pub class Validator {
-  pub fn check(u: User) -> Result<User, Str> {
-    if u.age < 0 {
-      return Err("age must be >= 0")
-    }
-    Ok(u)
-  }
+package validator {
 
-  pub fn describe(u: User) -> Str {
-    match Validator.check(u) {
-      Ok(valid) => valid.greet()
-      Err(message) => `invalid: ${message}`
-    }
+export fn check(u: User) -> Result<User, Str> {
+  if u.age < 0 {
+    return Err("age must be >= 0")
   }
+  Ok(u)
+}
 
-  pub fn all(users: List<User>) -> List<Result<User, Str>> {
-    users.map(fn(u) => Validator.check(u))
+export fn describe(u: User) -> Str {
+  match check(u) {
+    Ok(valid) => valid.greet()
+    Err(message) => `invalid: ${message}`
   }
+}
+
+export fn all(users: List<User>) -> List<Result<User, Str>> {
+  users.map(fn(u) => check(u))
+}
+
 }
 "#;
 
@@ -163,23 +157,21 @@ fn option_and_result_use_runtime_tags() {
     );
     assert!(validator.contains("case \"ok\": {"), "{validator}");
     assert!(validator.contains("case \"err\": {"), "{validator}");
-    assert!(validator.contains("return valid.greet();"), "{validator}");
-    assert!(validator.contains("users.map((u: m1.User) => Validator.check(u))"));
+    assert!(validator.contains("return m1.greet(valid);"), "{validator}");
+    assert!(validator.contains("users.map((u: m1.User) => check(u))"));
     assert!(validator.contains("default:"));
 }
 
 #[test]
 fn try_operator_returns_early() {
     let src = r#"
-pub class Inner {
-  fn run() -> Result<Int, Str> { Ok(1) }
+package main {
+
+fn go(x: Option<Int>) -> Option<Int> {
+  let value = x?
+  Some(value + 1)
 }
 
-pub class Outer {
-  fn go(x: Option<Int>) -> Option<Int> {
-    let value = x?
-    Some(value + 1)
-  }
 }
 "#;
     let files = emit(&[("main.lt", src)], "main.lt");
@@ -194,14 +186,16 @@ pub class Outer {
 #[test]
 fn errors_and_lists_render() {
     let src = r#"
-pub class A {
-  static fn total(xs: List<Int>) -> Int {
-    xs.fold(0, fn(acc, x) => acc + x)
-  }
+package main {
 
-  static fn names(xs: List<Str>) -> Str {
-    xs.join(", ")
-  }
+fn total(xs: List<Int>) -> Int {
+  xs.fold(0, fn(acc, x) => acc + x)
+}
+
+fn names(xs: List<Str>) -> Str {
+  xs.join(", ")
+}
+
 }
 "#;
     let files = emit(&[("main.lt", src)], "main.lt");
@@ -229,10 +223,12 @@ fn emission_is_deterministic() {
 #[test]
 fn to_string_uses_the_display_runtime() {
     let src = r#"
-pub class A {
-  pub fn f(x: Int) -> Str {
-    x.to_string()
-  }
+package a {
+
+fn f(x: Int) -> Str {
+  x.to_string()
+}
+
 }
 "#;
     let files = emit(&[("a.lt", src)], "a.lt");
@@ -241,22 +237,24 @@ pub class A {
 }
 
 const GENERIC_ENUM: &str = r#"
-pub enum MaybeBox<T> {
+package a {
+
+export enum MaybeBox<T> {
   Empty
   Value(T)
 }
 
-pub class A {
-  pub fn make() -> MaybeBox<Int> {
-    MaybeBox.Value(7)
-  }
+fn make() -> MaybeBox<Int> {
+  MaybeBox.Value(7)
+}
 
-  pub fn unwrap(value: MaybeBox<Int>) -> Int {
-    match value {
-      MaybeBox.Empty => 0
-      MaybeBox.Value(n) => n
-    }
+fn unwrap(value: MaybeBox<Int>) -> Int {
+  match value {
+    MaybeBox.Empty => 0
+    MaybeBox.Value(n) => n
   }
+}
+
 }
 "#;
 

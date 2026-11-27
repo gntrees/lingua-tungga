@@ -1,9 +1,9 @@
-pub class Element {
-  tag: Str
-}
+package jsx_children {
+  export struct Element {
+    tag: Str
+  }
 
-pub class View {
-  fn render() -> Element {
+  export fn render() -> Element {
     <Element tag="div"><Element tag="span" /></Element>
   }
 }

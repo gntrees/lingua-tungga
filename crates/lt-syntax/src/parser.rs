@@ -227,11 +227,11 @@ impl<'a> Parser<'a> {
             }
         }
 
-        let mut items = Vec::new();
+        let mut packages = Vec::new();
         while !self.at_eof() {
             let before = self.pos;
-            match self.parse_item() {
-                Some(item) => items.push(item),
+            match self.parse_package() {
+                Some(package) => packages.push(package),
                 None => self.recover_item(),
             }
             if self.at_eof() {
@@ -244,18 +244,19 @@ impl<'a> Parser<'a> {
 
         File {
             imports,
-            items,
+            packages,
             span: Span::new(0, self.src.len()),
         }
     }
 
     fn recover_item(&mut self) {
         while !self.at_eof() {
-            if self.at(&TokenKind::Pub)
-                || self.at(&TokenKind::Class)
-                || self.at(&TokenKind::Enum)
-                || self.at(&TokenKind::Test)
+            if self.at(&TokenKind::Package)
                 || self.at(&TokenKind::Import)
+                || self.at(&TokenKind::Class)
+                || self.at(&TokenKind::Pub)
+                || self.at(&TokenKind::Static)
+                || self.at(&TokenKind::SelfKw)
             {
                 return;
             }
@@ -263,9 +264,51 @@ impl<'a> Parser<'a> {
         }
     }
 
+    /// v1 keywords that v2 removed. Returning a hint lets the parser produce an
+    /// error that names the replacement instead of a generic "expected X".
+    fn removed_keyword(&self) -> Option<(&'static str, &'static str)> {
+        match self.peek().kind {
+            TokenKind::Class => Some(("class", "`package` + `struct`")),
+            TokenKind::Pub => Some(("pub", "`export`")),
+            TokenKind::Static => Some(("static", "an explicit receiver parameter")),
+            TokenKind::SelfKw => Some(("self", "an explicit receiver parameter")),
+            _ => None,
+        }
+    }
+
     fn parse_import(&mut self) -> Option<ImportDecl> {
         let start = self.expect(TokenKind::Import, "")?;
-        let (name, _) = self.expect_ident("after `import`")?;
+        let (package, _) = self.expect_ident("after `import`")?;
+        let alias = if self.eat(&TokenKind::As).is_some() {
+            Some(self.expect_ident("after `as`")?.0)
+        } else {
+            None
+        };
+
+        let mut items = Vec::new();
+        if self.eat(&TokenKind::LBrace).is_some() {
+            loop {
+                if self.at(&TokenKind::RBrace) {
+                    break;
+                }
+                let (name, nspan) = self.expect_ident("as imported name")?;
+                let item_alias = if self.eat(&TokenKind::As).is_some() {
+                    Some(self.expect_ident("after `as`")?.0)
+                } else {
+                    None
+                };
+                items.push(ImportItem {
+                    name,
+                    alias: item_alias,
+                    span: Span::new(nspan.start, self.last_end),
+                });
+                if self.eat(&TokenKind::Comma).is_none() {
+                    break;
+                }
+            }
+            self.expect(TokenKind::RBrace, "to close the import list")?;
+        }
+
         self.expect(TokenKind::From, "in `import`")?;
         let token = self.peek().clone();
         let path = match token.kind {
@@ -287,73 +330,126 @@ impl<'a> Parser<'a> {
             }
         };
         Some(ImportDecl {
-            name,
+            package,
+            alias,
+            items,
             path,
             span: Span::new(start.span.start, self.last_end),
         })
     }
 
-    // ------------------------------------------------------------ items
+    // --------------------------------------------------------- packages
 
-    fn parse_item(&mut self) -> Option<Item> {
-        let start = self.peek().span.start;
-        let is_pub = self.eat(&TokenKind::Pub).is_some();
-
-        if self.at(&TokenKind::Class) {
-            return self.parse_class(start, is_pub).map(Item::Class);
+    fn parse_package(&mut self) -> Option<PackageDecl> {
+        if let Some((removed, replacement)) = self.removed_keyword() {
+            self.error_here(format!(
+                "`{removed}` was removed in v2; use {replacement} instead"
+            ));
+            return None;
         }
-        if self.at(&TokenKind::Enum) {
-            return self.parse_enum(start, is_pub).map(Item::Enum);
-        }
-        if !is_pub && self.at(&TokenKind::Test) {
-            return self.parse_test_class(start).map(Item::TestClass);
-        }
+        let start = self.expect(TokenKind::Package, "")?.span.start;
+        let (name, _) = self.expect_ident("as package name")?;
+        self.expect(TokenKind::LBrace, "to start the package body")?;
 
-        self.error_here("expected `class`, `enum`, or `test class`");
-        None
-    }
-
-    fn parse_class(&mut self, start: usize, is_pub: bool) -> Option<ClassDecl> {
-        self.expect(TokenKind::Class, "")?;
-        let (name, _) = self.expect_ident("as class name")?;
-        let generics = self.parse_generic_params()?;
-        self.expect(TokenKind::LBrace, "to start the class body")?;
-
-        let mut fields = Vec::new();
-        let mut methods = Vec::new();
+        let mut items = Vec::new();
         loop {
             if self.at(&TokenKind::RBrace) {
                 self.bump();
                 break;
             }
             if self.at_eof() {
-                self.error_here("unexpected end of file, expected `}` to close the class");
+                self.error_here("unexpected end of file, expected `}` to close the package");
                 break;
             }
 
             let before = self.pos;
-            if self.at(&TokenKind::Fn) || self.at(&TokenKind::Pub) || self.at(&TokenKind::Static) {
-                if let Some(method) = self.parse_method() {
-                    methods.push(method);
-                }
-            } else if matches!(self.peek().kind, TokenKind::Ident(_)) {
-                if let Some(field) = self.parse_field() {
-                    fields.push(field);
-                }
-            } else {
-                self.error_here("expected a field declaration or a method");
+            if let Some(item) = self.parse_package_item() {
+                items.push(item);
             }
             if self.pos == before {
                 self.bump();
             }
         }
 
-        Some(ClassDecl {
-            is_pub,
+        Some(PackageDecl {
+            name,
+            items,
+            span: Span::new(start, self.last_end),
+        })
+    }
+
+    fn parse_package_item(&mut self) -> Option<PackageItem> {
+        let start = self.peek().span.start;
+        let is_export = self.eat(&TokenKind::Export).is_some();
+
+        if let Some((removed, replacement)) = self.removed_keyword() {
+            self.error_here(format!(
+                "`{removed}` was removed in v2; use {replacement} instead"
+            ));
+            return None;
+        }
+
+        if self.at(&TokenKind::Struct) {
+            return self.parse_struct(start, is_export).map(PackageItem::Struct);
+        }
+        if self.at(&TokenKind::Enum) {
+            return self.parse_enum(start, is_export).map(PackageItem::Enum);
+        }
+        if self.at(&TokenKind::Fn) {
+            return self.parse_fn(start, is_export).map(PackageItem::Fn);
+        }
+        if self.at(&TokenKind::Let) {
+            return self
+                .parse_binding(start, is_export)
+                .map(PackageItem::Binding);
+        }
+        if !is_export && self.at(&TokenKind::Test) {
+            return self.parse_test(start).map(PackageItem::Test);
+        }
+
+        self.error_here("expected `struct`, `enum`, `fn`, `let`, or `test`");
+        None
+    }
+
+    fn parse_struct(&mut self, start: usize, is_export: bool) -> Option<StructDecl> {
+        self.expect(TokenKind::Struct, "")?;
+        let (name, _) = self.expect_ident("as struct name")?;
+        let generics = self.parse_generic_params()?;
+        self.expect(TokenKind::LBrace, "to start the struct body")?;
+
+        let mut fields = Vec::new();
+        loop {
+            if self.at(&TokenKind::RBrace) {
+                self.bump();
+                break;
+            }
+            if self.at_eof() {
+                self.error_here("unexpected end of file, expected `}` to close the struct");
+                break;
+            }
+
+            let before = self.pos;
+            if matches!(self.peek().kind, TokenKind::Ident(_)) {
+                if let Some(field) = self.parse_field() {
+                    fields.push(field);
+                }
+            } else if self.at(&TokenKind::Fn) || self.at(&TokenKind::Export) {
+                self.error_here(
+                    "structs hold data only; declare functions at package level and take the struct as the first parameter",
+                );
+            } else {
+                self.error_here("expected a field declaration");
+            }
+            if self.pos == before {
+                self.bump();
+            }
+        }
+
+        Some(StructDecl {
+            is_export,
             name,
             generics,
             fields,
-            methods,
             span: Span::new(start, self.last_end),
         })
     }
@@ -369,25 +465,17 @@ impl<'a> Parser<'a> {
         })
     }
 
-    fn parse_method(&mut self) -> Option<Method> {
-        let start = self.peek().span.start;
-        let is_pub = self.eat(&TokenKind::Pub).is_some();
-        let is_static = self.eat(&TokenKind::Static).is_some();
-        self.expect(TokenKind::Fn, "to start a method")?;
-        let (name, _) = self.expect_ident("as method name")?;
+    fn parse_fn(&mut self, start: usize, is_export: bool) -> Option<FnDecl> {
+        self.expect(TokenKind::Fn, "to start a function")?;
+        let (name, _) = self.expect_ident("as function name")?;
+        let generics = self.parse_generic_params()?;
         self.expect(TokenKind::LParen, "to start parameters")?;
 
-        let mut has_self = false;
-        let mut params = Vec::new();
-        if self.at(&TokenKind::SelfKw) {
-            self.bump();
-            has_self = true;
-            if self.eat(&TokenKind::Comma).is_some() {
-                params = self.parse_params()?;
-            }
-        } else if !self.at(&TokenKind::RParen) {
-            params = self.parse_params()?;
-        }
+        let params = if self.at(&TokenKind::RParen) {
+            Vec::new()
+        } else {
+            self.parse_params()?
+        };
         self.expect(TokenKind::RParen, "to close parameters")?;
 
         let ret = if self.eat(&TokenKind::Arrow).is_some() {
@@ -397,13 +485,65 @@ impl<'a> Parser<'a> {
         };
         let body = self.parse_block()?;
 
-        Some(Method {
-            is_pub,
-            is_static,
-            has_self,
+        Some(FnDecl {
+            is_export,
             name,
+            generics,
             params,
             ret,
+            body,
+            span: Span::new(start, self.last_end),
+        })
+    }
+
+    fn parse_binding(&mut self, start: usize, is_export: bool) -> Option<BindingDecl> {
+        self.expect(TokenKind::Let, "")?;
+        if self.at(&TokenKind::Mut) {
+            self.error_here("package-level bindings are immutable; `mut` is local-only");
+            return None;
+        }
+        let (name, _) = self.expect_ident("as binding name")?;
+        let ty = if self.eat(&TokenKind::Colon).is_some() {
+            Some(self.parse_type()?)
+        } else {
+            None
+        };
+        self.expect(TokenKind::Eq, "in a package-level binding")?;
+        let value = self.parse_expr()?;
+
+        Some(BindingDecl {
+            is_export,
+            name,
+            ty,
+            value,
+            span: Span::new(start, self.last_end),
+        })
+    }
+
+    fn parse_test(&mut self, start: usize) -> Option<TestDecl> {
+        self.expect(TokenKind::Test, "")?;
+        let token = self.peek().clone();
+        let title = match token.kind {
+            TokenKind::Str(value) => {
+                self.bump();
+                value
+            }
+            _ => {
+                self.error(
+                    format!(
+                        "expected a string literal test title, found {}",
+                        token.kind.describe()
+                    ),
+                    token.span,
+                    token.line,
+                    token.col,
+                );
+                return None;
+            }
+        };
+        let body = self.parse_block()?;
+        Some(TestDecl {
+            title,
             body,
             span: Span::new(start, self.last_end),
         })
@@ -430,62 +570,7 @@ impl<'a> Parser<'a> {
         Some(params)
     }
 
-    fn parse_test_class(&mut self, start: usize) -> Option<TestClassDecl> {
-        self.expect(TokenKind::Test, "")?;
-        self.expect(TokenKind::Class, "after `test`")?;
-        let (name, _) = self.expect_ident("as test class name")?;
-        self.expect(TokenKind::LBrace, "to start the test class body")?;
-
-        let mut tests = Vec::new();
-        let mut helpers = Vec::new();
-        loop {
-            if self.at(&TokenKind::RBrace) {
-                self.bump();
-                break;
-            }
-            if self.at_eof() {
-                self.error_here("unexpected end of file, expected `}` to close the test class");
-                break;
-            }
-
-            let before = self.pos;
-            if self.at(&TokenKind::Test) {
-                let test_start = self.bump().span.start;
-                self.expect(TokenKind::Fn, "after `test`")?;
-                let (test_name, _) = self.expect_ident("as test name")?;
-                self.expect(TokenKind::LParen, "to start test parameters")?;
-                self.expect(TokenKind::RParen, "after `(`; tests take no parameters")?;
-                if let Some(body) = self.parse_block() {
-                    tests.push(TestFn {
-                        name: test_name,
-                        body,
-                        span: Span::new(test_start, self.last_end),
-                    });
-                }
-            } else if self.at(&TokenKind::Fn)
-                || self.at(&TokenKind::Pub)
-                || self.at(&TokenKind::Static)
-            {
-                if let Some(method) = self.parse_method() {
-                    helpers.push(method);
-                }
-            } else {
-                self.error_here("expected `test fn` or a helper method");
-            }
-            if self.pos == before {
-                self.bump();
-            }
-        }
-
-        Some(TestClassDecl {
-            name,
-            tests,
-            helpers,
-            span: Span::new(start, self.last_end),
-        })
-    }
-
-    fn parse_enum(&mut self, start: usize, is_pub: bool) -> Option<EnumDecl> {
+    fn parse_enum(&mut self, start: usize, is_export: bool) -> Option<EnumDecl> {
         self.expect(TokenKind::Enum, "")?;
         let (name, _) = self.expect_ident("as enum name")?;
         let generics = self.parse_generic_params()?;
@@ -537,7 +622,7 @@ impl<'a> Parser<'a> {
         }
 
         Some(EnumDecl {
-            is_pub,
+            is_export,
             name,
             generics,
             variants,

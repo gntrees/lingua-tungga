@@ -1,57 +1,55 @@
-pub class Collections {
-  static fn numbers() -> List<Int> {
+package collections {
+  export fn numbers() -> List<Int> {
     [3, 1, 2]
   }
 
-  static fn words() -> List<Str> {
+  export fn words() -> List<Str> {
     ["a", "b"]
   }
-}
 
-test class CollectionsTest {
-  test fn list_transformations() {
-    Expect.equal(Collections.numbers().map(fn(x) => x * 2), [6, 2, 4])
-    Expect.equal(Collections.numbers().filter(fn(x) => x > 1), [3, 2])
-    Expect.equal(Collections.numbers().fold(0, fn(acc, x) => acc + x), 6)
-    Expect.equal(Collections.numbers().sort(), [1, 2, 3])
-    Expect.equal(Collections.numbers().reverse(), [2, 1, 3])
-    Expect.equal(Collections.numbers().concat([4]), [3, 1, 2, 4])
+  test "list transformations" {
+    expect.eq(numbers().map(fn(x) => x * 2), [6, 2, 4])
+    expect.eq(numbers().filter(fn(x) => x > 1), [3, 2])
+    expect.eq(numbers().fold(0, fn(acc, x) => acc + x), 6)
+    expect.eq(numbers().sort(), [1, 2, 3])
+    expect.eq(numbers().reverse(), [2, 1, 3])
+    expect.eq(numbers().concat([4]), [3, 1, 2, 4])
   }
 
-  test fn list_queries() {
-    Expect.true(Collections.numbers().any(fn(x) => x == 3))
-    Expect.false(Collections.numbers().all(fn(x) => x > 1))
-    Expect.true(Collections.numbers().contains(2))
-    Expect.equal(Collections.numbers().index_of(1), Some(1))
-    Expect.equal(Collections.numbers().get(0), Some(3))
-    Expect.equal(Collections.numbers().get(9), None)
-    Expect.equal(Collections.words().join("-"), "a-b")
-    Expect.equal(Collections.numbers().push(5).len(), 4)
-    Expect.equal(Collections.numbers().pop(), Some(2))
+  test "list queries" {
+    expect.true(numbers().any(fn(x) => x == 3))
+    expect.false(numbers().all(fn(x) => x > 1))
+    expect.true(numbers().contains(2))
+    expect.eq(numbers().index_of(1), Some(1))
+    expect.eq(numbers().get(0), Some(3))
+    expect.eq(numbers().get(9), None)
+    expect.eq(words().join("-"), "a-b")
+    expect.eq(numbers().push(5).len(), 4)
+    expect.eq(numbers().pop(), Some(2))
   }
 
-  test fn maps_are_sorted_and_immutable() {
-    let empty: Map<Str, Int> = Map.empty()
+  test "maps are sorted and immutable" {
+    let empty: Map<Str, Int> = map.empty()
     let filled = empty.insert("b", 2).insert("a", 1)
-    Expect.equal(filled.len(), 2)
-    Expect.equal(filled.get("a"), Some(1))
-    Expect.equal(filled.keys(), ["a", "b"])
-    Expect.equal(filled.values(), [1, 2])
-    Expect.true(filled.contains_key("b"))
-    Expect.equal(filled.remove("a").len(), 1)
-    Expect.equal(empty.len(), 0)
+    expect.eq(filled.len(), 2)
+    expect.eq(filled.get("a"), Some(1))
+    expect.eq(filled.keys(), ["a", "b"])
+    expect.eq(filled.values(), [1, 2])
+    expect.true(filled.contains_key("b"))
+    expect.eq(filled.remove("a").len(), 1)
+    expect.eq(empty.len(), 0)
   }
 
-  test fn sets_deduplicate_and_combine() {
-    let empty: Set<Int> = Set.empty()
+  test "sets deduplicate and combine" {
+    let empty: Set<Int> = set.empty()
     let left = empty.insert(3).insert(1).insert(3)
     let right = empty.insert(2).insert(1)
-    Expect.equal(left.len(), 2)
-    Expect.true(left.contains(1))
-    Expect.equal(left.union(right).len(), 3)
-    Expect.equal(left.intersect(right).len(), 1)
-    Expect.true(left.intersect(right).contains(1))
-    Expect.equal(left.difference(right).len(), 1)
-    Expect.true(left.difference(right).contains(3))
+    expect.eq(left.len(), 2)
+    expect.true(left.contains(1))
+    expect.eq(left.union(right).len(), 3)
+    expect.eq(left.intersect(right).len(), 1)
+    expect.true(left.intersect(right).contains(1))
+    expect.eq(left.difference(right).len(), 1)
+    expect.true(left.difference(right).contains(3))
   }
 }

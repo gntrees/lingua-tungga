@@ -1,10 +1,10 @@
-pub class Point {
-  x: Int
-  y: Int
-}
+package missing_field {
+  export struct Point {
+    x: Int
+    y: Int
+  }
 
-pub class A {
-  static fn f() -> Point {
+  export fn f() -> Point {
     Point(x: 1)
   }
 }

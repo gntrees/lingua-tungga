@@ -8,42 +8,79 @@ use crate::span::Span;
 #[derive(Debug, Clone, PartialEq)]
 pub struct File {
     pub imports: Vec<ImportDecl>,
-    pub items: Vec<Item>,
+    pub packages: Vec<PackageDecl>,
     pub span: Span,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ImportDecl {
-    pub name: String,
+    /// Package name as written; the checker verifies it exists in the target file.
+    pub package: String,
+    /// `import money as cash …`
+    pub alias: Option<String>,
+    /// `{ Price, format as fmt }`; empty means the package is bound as a qualifier.
+    pub items: Vec<ImportItem>,
     /// Raw path as written; `.lt` files and `https://` URLs alike.
     pub path: String,
     pub span: Span,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum Item {
-    Class(ClassDecl),
-    Enum(EnumDecl),
-    TestClass(TestClassDecl),
-}
-
-impl Item {
-    pub fn span(&self) -> Span {
-        match self {
-            Item::Class(c) => c.span,
-            Item::Enum(e) => e.span,
-            Item::TestClass(t) => t.span,
-        }
+impl ImportDecl {
+    /// Name the package is bound to inside the importing file.
+    pub fn binding(&self) -> &str {
+        self.alias.as_deref().unwrap_or(&self.package)
     }
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ClassDecl {
-    pub is_pub: bool,
+pub struct ImportItem {
+    pub name: String,
+    pub alias: Option<String>,
+    pub span: Span,
+}
+
+impl ImportItem {
+    pub fn binding(&self) -> &str {
+        self.alias.as_deref().unwrap_or(&self.name)
+    }
+}
+
+/// The only declaration container in v2. A file may hold several.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PackageDecl {
+    pub name: String,
+    pub items: Vec<PackageItem>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum PackageItem {
+    Struct(StructDecl),
+    Enum(EnumDecl),
+    Fn(FnDecl),
+    Binding(BindingDecl),
+    Test(TestDecl),
+}
+
+impl PackageItem {
+    pub fn span(&self) -> Span {
+        match self {
+            PackageItem::Struct(i) => i.span,
+            PackageItem::Enum(i) => i.span,
+            PackageItem::Fn(i) => i.span,
+            PackageItem::Binding(i) => i.span,
+            PackageItem::Test(i) => i.span,
+        }
+    }
+}
+
+/// Data only. Behaviour lives in `FnDecl` with an explicit receiver parameter.
+#[derive(Debug, Clone, PartialEq)]
+pub struct StructDecl {
+    pub is_export: bool,
     pub name: String,
     pub generics: Vec<String>,
     pub fields: Vec<Field>,
-    pub methods: Vec<Method>,
     pub span: Span,
 }
 
@@ -54,14 +91,33 @@ pub struct Field {
     pub span: Span,
 }
 
+/// A package-level function. A function whose first parameter is a struct/enum
+/// type is callable with receiver sugar (`p.len()` ≡ `len(p)`).
 #[derive(Debug, Clone, PartialEq)]
-pub struct Method {
-    pub is_pub: bool,
-    pub is_static: bool,
-    pub has_self: bool,
+pub struct FnDecl {
+    pub is_export: bool,
     pub name: String,
+    pub generics: Vec<String>,
     pub params: Vec<Param>,
     pub ret: Option<Type>,
+    pub body: Block,
+    pub span: Span,
+}
+
+/// Immutable package-level binding: `[export] let name [: Type] = expr`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BindingDecl {
+    pub is_export: bool,
+    pub name: String,
+    pub ty: Option<Type>,
+    pub value: Expr,
+    pub span: Span,
+}
+
+/// `test "judul" { … }`. Tests live inside the package they exercise.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TestDecl {
+    pub title: String,
     pub body: Block,
     pub span: Span,
 }
@@ -74,23 +130,8 @@ pub struct Param {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct TestClassDecl {
-    pub name: String,
-    pub tests: Vec<TestFn>,
-    pub helpers: Vec<Method>,
-    pub span: Span,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct TestFn {
-    pub name: String,
-    pub body: Block,
-    pub span: Span,
-}
-
-#[derive(Debug, Clone, PartialEq)]
 pub struct EnumDecl {
-    pub is_pub: bool,
+    pub is_export: bool,
     pub name: String,
     pub generics: Vec<String>,
     pub variants: Vec<Variant>,

@@ -34,6 +34,48 @@ fn snake(name: &str) -> String {
     out
 }
 
+/// Turn a free-form test title into a valid Python function name.
+/// Package-level functions and bindings that shadow a Python builtin, so type
+/// annotations in the same module must be qualified (`builtins.int`).
+fn module_shadowed(module: &IrModule) -> BTreeSet<String> {
+    const PRIMITIVES: [&str; 8] = [
+        "int", "float", "bool", "str", "list", "dict", "set", "object",
+    ];
+    let mut out = BTreeSet::new();
+    let mut consider = |name: String| {
+        if PRIMITIVES.contains(&name.as_str()) {
+            out.insert(name);
+        }
+    };
+    for function in &module.functions {
+        consider(if function.is_export {
+            snake(&function.name)
+        } else {
+            format!("_{}", snake(&function.name))
+        });
+    }
+    for binding in &module.bindings {
+        consider(if binding.is_export {
+            snake(&binding.name)
+        } else {
+            format!("_{}", snake(&binding.name))
+        });
+    }
+    out
+}
+
+fn test_name(title: &str) -> String {
+    let mut out = String::new();
+    for ch in title.chars() {
+        if ch.is_ascii_alphanumeric() {
+            out.push(ch.to_ascii_lowercase());
+        } else if !out.ends_with('_') {
+            out.push('_');
+        }
+    }
+    format!("test_{}", out.trim_matches('_'))
+}
+
 fn member(name: &str) -> String {
     let mut out = snake(name);
     if RESERVED.contains(&out.as_str()) {
@@ -77,6 +119,7 @@ struct Frag {
 
 pub fn emit_module(program: &IrProgram, module: &IrModule) -> String {
     let mut emitter = Emitter {
+        program,
         module,
         temps: 0,
         used: BTreeSet::new(),
@@ -84,7 +127,7 @@ pub fn emit_module(program: &IrProgram, module: &IrModule) -> String {
         uses_math: false,
         aliases: Vec::new(),
         declared: std::collections::BTreeSet::new(),
-        shadowed: BTreeSet::new(),
+        shadowed: module_shadowed(module),
     };
 
     let mut body = String::new();
@@ -92,8 +135,16 @@ pub fn emit_module(program: &IrProgram, module: &IrModule) -> String {
         body.push_str(&emitter.enum_decl(decl));
         body.push('\n');
     }
-    for class in &module.classes {
-        body.push_str(&emitter.class_decl(class));
+    for strukt in &module.structs {
+        body.push_str(&emitter.struct_decl(strukt));
+        body.push('\n');
+    }
+    for binding in &module.bindings {
+        body.push_str(&emitter.binding_decl(binding));
+        body.push('\n');
+    }
+    for function in &module.functions {
+        body.push_str(&emitter.fn_decl(function));
         body.push('\n');
     }
 
@@ -101,11 +152,12 @@ pub fn emit_module(program: &IrProgram, module: &IrModule) -> String {
 }
 
 pub fn emit_tests(program: &IrProgram, module: &IrModule) -> Option<String> {
-    if module.tests.iter().all(|test| test.tests.is_empty()) {
+    if module.tests.is_empty() {
         return None;
     }
 
     let mut emitter = Emitter {
+        program,
         module,
         temps: 0,
         used: BTreeSet::new(),
@@ -113,28 +165,23 @@ pub fn emit_tests(program: &IrProgram, module: &IrModule) -> Option<String> {
         uses_math: false,
         aliases: Vec::new(),
         declared: std::collections::BTreeSet::new(),
-        shadowed: BTreeSet::new(),
+        shadowed: module_shadowed(module),
     };
 
     let mut body = String::new();
-    for test_class in &module.tests {
-        for helper in &test_class.helpers {
-            body.push_str(&emitter.free_function(helper, true));
+    for test in &module.tests {
+        let test_name = test_name(&test.title);
+        body.push_str(&format!("def {test_name}() -> None:\n"));
+        emitter.declared.clear();
+        let lines = emitter.block_lines(&test.body, 1, &Tail::Plain);
+        if lines.is_empty() {
+            body.push_str("    pass\n");
+        }
+        for line in lines {
+            body.push_str(&line);
             body.push('\n');
         }
-        for test in &test_class.tests {
-            body.push_str(&format!("def test_{}() -> None:\n", snake(&test.name)));
-            emitter.declared.clear();
-            let lines = emitter.block_lines(&test.body, 1, &Tail::Plain);
-            if lines.is_empty() {
-                body.push_str("    pass\n");
-            }
-            for line in lines {
-                body.push_str(&line);
-                body.push('\n');
-            }
-            body.push('\n');
-        }
+        body.push('\n');
     }
 
     let mut header = String::new();
@@ -160,6 +207,7 @@ pub fn emit_tests(program: &IrProgram, module: &IrModule) -> Option<String> {
 }
 
 struct Emitter<'a> {
+    program: &'a IrProgram,
     module: &'a IrModule,
     temps: usize,
     used: BTreeSet<ModuleId>,
@@ -293,7 +341,7 @@ impl<'a> Emitter<'a> {
         }
     }
 
-    fn class_ref(&mut self, module: ModuleId, name: &str) -> String {
+    fn struct_ref(&mut self, module: ModuleId, name: &str) -> String {
         self.use_module(module);
         if self.is_local(module) {
             name.to_string()
@@ -357,10 +405,12 @@ impl<'a> Emitter<'a> {
             }
         }
 
+        let display_ret = self.primitive("str");
         out.push_str(&format!(
-            "def _{}_display(value: {}) -> str:\n",
+            "def _{}_display(value: {}) -> {}:\n",
             snake(&decl.name),
-            decl.name
+            decl.name,
+            display_ret
         ));
         for variant in &decl.variants {
             out.push_str(&format!("    if value.tag == {}:\n", quote(&variant.name)));
@@ -385,22 +435,10 @@ impl<'a> Emitter<'a> {
         out
     }
 
-    fn class_decl(&mut self, class: &IrClass) -> String {
+    fn struct_decl(&mut self, class: &IrStruct) -> String {
         let mut out = String::new();
         out.push_str("@dataclass(frozen=True)\n");
         out.push_str(&format!("class {}:\n", class.name));
-
-        // A method named `int`/`str`/... would shadow the type name inside the
-        // class body, so primitive annotations there must be qualified.
-        let primitives = [
-            "int", "float", "bool", "str", "list", "dict", "set", "object",
-        ];
-        self.shadowed = class
-            .methods
-            .iter()
-            .map(|method| member(&method.name))
-            .filter(|name| primitives.contains(&name.as_str()))
-            .collect();
 
         if !class.fields.is_empty() {
             for field in &class.fields {
@@ -412,10 +450,11 @@ impl<'a> Emitter<'a> {
             out.push_str("    pass\n\n");
         }
 
-        for method in &class.methods {
-            out.push_str(&self.method_decl(method));
-            out.push('\n');
-        }
+        let overrides_display = self.module.functions.iter().any(|function| {
+            function.name == "to_string"
+                && function.is_receiver
+                && matches!(function.params.first().map(|p| &p.ty), Some(Ty::Named(name, _)) if name.name == class.name)
+        });
 
         let cmp_ret = self.primitive("int");
         out.push_str(&format!(
@@ -432,7 +471,9 @@ impl<'a> Emitter<'a> {
 
         let display_ret = self.primitive("str");
         out.push_str(&format!("    def to_display(self) -> {display_ret}:\n"));
-        if class.fields.is_empty() {
+        if overrides_display {
+            out.push_str("        return to_string(self)\n");
+        } else if class.fields.is_empty() {
             out.push_str(&format!("        return {}\n", quote(&class.name)));
         } else {
             let mut expression = quote(&format!("{}(", class.name));
@@ -453,38 +494,36 @@ impl<'a> Emitter<'a> {
         out
     }
 
-    fn method_decl(&mut self, method: &IrMethod) -> String {
-        let mut params = Vec::new();
-        if !method.is_static {
-            params.push("self".to_string());
-        }
-        for param in &method.params {
-            let ty = self.type_ref(&param.ty);
-            params.push(format!("{}: {}", member(&param.name), ty));
-        }
-        let ret = self.type_ref(&method.ret);
-        let mut out = String::new();
-        if method.is_static {
-            out.push_str("    @staticmethod\n");
-        }
-        out.push_str(&format!(
-            "    def {}({}) -> {}:\n",
-            member(&method.name),
+    fn fn_decl(&mut self, function: &IrFn) -> String {
+        let params: Vec<String> = function
+            .params
+            .iter()
+            .map(|param| {
+                let ty = self.type_ref(&param.ty);
+                format!("{}: {}", member(&param.name), ty)
+            })
+            .collect();
+        let ret = self.type_ref(&function.ret);
+        let prefix = if function.is_export { "" } else { "_" };
+        let mut out = format!(
+            "def {}{}({}) -> {}:\n",
+            prefix,
+            snake(&function.name),
             params.join(", "),
             ret
-        ));
-        let tail = if matches!(method.ret, Ty::Unit) {
+        );
+        let tail = if matches!(function.ret, Ty::Unit) {
             Tail::Plain
         } else {
             Tail::Return
         };
         self.declared.clear();
-        for param in &method.params {
+        for param in &function.params {
             self.declared.insert(member(&param.name));
         }
-        let lines = self.block_lines(&method.body, 2, &tail);
+        let lines = self.block_lines(&function.body, 1, &tail);
         if lines.is_empty() {
-            out.push_str("        pass\n");
+            out.push_str("    pass\n");
         }
         for line in lines {
             out.push_str(&line);
@@ -493,41 +532,19 @@ impl<'a> Emitter<'a> {
         out
     }
 
-    fn free_function(&mut self, method: &IrMethod, private: bool) -> String {
-        let params: Vec<String> = method
-            .params
-            .iter()
-            .map(|param| {
-                let ty = self.type_ref(&param.ty);
-                format!("{}: {}", member(&param.name), ty)
-            })
-            .collect();
-        let ret = self.type_ref(&method.ret);
-        let prefix = if private { "_" } else { "" };
-        let mut out = format!(
-            "def {}{}({}) -> {}:\n",
-            prefix,
-            snake(&method.name),
-            params.join(", "),
-            ret
-        );
-        let tail = if matches!(method.ret, Ty::Unit) {
-            Tail::Plain
-        } else {
-            Tail::Return
-        };
-        self.declared.clear();
-        for param in &method.params {
-            self.declared.insert(member(&param.name));
-        }
-        let lines = self.block_lines(&method.body, 1, &tail);
-        if lines.is_empty() {
-            out.push_str("    pass\n");
-        }
-        for line in lines {
+    fn binding_decl(&mut self, binding: &IrBinding) -> String {
+        let frag = self.expr(&binding.value, 0);
+        let mut out = String::new();
+        for line in frag.prelude {
             out.push_str(&line);
             out.push('\n');
         }
+        let name = if binding.is_export {
+            snake(&binding.name)
+        } else {
+            format!("_{}", snake(&binding.name))
+        };
+        out.push_str(&format!("{name} = {}\n", frag.code));
         out
     }
 
@@ -788,10 +805,36 @@ impl<'a> Emitter<'a> {
                 prelude: Vec::new(),
                 code: self.alias(name),
             },
-            IrExpr::SelfRef => Frag {
-                prelude: Vec::new(),
-                code: "self".to_string(),
-            },
+            IrExpr::BindingRef { module, name, .. } => {
+                let code = if *module == self.module.id && !self.tests_mode {
+                    if self
+                        .module
+                        .bindings
+                        .iter()
+                        .any(|b| b.name == *name && b.is_export)
+                    {
+                        snake(name)
+                    } else {
+                        format!("_{}", snake(name))
+                    }
+                } else {
+                    self.use_module(*module);
+                    let exported = self.program.modules[*module]
+                        .bindings
+                        .iter()
+                        .any(|b| b.name == *name && b.is_export);
+                    let name = if exported {
+                        snake(name)
+                    } else {
+                        format!("_{}", snake(name))
+                    };
+                    format!("m{}.{}", module, name)
+                };
+                Frag {
+                    prelude: Vec::new(),
+                    code,
+                }
+            }
             IrExpr::List { items, .. } => {
                 let mut prelude = Vec::new();
                 let rendered: Vec<String> = items
@@ -830,13 +873,13 @@ impl<'a> Emitter<'a> {
                     code: format!("{}.{}", frag.code, member(name)),
                 }
             }
-            IrExpr::ClassNew {
+            IrExpr::StructNew {
                 module,
-                class,
+                strukt,
                 args,
                 ..
             } => {
-                let class_ref = self.class_ref(*module, class);
+                let class_ref = self.struct_ref(*module, strukt);
                 let mut prelude = Vec::new();
                 let fields: Vec<String> = args
                     .iter()
@@ -892,7 +935,9 @@ impl<'a> Emitter<'a> {
                 };
                 Frag { prelude, code }
             }
-            IrExpr::LocalCall { name, args, .. } => {
+            IrExpr::FnCall {
+                module, name, args, ..
+            } => {
                 let mut prelude = Vec::new();
                 let rendered: Vec<String> = args
                     .iter()
@@ -902,52 +947,29 @@ impl<'a> Emitter<'a> {
                         frag.code
                     })
                     .collect();
-                Frag {
-                    prelude,
-                    code: format!("_{}({})", member(name), rendered.join(", ")),
-                }
-            }
-            IrExpr::StaticCall {
-                module,
-                class,
-                method,
-                args,
-                ..
-            } => {
-                let class_ref = self.class_ref(*module, class);
-                let mut prelude = Vec::new();
-                let rendered: Vec<String> = args
+                let local = *module == self.module.id && !self.tests_mode;
+                let exported = self.program.modules[*module]
+                    .functions
                     .iter()
-                    .map(|arg| {
-                        let frag = self.expr(arg, level);
-                        prelude.extend(frag.prelude);
-                        frag.code
-                    })
-                    .collect();
+                    .any(|f| f.name == *name && f.is_export);
+                let target = if local {
+                    if exported {
+                        snake(name)
+                    } else {
+                        format!("_{}", snake(name))
+                    }
+                } else {
+                    self.use_module(*module);
+                    let name = if exported {
+                        snake(name)
+                    } else {
+                        format!("_{}", snake(name))
+                    };
+                    format!("m{}.{}", module, name)
+                };
                 Frag {
                     prelude,
-                    code: format!("{class_ref}.{}({})", member(method), rendered.join(", ")),
-                }
-            }
-            IrExpr::InstanceCall {
-                receiver,
-                method,
-                args,
-                ..
-            } => {
-                let recv = self.expr(receiver, level);
-                let mut prelude = recv.prelude;
-                let rendered: Vec<String> = args
-                    .iter()
-                    .map(|arg| {
-                        let frag = self.expr(arg, level);
-                        prelude.extend(frag.prelude);
-                        frag.code
-                    })
-                    .collect();
-                Frag {
-                    prelude,
-                    code: format!("{}.{}({})", recv.code, member(method), rendered.join(", ")),
+                    code: format!("{target}({})", rendered.join(", ")),
                 }
             }
             IrExpr::Builtin {
@@ -1001,7 +1023,7 @@ impl<'a> Emitter<'a> {
                     })
                     .collect();
                 let function = match name.as_str() {
-                    "equal" => "expect_equal",
+                    "eq" | "equal" => "expect_equal",
                     "not_equal" => "expect_not_equal",
                     "true" => "expect_true",
                     "false" => "expect_false",

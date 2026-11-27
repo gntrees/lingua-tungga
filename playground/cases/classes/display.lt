@@ -1,11 +1,11 @@
-pub class User {
-  name: Str
-  age: Int
-}
+package display {
+  export struct User {
+    name: Str
+    age: Int
+  }
 
-test class DisplayTest {
-  test fn renders_in_template() {
+  test "renders in template" {
     let user = User(name: "Ada", age: 36)
-    Expect.equal(`${user}`, "User(name: Ada, age: 36)")
+    expect.eq(`${user}`, "User(name: Ada, age: 36)")
   }
 }

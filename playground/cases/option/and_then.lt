@@ -1,19 +1,17 @@
-pub class Maybe {
-  static fn positive(x: Int) -> Option<Int> {
+package and_then {
+  export fn positive(x: Int) -> Option<Int> {
     if x > 0 {
       Some(x)
     } else {
       None
     }
   }
-}
 
-test class AndThenTest {
-  test fn chains_some() {
-    Expect.equal(Maybe.positive(4).and_then(fn(x) => Maybe.positive(x + 1)), Some(5))
+  test "chains some" {
+    expect.eq(positive(4).and_then(fn(x) => positive(x + 1)), Some(5))
   }
 
-  test fn short_circuits() {
-    Expect.equal(Maybe.positive(0).and_then(fn(x) => Maybe.positive(x + 1)), None)
+  test "short circuits" {
+    expect.eq(positive(0).and_then(fn(x) => positive(x + 1)), None)
   }
 }

@@ -1,5 +1,5 @@
-pub class A {
-  fn f(value: Option<Option<Int>>) -> Int {
+package nested_pattern {
+  export fn f(value: Option<Option<Int>>) -> Int {
     match value {
       Some(Some(inner)) => inner
       Some(None) => 0

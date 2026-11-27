@@ -1,11 +1,9 @@
-pub class Limits {
-  static fn max_int() -> Int {
+package int_wrapping {
+  export fn max_int() -> Int {
     9223372036854775807
   }
-}
 
-test class IntTest {
-  test fn wraps() {
-    Expect.equal(Limits.max_int() + 1, -9223372036854775807 - 1)
+  test "wraps" {
+    expect.eq(max_int() + 1, -9223372036854775807 - 1)
   }
 }

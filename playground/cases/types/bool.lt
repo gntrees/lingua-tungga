@@ -1,11 +1,11 @@
-test class BoolTest {
-  test fn negates() {
-    Expect.true(!false)
-    Expect.false(!true)
+package bool {
+  test "negates" {
+    expect.true(!false)
+    expect.false(!true)
   }
 
-  test fn compares() {
-    Expect.true(true == true)
-    Expect.false(true == false)
+  test "compares" {
+    expect.true(true == true)
+    expect.false(true == false)
   }
 }

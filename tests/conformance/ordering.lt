@@ -1,32 +1,29 @@
-pub class Point {
-  x: Int
-  y: Int
-}
+package ordering {
+  export struct Point {
+    x: Int
+    y: Int
+  }
 
-pub enum Grade {
-  Low
-  Mid
-  High
-}
+  export enum Grade {
+    Low
+    Mid
+    High
+  }
 
-test class OrderingTest {
-  test fn classes_sort_by_field_order() {
+  test "structs sort by field order" {
     let a = Point(x: 2, y: 0)
     let b = Point(x: 10, y: 0)
-    Expect.equal([b, a].sort(), [a, b])
-    Expect.equal(
-      [Point(x: 1, y: 2), Point(x: 1, y: 1)].sort(),
-      [Point(x: 1, y: 1), Point(x: 1, y: 2)],
-    )
+    expect.eq([b, a].sort(), [a, b])
+    expect.eq([Point(x: 1, y: 2), Point(x: 1, y: 1)].sort(), [Point(x: 1, y: 1), Point(x: 1, y: 2)])
   }
 
-  test fn enums_sort_by_declaration_order() {
-    Expect.equal([Grade.High, Grade.Low, Grade.Mid].sort(), [Grade.Low, Grade.Mid, Grade.High])
+  test "enums sort by declaration order" {
+    expect.eq([Grade.High, Grade.Low, Grade.Mid].sort(), [Grade.Low, Grade.Mid, Grade.High])
   }
 
-  test fn map_keys_follow_ord() {
-    let empty: Map<Point, Str> = Map.empty()
-    let map = empty.insert(Point(x: 10, y: 0), "ten").insert(Point(x: 2, y: 0), "two")
-    Expect.equal(map.keys(), [Point(x: 2, y: 0), Point(x: 10, y: 0)])
+  test "map keys follow ord" {
+    let empty: Map<Point, Str> = map.empty()
+    let filled = empty.insert(Point(x: 10, y: 0), "ten").insert(Point(x: 2, y: 0), "two")
+    expect.eq(filled.keys(), [Point(x: 2, y: 0), Point(x: 10, y: 0)])
   }
 }

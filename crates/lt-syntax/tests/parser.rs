@@ -11,64 +11,76 @@ fn parse_ok(src: &str) -> File {
     out.file
 }
 
-fn first_class(file: &File) -> &ClassDecl {
-    file.items
-        .iter()
-        .find_map(|item| match item {
-            Item::Class(c) => Some(c),
-            _ => None,
-        })
-        .expect("expected a class")
+fn first_package(file: &File) -> &PackageDecl {
+    file.packages.first().expect("expected a package")
 }
 
-fn body_stmts(class: &ClassDecl, method: &str) -> Vec<Stmt> {
-    class
-        .methods
+fn first_struct(file: &File) -> &StructDecl {
+    first_package(file)
+        .items
         .iter()
-        .find(|m| m.name == method)
-        .unwrap_or_else(|| panic!("no method {method}"))
-        .body
-        .stmts
-        .clone()
+        .find_map(|item| match item {
+            PackageItem::Struct(decl) => Some(decl),
+            _ => None,
+        })
+        .expect("expected a struct")
+}
+
+fn package_fn<'a>(package: &'a PackageDecl, name: &str) -> &'a FnDecl {
+    package
+        .items
+        .iter()
+        .find_map(|item| match item {
+            PackageItem::Fn(decl) if decl.name == name => Some(decl),
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("no function {name}"))
+}
+
+fn body_stmts(package: &PackageDecl, name: &str) -> Vec<Stmt> {
+    package_fn(package, name).body.stmts.clone()
 }
 
 const USERS: &str = r#"
-import Address from "./address.lt"
+import common { Address } from "./common.lt"
 
-pub enum Role {
+package models {
+
+export enum Role {
   Admin
   Member(Int)
   Guest
 }
 
-pub class User {
+export struct User {
   name: Str
   age: Int
   role: Role
   address: Address?
+}
 
-  pub fn greet(self) -> Str {
-    `Hi ${self.name}, you are ${self.age}`
-  }
+export fn greet(u: User) -> Str {
+  `Hi ${u.name}, you are ${u.age}`
+}
 
-  pub fn label(self) -> Str {
-    match self.role {
-      Role.Admin => "admin"
-      Role.Member(n) => `member-${n}`
-      Role.Guest => "guest"
-    }
+export fn label(u: User) -> Str {
+  match u.role {
+    Role.Admin => "admin"
+    Role.Member(n) => `member-${n}`
+    Role.Guest => "guest"
   }
+}
 
-  pub fn city(self) -> Str {
-    match self.address {
-      Some(a) => a.city
-      None => "-"
-    }
+export fn city(u: User) -> Str {
+  match u.address {
+    Some(a) => a.city
+    None => "-"
   }
+}
 
-  static fn anonymous() -> User {
-    User(name: "?", age: 0, role: Role.Guest, address: None)
-  }
+export fn anonymous() -> User {
+  User(name: "?", age: 0, role: Role.Guest, address: None)
+}
 }
 "#;
 
@@ -76,91 +88,108 @@ pub class User {
 fn empty_file() {
     let file = parse_ok("");
     assert!(file.imports.is_empty());
-    assert!(file.items.is_empty());
+    assert!(file.packages.is_empty());
 }
 
 #[test]
 fn imports() {
     let file = parse_ok(
-        "import User from \"./user.lt\"\n\
-         import Post from \"https://raw.githubusercontent.com/foo/bar/v1.2.0/src/post.lt\"\n",
+        "import user from \"./user.lt\"\n\
+         import post { Post as P } from \"https://raw.githubusercontent.com/foo/bar/v1.2.0/src/post.lt\"\n",
     );
     assert_eq!(file.imports.len(), 2);
-    assert_eq!(file.imports[0].name, "User");
+    assert_eq!(file.imports[0].package, "user");
     assert_eq!(file.imports[0].path, "./user.lt");
+    assert!(file.imports[0].items.is_empty());
+    assert_eq!(file.imports[0].binding(), "user");
+    assert_eq!(file.imports[1].items.len(), 1);
+    assert_eq!(file.imports[1].items[0].name, "Post");
+    assert_eq!(file.imports[1].items[0].binding(), "P");
     assert!(file.imports[1].path.starts_with("https://"));
 }
 
 #[test]
-fn class_with_fields_and_methods() {
+fn package_with_struct_and_functions() {
     let file = parse_ok(
         r#"
-pub class User {
+package models {
+
+export struct User {
   name: Str
   age: Int
+}
 
-  pub fn greet(self) -> Str { "hi" }
+export fn greet(u: User) -> Str { "hi" }
 
-  static fn unknown() -> Str { "?" }
+fn unknown() -> Str { "?" }
 }
 "#,
     );
-    let class = first_class(&file);
-    assert!(class.is_pub);
-    assert_eq!(class.name, "User");
-    assert_eq!(class.fields.len(), 2);
-    assert_eq!(class.fields[0].name, "name");
-    assert_eq!(class.fields[0].ty.name(), "Str");
-    assert_eq!(class.methods.len(), 2);
+    let package = first_package(&file);
+    assert_eq!(package.name, "models");
 
-    let greet = &class.methods[0];
-    assert!(greet.has_self);
-    assert!(greet.is_pub);
-    assert!(!greet.is_static);
+    let user = first_struct(&file);
+    assert!(user.is_export);
+    assert_eq!(user.name, "User");
+    assert_eq!(user.fields.len(), 2);
+    assert_eq!(user.fields[0].name, "name");
+    assert_eq!(user.fields[0].ty.name(), "Str");
+
+    let greet = package_fn(package, "greet");
+    assert!(greet.is_export);
+    assert_eq!(greet.params.len(), 1);
+    assert_eq!(greet.params[0].name, "u");
     assert_eq!(greet.ret.as_ref().map(Type::name), Some("Str".to_string()));
 
-    let unknown = &class.methods[1];
-    assert!(unknown.is_static);
-    assert!(!unknown.has_self);
+    let unknown = package_fn(package, "unknown");
+    assert!(!unknown.is_export);
+    assert!(unknown.params.is_empty());
 }
 
 #[test]
 fn optional_type_sugar() {
-    let file = parse_ok("pub class A { maybe: Int? }");
-    let class = first_class(&file);
-    assert!(class.fields[0].ty.optional);
-    assert_eq!(class.fields[0].ty.name(), "Int");
+    let file = parse_ok("package a {\n  struct A { maybe: Int? }\n}");
+    let decl = first_struct(&file);
+    assert!(decl.fields[0].ty.optional);
+    assert_eq!(decl.fields[0].ty.name(), "Int");
 }
 
 #[test]
-fn generic_class_and_type_arguments() {
+fn generic_struct_and_type_arguments() {
     let file = parse_ok(
         r#"
-pub class Box<T> {
+package box {
+
+export struct Box<T> {
   value: T
   all: List<T>
-  pub fn get(self) -> T { self.value }
+}
+
+export fn get(b: Box<T>) -> T { b.value }
 }
 "#,
     );
-    let class = first_class(&file);
-    assert_eq!(class.generics, vec!["T".to_string()]);
-    assert_eq!(class.fields[1].ty.path, vec!["List".to_string()]);
-    assert_eq!(class.fields[1].ty.args.len(), 1);
+    let decl = first_struct(&file);
+    assert_eq!(decl.generics, vec!["T".to_string()]);
+    assert_eq!(decl.fields[1].ty.path, vec!["List".to_string()]);
+    assert_eq!(decl.fields[1].ty.args.len(), 1);
 }
 
 #[test]
 fn enum_with_payloads() {
     let file = parse_ok(
         r#"
-pub enum Shape {
+package shapes {
+
+export enum Shape {
   Circle(Float)
   Rect(Float, Float)
   Point
 }
+}
 "#,
     );
-    let Item::Enum(decl) = &file.items[0] else {
+    let PackageItem::Enum(decl) = &first_package(&file).items[0] else {
         panic!("expected enum");
     };
     assert_eq!(decl.variants.len(), 3);
@@ -171,33 +200,36 @@ pub enum Shape {
 }
 
 #[test]
-fn test_class() {
+fn test_declaration() {
     let file = parse_ok(
         r#"
-test class UserTest {
-  test fn greet_format() {
-    Expect.equal(1, 1)
-  }
+package user_test {
 
-  fn helper() -> Int { 1 }
+test "greet format" {
+  expect.eq(1, 1)
+}
+
+fn helper() -> Int { 1 }
 }
 "#,
     );
-    let Item::TestClass(decl) = &file.items[0] else {
-        panic!("expected test class");
+    let package = first_package(&file);
+    let PackageItem::Test(decl) = &package.items[0] else {
+        panic!("expected a test declaration");
     };
-    assert_eq!(decl.name, "UserTest");
-    assert_eq!(decl.tests.len(), 1);
-    assert_eq!(decl.tests[0].name, "greet_format");
-    assert_eq!(decl.helpers.len(), 1);
+    assert_eq!(decl.title, "greet format");
+    assert!(!decl.body.stmts.is_empty());
+
+    let helper = package_fn(package, "helper");
+    assert!(helper.params.is_empty());
 }
 
 #[test]
 fn let_bindings_with_and_without_types() {
     let file = parse_ok(
         r#"
-pub class A {
-  fn f(self) {
+package a {
+  fn f() {
     let a = 1
     let b: Int = 2
     let mut c = 3
@@ -205,7 +237,7 @@ pub class A {
 }
 "#,
     );
-    let stmts = body_stmts(first_class(&file), "f");
+    let stmts = body_stmts(first_package(&file), "f");
     match &stmts[0] {
         Stmt::Let {
             mutable, name, ty, ..
@@ -230,15 +262,15 @@ pub class A {
 fn assignment_is_its_own_statement() {
     let file = parse_ok(
         r#"
-pub class A {
-  fn f(self) {
+package a {
+  fn f() {
     let mut x = 1
     x = 2
   }
 }
 "#,
     );
-    let stmts = body_stmts(first_class(&file), "f");
+    let stmts = body_stmts(first_package(&file), "f");
     assert!(matches!(&stmts[1], Stmt::Assign { name, .. } if name == "x"));
 }
 
@@ -246,8 +278,8 @@ pub class A {
 fn if_else_chain_and_loops() {
     let file = parse_ok(
         r#"
-pub class A {
-  fn f(self, xs: List<Int>) -> Int {
+package a {
+  fn f(xs: List<Int>) -> Int {
     let mut total = 0
     for x in xs {
       if x > 0 {
@@ -266,7 +298,7 @@ pub class A {
 }
 "#,
     );
-    let stmts = body_stmts(first_class(&file), "f");
+    let stmts = body_stmts(first_package(&file), "f");
     assert!(matches!(&stmts[1], Stmt::For { var, .. } if var == "x"));
     assert!(matches!(&stmts[2], Stmt::While { .. }));
 }
@@ -275,14 +307,14 @@ pub class A {
 fn precedence_and_associativity() {
     let file = parse_ok(
         r#"
-pub class A {
-  fn f(self) -> Int {
+package a {
+  fn f() -> Int {
     1 + 2 * 3 - 4
   }
 }
 "#,
     );
-    let stmts = body_stmts(first_class(&file), "f");
+    let stmts = body_stmts(first_package(&file), "f");
     let Stmt::Expr(Expr::Binary { op, lhs, rhs, .. }) = &stmts[0] else {
         panic!("expected binary expr, got {:?}", stmts[0]);
     };
@@ -298,15 +330,15 @@ pub class A {
 fn newline_ends_a_statement() {
     let file = parse_ok(
         r#"
-pub class A {
-  fn f(self) {
+package a {
+  fn f() {
     x = a
     -b
   }
 }
 "#,
     );
-    let stmts = body_stmts(first_class(&file), "f");
+    let stmts = body_stmts(first_package(&file), "f");
     assert_eq!(stmts.len(), 2, "{stmts:#?}");
     assert!(matches!(&stmts[0], Stmt::Assign { .. }));
     assert!(matches!(
@@ -319,8 +351,8 @@ pub class A {
 fn multiline_expressions_continue_inside_parens() {
     let file = parse_ok(
         r#"
-pub class A {
-  fn f(self) -> Int {
+package a {
+  fn f() -> Int {
     g(
       1 +
       2
@@ -329,7 +361,7 @@ pub class A {
 }
 "#,
     );
-    let stmts = body_stmts(first_class(&file), "f");
+    let stmts = body_stmts(first_package(&file), "f");
     let Stmt::Expr(Expr::Call { args, .. }) = &stmts[0] else {
         panic!("expected call, got {stmts:?}");
     };
@@ -343,15 +375,15 @@ pub class A {
 fn named_and_positional_arguments() {
     let file = parse_ok(
         r#"
-pub class A {
-  fn f(self) {
+package a {
+  fn f() {
     User(name: "a", age: 1)
     Math.max(1, 2)
   }
 }
 "#,
     );
-    let stmts = body_stmts(first_class(&file), "f");
+    let stmts = body_stmts(first_package(&file), "f");
     let Stmt::Expr(Expr::Call {
         args: Args::Named(items),
         ..
@@ -375,14 +407,14 @@ pub class A {
 fn template_literal_parts() {
     let file = parse_ok(
         r#"
-pub class A {
-  fn f(self) -> Str {
+package a {
+  fn f() -> Str {
     `a ${x} b`
   }
 }
 "#,
     );
-    let stmts = body_stmts(first_class(&file), "f");
+    let stmts = body_stmts(first_package(&file), "f");
     let Stmt::Expr(Expr::Template { parts, exprs, .. }) = &stmts[0] else {
         panic!("expected template");
     };
@@ -395,14 +427,14 @@ pub class A {
 fn tagged_template() {
     let file = parse_ok(
         r#"
-pub class A {
-  fn f(self) -> Query {
+package a {
+  fn f() -> Query {
     Sql.query`id=${id}`
   }
 }
 "#,
     );
-    let stmts = body_stmts(first_class(&file), "f");
+    let stmts = body_stmts(first_package(&file), "f");
     let Stmt::Expr(Expr::TaggedTemplate {
         tag, parts, exprs, ..
     }) = &stmts[0]
@@ -418,8 +450,8 @@ pub class A {
 fn jsx_element() {
     let file = parse_ok(
         r#"
-pub class V {
-  fn f(self) -> Element {
+package v {
+  fn f() -> Element {
     <Element tag="div" class_name="user">
       <Element tag="span">{name}</Element>
     </Element>
@@ -427,7 +459,7 @@ pub class V {
 }
 "#,
     );
-    let stmts = body_stmts(first_class(&file), "f");
+    let stmts = body_stmts(first_package(&file), "f");
     let Stmt::Expr(Expr::Jsx(root)) = &stmts[0] else {
         panic!("expected jsx");
     };
@@ -446,8 +478,8 @@ pub class V {
 fn match_arms_and_patterns() {
     let file = parse_ok(
         r#"
-pub class A {
-  fn f(self) -> Int {
+package a {
+  fn f() -> Int {
     match r {
       Role.Member(n) => n
       Role.Admin => 1
@@ -458,7 +490,7 @@ pub class A {
 }
 "#,
     );
-    let stmts = body_stmts(first_class(&file), "f");
+    let stmts = body_stmts(first_package(&file), "f");
     let Stmt::Expr(Expr::Match { arms, .. }) = &stmts[0] else {
         panic!("expected match");
     };
@@ -475,15 +507,15 @@ pub class A {
 fn lambdas() {
     let file = parse_ok(
         r#"
-pub class A {
-  fn f(self, xs: List<Int>) {
+package a {
+  fn f(xs: List<Int>) {
     xs.map(fn(x) => x + 1)
     xs.filter(fn(x) => { x })
   }
 }
 "#,
     );
-    let stmts = body_stmts(first_class(&file), "f");
+    let stmts = body_stmts(first_package(&file), "f");
     let Stmt::Expr(Expr::Call {
         args: Args::Positional(items),
         ..
@@ -513,14 +545,14 @@ pub class A {
 fn try_operator_and_field_chains() {
     let file = parse_ok(
         r#"
-pub class A {
-  fn f(self) -> Result<Int, Str> {
+package a {
+  fn f() -> Result<Int, Str> {
     validate(u)?
   }
 }
 "#,
     );
-    let stmts = body_stmts(first_class(&file), "f");
+    let stmts = body_stmts(first_package(&file), "f");
     let Stmt::Expr(Expr::Try { value, .. }) = &stmts[0] else {
         panic!("expected try expr");
     };
@@ -531,42 +563,50 @@ pub class A {
 fn full_program_parses_cleanly() {
     let file = parse_ok(USERS);
     assert_eq!(file.imports.len(), 1);
-    assert_eq!(file.items.len(), 2);
-    let class = first_class(&file);
-    assert_eq!(class.fields.len(), 4);
-    assert_eq!(class.methods.len(), 4);
+    assert_eq!(file.packages.len(), 1);
+    let package = first_package(&file);
+    assert_eq!(package.name, "models");
+    assert_eq!(first_struct(&file).fields.len(), 4);
+    let functions = package
+        .items
+        .iter()
+        .filter(|item| matches!(item, PackageItem::Fn(_)))
+        .count();
+    assert_eq!(functions, 4);
 }
 
 #[test]
 fn validation_example_parses_cleanly() {
     let src = r#"
-import User from "./models/user.lt"
+import models { User } from "./models/user.lt"
 
-pub class Validator {
-  pub fn check(u: User) -> Result<User, Str> {
-    if u.age < 0 {
-      return Err("age must be >= 0")
-    }
-    if u.name.len() == 0 {
-      return Err("name required")
-    }
-    Ok(u)
-  }
+package validation {
 
-  pub fn check_all(users: List<User>) -> Result<List<User>, Str> {
-    users.map(fn(u) => Validator.check(u))
+export fn check(u: User) -> Result<User, Str> {
+  if u.age < 0 {
+    return Err("age must be >= 0")
   }
+  if u.name.len() == 0 {
+    return Err("name required")
+  }
+  Ok(u)
+}
+
+export fn check_all(users: List<User>) -> Result<List<User>, Str> {
+  users.map(fn(u) => check(u))
+}
 }
 "#;
     let file = parse_ok(src);
-    let class = first_class(&file);
-    assert_eq!(class.methods.len(), 2);
-    assert!(!class.methods[0].has_self);
+    let package = first_package(&file);
+    let check = package_fn(package, "check");
+    assert_eq!(check.params.len(), 1);
+    assert!(check.is_export);
 }
 
 #[test]
 fn error_missing_field_colon() {
-    let out = parse("pub class A { name Str }");
+    let out = parse("package a {\n  struct A { name Str }\n}");
     assert!(!out.diagnostics.is_empty());
     assert!(
         out.diagnostics[0].message.contains("expected"),
@@ -577,7 +617,7 @@ fn error_missing_field_colon() {
 
 #[test]
 fn error_unclosed_class_body() {
-    let out = parse("pub class A {\n  name: Str\n");
+    let out = parse("package a {\n  struct A {\n    name: Str\n");
     assert!(!out.diagnostics.is_empty());
     assert!(
         out.diagnostics
@@ -602,18 +642,18 @@ fn error_does_not_panic_on_garbage() {
 
 #[test]
 fn diagnostic_renders_with_location() {
-    let src = "pub class A {\n  name Str\n}";
+    let src = "package a {\n  struct A { name Str }\n}";
     let out = parse(src);
     let rendered = out.diagnostics[0].render("main.lt", src);
-    assert!(rendered.contains("main.lt:2:8"), "{rendered}");
+    assert!(rendered.contains("main.lt:2:"), "{rendered}");
 }
 
 #[test]
 fn method_chains_continue_across_lines() {
     let file = parse_ok(
         r#"
-pub class A {
-  fn f(self, xs: List<Int>) -> Int {
+package a {
+  fn f(xs: List<Int>) -> Int {
     xs
       .filter(fn(x) => x > 0)
       .map(fn(x) => x * 2)
@@ -622,7 +662,7 @@ pub class A {
 }
 "#,
     );
-    let stmts = body_stmts(first_class(&file), "f");
+    let stmts = body_stmts(first_package(&file), "f");
     assert_eq!(stmts.len(), 1, "a chain across newlines is one statement");
     assert!(matches!(&stmts[0], Stmt::Expr(Expr::Call { .. })));
 }

@@ -6,5 +6,5 @@ from typing import Any
 import gen.user as m0
 
 def test_label_of_admin() -> None:
-    _lt.expect_equal(m0.User(name="a", role=m0.role_admin).label(), "admin")
+    _lt.expect_equal(m0.label(m0.User(name="a", role=m0.role_admin)), "admin")
 

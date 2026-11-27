@@ -1,26 +1,24 @@
-pub class Label {
-  value: Str
-  children: List<Str>
-}
+package jsx {
+  export struct Label {
+    value: Str
+    children: List<Str>
+  }
 
-pub class View {
-  pub fn label(prefix: Str, text: Str) -> Label {
+  export fn make_label(prefix: Str, text: Str) -> Label {
     <Label value="prefix">{prefix}</Label>
   }
 
-  pub fn plain() -> Label {
+  export fn plain() -> Label {
     <Label value="plain"></Label>
   }
-}
 
-test class JsxTest {
-  test fn expression_child() {
-    let node = View.label("hi", "ignored")
-    Expect.equal(node.value, "prefix")
-    Expect.equal(node.children, ["hi"])
+  test "expression child" {
+    let node = make_label("hi", "ignored")
+    expect.eq(node.value, "prefix")
+    expect.eq(node.children, ["hi"])
   }
 
-  test fn empty_children() {
-    Expect.equal(View.plain().children.len(), 0)
+  test "empty children" {
+    expect.eq(plain().children.len(), 0)
   }
 }

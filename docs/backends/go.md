@@ -1,6 +1,7 @@
 # Backend Go
 
-Target ketiga. Conformance suite yang sama (45 test) lulus di sini juga.
+Target ketiga. Status: **v2 — terverifikasi**; `go vet` bersih dan 13/13 paket conformance
+lulus di `go test`.
 
 ## Representasi
 
@@ -14,16 +15,23 @@ Target ketiga. Conformance suite yang sama (45 test) lulus di sini juga.
 | `Map<K,V>` | `lt.Map[K,V]` (entry terurut) |
 | `Set<T>` | `lt.Set[T]` |
 | `Option<T>` / `Result<T,E>` | `lt.Variant` (`Tag`, `Values []any`, `Display`) |
-| `enum` | `lt.Variant` (`Tag`/`Order`/`Values`) + konstruktor `RoleMember(...)` / variabel `RoleAdmin`; enum generik memakai konstruktor `ArgV[T any](...)` dan type argument eksplisit di call site |
-| `class` | `struct` dengan field exported + `NewUser(...)` |
-| method instance | method pada struct, receiver `self` |
-| method tanpa `self` | fungsi package `UserAnonymous()` |
-| `Display`/`Eq` | `lt.Disp`, `lt.Eq` (memakai `LtDisplay`/`LtEq` pada tipe generik & struct) |
+| `enum` | `lt.Variant` + konstruktor `EnumVariant(...)`; enum generik memakai konstruktor generik dan type argument eksplisit di call site |
+| `struct` | `struct` dengan field exported + `NewUser(...)` |
+| fungsi package-level | `func Name(...)` untuk `export`, `func name(...)` (camelCase) untuk private |
+| binding package | `var Name T = …` / `var name T = …` |
+| `package` | satu direktori package: `gen/<package>/<package>.go` |
+| fungsi ber-receiver | tetap fungsi package-level; `p.len()` menjadi `len(p)` saat lowering |
+| `Display`/`Eq`/`Ord` | `lt.Disp`, `lt.Eq`, `lt.Cmp` lewat method `LtDisplay`/`LtEq`/`LtCmp` pada struct dan enum |
 | `?` | `if __try.Tag == "err"/"none" { return __try }` |
 | `to_string()` | `lt.Disp(value)` |
-| tagged template | pemanggilan static method dengan `lt.List[string]` + `lt.List[T]`; nilai tidak di-`Disp` |
+| tagged template | pemanggilan fungsi package-level dengan `lt.List[string]` + `lt.List[T]` |
 | `match` | `switch __m.Tag { case "Some": ... }` |
-| JSX | pemanggilan `New<Class>(...)` |
+| JSX | pemanggilan `New<Struct>(...)` |
+| `expect.eq` dkk | `lt.ExpectEqual` / `ExpectNotEqual` / `ExpectTrue` / `ExpectFalse` |
+| `test "judul"` | `func TestJudul(t *testing.T)` di `<package>_test.go`, **dalam package yang sama** |
+
+Test di-emit sebagai `package <name>` (bukan `<name>_test`) supaya helper private di package itu
+tetap bisa dipanggil — Go tidak mengekspor identifier huruf kecil ke package lain.
 
 ## Struktur paket
 
@@ -31,11 +39,11 @@ Target ketiga. Conformance suite yang sama (45 test) lulus di sini juga.
 out/go/
   go.mod                    module linguatungga, go 1.22
   lt/runtime.go
-  gen/<module>/<base>.go    package <base>
-  gen/<module>/<base>_test.go  (hanya `lt test`)
+  gen/<package>/<package>.go        satu direktori per package LT
+  gen/<package>/<package>_test.go   hanya dari `lt test`
 ```
 
-Import antar modul memakai path modul: `import m1 "linguatungga/gen/models/user"`.
+Import antar package memakai path modul: `import m1 "linguatungga/gen/user"`.
 
 ## Test
 
@@ -43,26 +51,22 @@ Import antar modul memakai path modul: `import m1 "linguatungga/gen/models/user"
 lt test -t go tests/conformance/*.lt --out out/conformance --run
 ```
 
-`--run` menjalankan `go test ./...`. Script `scripts/conformance-go.sh` juga
-menjalankan `go vet ./...` dan memakai toolchain di
-`/mnt/A29EE2F79EE2C341/tools/go` bila `go` tidak ada di `PATH`
-(`GOCACHE`/`GOPATH` di drive ADATA).
+`--run` menjalankan `go test ./...`. Script `scripts/conformance-go.sh` juga menjalankan
+`go vet ./...` dan memakai toolchain lokal di `/mnt/A29EE2F79EE2C341/tools/go` bila `go` tidak ada
+di `PATH`.
 
-## Batasan v1
+## Batasan
 
-- Payload enum/Option/Result disimpan sebagai `any`; emitter menyisipkan type
-  assertion yang diketahui dari IR, jadi kesalahan tipe tetap tidak mungkin
-  berasal dari program LT yang lolos typecheck.
-- Field struct di-export agar idiomatik; immutability ditegakkan oleh compiler
-  LT, bukan oleh Go (nilai struct disalin, tapi konsumen Go bisa memutasi
-  salinannya).
-- Tipe generik kelas dipertahankan (`Box[T]`), tetapi parameter generik dihapus
-  dari tipe enum (karena enum memakai `lt.Variant`).
+- Payload enum/`Option`/`Result` disimpan sebagai `any`; emitter menyisipkan type assertion yang
+  diketahui dari IR, jadi kesalahan tipe tetap tidak mungkin berasal dari program LT yang lolos
+  typecheck.
+- Field struct di-export agar idiomatik; immutability ditegakkan compiler LT, bukan Go.
+- Parameter generik dihapus dari tipe enum (karena enum memakai `lt.Variant`).
+- `json`/`Value` belum ada; `Ordering` belum tersedia di permukaan.
+- Builtin hanya tersedia sebagai receiver (`xs.Map(…)`), bukan `list.map(xs, …)`.
 
 ## Formatting
 
-gofmt is context-sensitive (it removes spaces around `+` inside call arguments
-but keeps them in `return`), so the emitter does not try to reproduce it byte
-for byte. Generated Go is formatted by running `gofmt -w` as part of packaging
-(see `scripts/conformance-go.sh` and downstream build scripts); the shipped
-package must still satisfy `gofmt -l` being empty.
+gofmt peka konteks (menghapus spasi di sekitar `+` dalam argumen pemanggilan tetapi
+mempertahankannya di `return`), jadi emitter tidak meniru byte-per-byte. Output Go diformat dengan
+menjalankan `gofmt -w` saat packaging; paket yang dikirim tetap wajib memenuhi `gofmt -l` kosong.

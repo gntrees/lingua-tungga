@@ -2,7 +2,17 @@ use std::path::PathBuf;
 
 use lt_hir::{check_entries, MapLoader};
 
-fn run(files: &[(&str, &str)], entry: &str) -> Vec<String> {
+/// Wrap a package body in `package <name> { … }`.
+fn pkg(name: &str, body: &str) -> String {
+    format!("package {name} {{\n{body}\n}}\n")
+}
+
+/// A file whose imports precede the package block.
+fn file(imports: &str, name: &str, body: &str) -> String {
+    format!("{imports}\n\npackage {name} {{\n{body}\n}}\n")
+}
+
+fn run(files: &[(&str, String)], entry: &str) -> Vec<String> {
     let mut loader = MapLoader::new();
     for (path, source) in files {
         loader.add(path, source);
@@ -14,12 +24,12 @@ fn run(files: &[(&str, &str)], entry: &str) -> Vec<String> {
         .collect()
 }
 
-fn assert_ok(files: &[(&str, &str)], entry: &str) {
+fn assert_ok(files: &[(&str, String)], entry: &str) {
     let messages = run(files, entry);
     assert!(messages.is_empty(), "unexpected diagnostics: {messages:#?}");
 }
 
-fn assert_has(files: &[(&str, &str)], entry: &str, needle: &str) {
+fn assert_has(files: &[(&str, String)], entry: &str, needle: &str) {
     let messages = run(files, entry);
     assert!(
         messages.iter().any(|message| message.contains(needle)),
@@ -27,747 +37,493 @@ fn assert_has(files: &[(&str, &str)], entry: &str, needle: &str) {
     );
 }
 
+fn one(name: &str, body: &str) -> Vec<(&'static str, String)> {
+    // Callers pass a fixed file name; leaks are fine in a test binary.
+    let path: &'static str = Box::leak(format!("{name}.lt").into_boxed_str());
+    vec![(path, pkg(name, body))]
+}
+
 const USER: &str = r#"
-pub enum Role {
+export enum Role {
   Admin
   Member(Int)
   Guest
 }
 
-pub class User {
+export struct User {
   name: Str
   age: Int
   role: Role
+}
 
-  pub fn greet(self) -> Str {
-    `Hi ${self.name}`
-  }
+export fn greet(u: User) -> Str {
+  `Hi ${u.name}`
+}
 
-  pub fn older(self) -> Int {
-    self.age + 1
-  }
+export fn older(u: User) -> Int {
+  u.age + 1
+}
 
-  pub fn label(self) -> Str {
-    match self.role {
-      Role.Admin => "admin"
-      Role.Member(n) => `member-${n}`
-      Role.Guest => "guest"
-    }
+export fn label(u: User) -> Str {
+  match u.role {
+    Role.Admin => "admin"
+    Role.Member(n) => `member-${n}`
+    Role.Guest => "guest"
   }
+}
 
-  static fn anonymous() -> User {
-    User(name: "?", age: 0, role: Role.Guest)
-  }
+export fn anonymous() -> User {
+  User(name: "?", age: 0, role: Role.Guest)
 }
 "#;
 
 #[test]
-fn user_example_typechecks() {
-    assert_ok(&[("user.lt", USER)], "user.lt");
+fn package_with_struct_enum_and_functions() {
+    assert_ok(&[("models.lt", pkg("models", USER))], "models.lt");
 }
 
 #[test]
-fn imported_class_typechecks() {
-    let validator = r#"
-import User from "./user.lt"
+fn receiver_sugar_calls_package_function() {
+    let body = r#"
+export struct Point {
+  x: Int
+  y: Int
+}
 
-pub class Validator {
-  pub fn check(u: User) -> Result<User, Str> {
-    if u.age < 0 {
-      return Err("age must be >= 0")
-    }
-    Ok(u)
-  }
+export fn len(p: Point) -> Int {
+  p.x + p.y
+}
 
-  pub fn describe(u: User) -> Str {
-    match Validator.check(u) {
-      Ok(valid) => valid.greet()
-      Err(message) => `invalid: ${message}`
-    }
-  }
-
-  pub fn all(users: List<User>) -> List<Result<User, Str>> {
-    users.map(fn(u) => Validator.check(u))
-  }
+export fn use_it(p: Point) -> Int {
+  p.len()
 }
 "#;
-    assert_ok(
-        &[("user.lt", USER), ("validator.lt", validator)],
-        "validator.lt",
-    );
+    assert_ok(&one("geo", body), "geo.lt");
 }
 
 #[test]
-fn import_cycle_is_reported() {
-    let a = "import B from \"./b.lt\"\npub class A { b: Str }\n";
-    let b = "import A from \"./a.lt\"\npub class B { a: Str }\n";
-    assert_has(&[("a.lt", a), ("b.lt", b)], "a.lt", "import cycle");
+fn receiver_function_must_take_its_type_first() {
+    let body = r#"
+export struct Point {
+  x: Int
+}
+
+export fn len(n: Int) -> Int {
+  n
+}
+
+export fn use_it(p: Point) -> Int {
+  p.len()
+}
+"#;
+    assert_has(&one("geo", body), "geo.lt", "has no function `len`");
 }
 
 #[test]
-fn remote_import_needs_the_package_manager() {
-    let src = "import User from \"https://raw.githubusercontent.com/x/y/v1/src/user.lt\"\npub class A { u: Str }\n";
-    assert_has(&[("a.lt", src)], "a.lt", "package manager");
+fn construction_requires_named_arguments() {
+    let body = r#"
+export struct Point {
+  x: Int
+}
+
+export fn origin() -> Point {
+  Point(0)
+}
+"#;
+    assert_has(&one("geo", body), "geo.lt", "named arguments");
 }
 
 #[test]
-fn import_paths_must_be_relative() {
-    let src = "import User from \"user.lt\"\npub class A { u: Str }\n";
-    assert_has(&[("a.lt", src)], "a.lt", "must start with `./`");
+fn construction_requires_every_field() {
+    let body = r#"
+export struct Point {
+  x: Int
+  y: Int
+}
+
+export fn origin() -> Point {
+  Point(x: 0)
+}
+"#;
+    assert_has(&one("geo", body), "geo.lt", "missing field `y`");
 }
 
 #[test]
-fn private_class_cannot_be_imported() {
-    let provider = "class Secret { x: Int }\n";
-    let consumer = "import Secret from \"./secret.lt\"\npub class A { s: Secret }\n";
-    assert_has(
-        &[("secret.lt", provider), ("a.lt", consumer)],
-        "a.lt",
-        "unknown type `Secret`",
-    );
+fn construction_rejects_unknown_field() {
+    let body = r#"
+export struct Point {
+  x: Int
 }
 
-#[test]
-fn unknown_type_is_reported() {
-    assert_has(
-        &[("a.lt", "pub class A { x: Missing }\n")],
-        "a.lt",
-        "unknown type `Missing`",
-    );
+export fn origin() -> Point {
+  Point(x: 0, z: 1)
+}
+"#;
+    assert_has(&one("geo", body), "geo.lt", "has no field `z`");
 }
 
 #[test]
 fn duplicate_field_is_reported() {
-    assert_has(
-        &[("a.lt", "pub class A { x: Int\n x: Int }\n")],
-        "a.lt",
-        "duplicate field `x`",
-    );
-}
-
-#[test]
-fn duplicate_class_is_reported() {
-    assert_has(
-        &[("a.lt", "pub class A { x: Int }\npub class A { y: Int }\n")],
-        "a.lt",
-        "declared more than once",
-    );
-}
-
-#[test]
-fn construction_needs_named_arguments() {
-    let src = r#"
-pub class A {
+    let body = r#"
+export struct Point {
   x: Int
-  static fn make() -> A {
-    A(1)
-  }
+  x: Str
 }
 "#;
-    assert_has(&[("a.lt", src)], "a.lt", "named arguments");
+    assert_has(&one("geo", body), "geo.lt", "duplicate field `x`");
 }
 
 #[test]
-fn missing_and_extra_fields_are_reported() {
-    let missing = r#"
-pub class A {
-  x: Int
-  y: Int
-  static fn make() -> A {
-    A(x: 1)
-  }
-}
-"#;
-    assert_has(&[("a.lt", missing)], "a.lt", "missing field `y`");
-
-    let extra = r#"
-pub class A {
-  x: Int
-  static fn make() -> A {
-    A(x: 1, z: 2)
-  }
-}
-"#;
-    assert_has(&[("a.lt", extra)], "a.lt", "has no field `z`");
-}
-
-#[test]
-fn wrong_field_type_is_reported() {
-    let src = r#"
-pub class A {
-  x: Int
-  static fn make() -> A {
-    A(x: "nope")
-  }
-}
-"#;
-    assert_has(&[("a.lt", src)], "a.lt", "expected `Int`");
-}
-
-#[test]
-fn match_must_be_exhaustive() {
-    let src = r#"
-pub enum Color {
-  Red
-  Green
-}
-
-pub class A {
-  fn name(c: Color) -> Str {
-    match c {
-      Color.Red => "red"
-    }
-  }
-}
-"#;
-    assert_has(&[("a.lt", src)], "a.lt", "not exhaustive");
-}
-
-#[test]
-fn question_mark_needs_matching_return_type() {
-    let src = r#"
-pub class A {
-  fn maybe(x: Option<Int>) -> Result<Int, Str> {
-    x?
-  }
-}
-"#;
-    assert_has(&[("a.lt", src)], "a.lt", "`?` on an `Option`");
-}
-
-#[test]
-fn question_mark_propagates_result_error_types() {
-    let src = r#"
-pub class A {
-  fn inner() -> Result<Int, Str> { Ok(1) }
-  fn outer() -> Result<Int, Str> {
-    let value = A.inner()?
-    Ok(value + 1)
-  }
-}
-"#;
-    assert_ok(&[("a.lt", src)], "a.lt");
-}
-
-#[test]
-fn jsx_unknown_attribute_is_reported() {
-    let src = r#"
-pub class Element {
-  tag: Str
-  children: List<Element>
-}
-
-pub class View {
-  fn render() -> Element {
-    <Element tag="div" class="x" />
-  }
-}
-"#;
-    assert_has(&[("a.lt", src)], "a.lt", "as JSX attribute");
-}
-
-#[test]
-fn jsx_children_need_a_children_field() {
-    let src = r#"
-pub class Element {
-  tag: Str
-}
-
-pub class View {
-  fn render() -> Element {
-    <Element tag="div"><Element tag="span" /></Element>
-  }
-}
-"#;
-    assert_has(&[("a.lt", src)], "a.lt", "declares no `children` field");
-}
-
-#[test]
-fn jsx_round_trip_typechecks() {
-    let src = r#"
-pub class Element {
-  tag: Str
-  class_name: Str
-  children: List<Element>
-}
-
-pub class View {
-  fn render() -> Element {
-    <Element tag="div" class_name="user">
-      <Element tag="span" class_name="" />
-    </Element>
-  }
-}
-"#;
-    assert_ok(&[("a.lt", src)], "a.lt");
-}
-
-#[test]
-fn expect_is_only_for_tests() {
-    let src = r#"
-pub class A {
-  fn f() -> Bool {
-    Expect.true(true)
-    true
-  }
-}
-"#;
-    assert_has(
-        &[("a.lt", src)],
-        "a.lt",
-        "only available inside a `test class`",
-    );
-}
-
-#[test]
-fn expect_inside_test_class_is_fine() {
-    let src = r#"
-test class T {
-  test fn works() {
-    Expect.equal(1, 1)
-  }
-}
-"#;
-    assert_ok(&[("a.lt", src)], "a.lt");
-}
-
-#[test]
-fn assigning_to_immutable_binding_is_reported() {
-    let src = r#"
-pub class A {
-  fn f() {
-    let x = 1
-    x = 2
-  }
-}
-"#;
-    assert_has(&[("a.lt", src)], "a.lt", "immutable");
-}
-
-#[test]
-fn mixed_int_and_float_arithmetic_is_reported() {
-    let src = r#"
-pub class A {
-  fn f() -> Int {
-    1 + 2.0
-  }
-}
-"#;
-    assert_has(&[("a.lt", src)], "a.lt", "arithmetic needs");
-}
-
-#[test]
-fn int_and_float_are_not_interchangeable() {
-    let src = r#"
-pub class A {
-  fn f() -> Float {
-    1
-  }
-}
-"#;
-    assert_has(&[("a.lt", src)], "a.lt", "expected `Float`");
-}
-
-#[test]
-fn builtin_method_arity_is_checked() {
-    let src = r#"
-pub class A {
-  fn f(xs: List<Int>) -> Int {
-    xs.get()
-  }
-}
-"#;
-    assert_has(&[("a.lt", src)], "a.lt", "expects 1 argument");
-}
-
-#[test]
-fn higher_order_methods_need_lambdas() {
-    let src = r#"
-pub class A {
-  fn f(xs: List<Int>) -> List<Str> {
-    xs.map(1)
-  }
-}
-"#;
-    assert_has(&[("a.lt", src)], "a.lt", "needs a lambda");
-}
-
-#[test]
-fn lambda_bodies_are_checked() {
-    let src = r#"
-pub class A {
-  fn f(xs: List<Int>) -> List<Str> {
-    xs.map(fn(x) => x + 1)
-  }
-}
-"#;
-    assert_has(&[("a.lt", src)], "a.lt", "expected `List<Str>`");
-}
-
-#[test]
-fn generic_class_infers_type_arguments() {
-    let src = r#"
-pub class Box<T> {
-  value: T
-  pub fn get(self) -> T { self.value }
-}
-
-pub class A {
-  static fn make() -> Box<Int> {
-    Box(value: 1)
-  }
-
-  static fn unwrap(b: Box<Int>) -> Int {
-    b.get()
-  }
-}
-"#;
-    assert_ok(&[("a.lt", src)], "a.lt");
-}
-
-#[test]
-fn generic_class_requires_inferable_arguments() {
-    let src = r#"
-pub class Box<T> {
+fn one_namespace_per_package() {
+    let body = r#"
+export struct Data {
   value: Int
 }
 
-pub class A {
-  static fn make() -> Box<Int> {
-    Box(value: 1)
-  }
+export fn data(d: Data) -> Int {
+  d.value
 }
 "#;
-    assert_has(&[("a.lt", src)], "a.lt", "cannot infer type parameter");
+    assert_has(&one("shapes", body), "shapes.lt", "declared more than once");
 }
 
 #[test]
-fn for_requires_a_list() {
-    let src = r#"
-pub class A {
-  fn f() {
-    for x in 1 {
-      x
-    }
-  }
-}
-"#;
-    assert_has(&[("a.lt", src)], "a.lt", "`for` needs a `List`");
+fn type_names_are_pascal_case() {
+    let body = "export struct user {\n  name: Str\n}\n";
+    assert_has(&one("shapes", body), "shapes.lt", "PascalCase");
 }
 
 #[test]
-fn return_type_mismatch_is_reported() {
-    let src = r#"
-pub class A {
-  fn f() -> Int {
-    "text"
-  }
-}
-"#;
-    assert_has(&[("a.lt", src)], "a.lt", "expected `Int`");
+fn value_names_are_snake_case() {
+    let body = "export fn DoThing() -> Int {\n  1\n}\n";
+    assert_has(&one("shapes", body), "shapes.lt", "snake_case");
 }
 
 #[test]
-fn static_method_cannot_use_class_generics() {
-    let src = r#"
-pub class Box<T> {
-  value: T
-  static fn empty() -> Option<T> {
-    None
-  }
-}
-"#;
-    assert_has(
-        &[("a.lt", src)],
-        "a.lt",
-        "cannot use the class type parameters",
-    );
-}
-
-#[test]
-fn enum_construction_and_matching_typecheck() {
-    let src = r#"
-pub enum Shape {
-  Circle(Float)
-  Square(Float)
-}
-
-pub class A {
-  fn area(s: Shape) -> Float {
-    match s {
-      Shape.Circle(r) => Math.pi() * r * r
-      Shape.Square(side) => side * side
-    }
-  }
-}
-"#;
-    assert_ok(&[("a.lt", src)], "a.lt");
+fn destructured_import_requires_export() {
+    let files = [
+        ("models.lt", pkg("models", "struct User {\n  name: Str\n}")),
+        (
+            "app.lt",
+            file(
+                "import models { User } from \"./models.lt\"",
+                "app",
+                "export fn f(u: User) -> Str {\n  u.name\n}",
+            ),
+        ),
+    ];
+    assert_has(&files, "app.lt", "`User` is private to package `models`");
 }
 
 #[test]
-fn method_on_wrong_receiver_type_is_reported() {
-    let src = r#"
-pub class A {
-  fn f() -> Int {
-    "text".unknown_method()
-  }
-}
-"#;
-    assert_has(&[("a.lt", src)], "a.lt", "no method `unknown_method`");
-}
-
-#[test]
-fn question_mark_inside_lambda_is_rejected() {
-    let src = r#"
-pub class A {
-  fn inner(x: Int) -> Result<Int, Str> { Ok(x) }
-
-  fn outer(xs: List<Int>) -> Result<List<Int>, Str> {
-    Ok(xs.map(fn(x) => A.inner(x)?))
-  }
-}
-"#;
-    assert_has(
-        &[("a.lt", src)],
-        "a.lt",
-        "`?` cannot be used inside a lambda",
-    );
+fn destructured_import_is_enough() {
+    let files = [
+        ("models.lt", pkg("models", USER)),
+        (
+            "app.lt",
+            file(
+                "import models { User, greet } from \"./models.lt\"",
+                "app",
+                "export fn hello(u: User) -> Str {\n  greet(u)\n}",
+            ),
+        ),
+    ];
+    assert_ok(&files, "app.lt");
 }
 
 #[test]
-fn tagged_template_interpolations_are_typechecked() {
-    let src = r#"
-pub class Sql {
-  static fn tag(parts: List<Str>, values: List<Str>) -> Str {
-    parts.join("|")
-  }
-}
-
-pub class A {
-  fn f() -> Str {
-    Sql.tag`id = ${missing}`
-  }
-}
-"#;
-    assert_has(&[("a.lt", src)], "a.lt", "unknown variable `missing`");
-}
-
-#[test]
-fn template_cannot_interpolate_unit() {
-    let src = r#"
-pub class A {
-  static fn side_effect() {}
-
-  fn f() -> Str {
-    `${A.side_effect()}`
-  }
-}
-"#;
-    assert_has(&[("a.lt", src)], "a.lt", "cannot be interpolated");
+fn qualified_paths_reach_types_functions_and_bindings() {
+    let files = [
+        (
+            "models.lt",
+            pkg(
+                "models",
+                "export let origin: Str = \"local\"\n\nexport struct User {\n  name: Str\n}",
+            ),
+        ),
+        (
+            "app.lt",
+            file(
+                "import models from \"./models.lt\"",
+                "app",
+                "export fn make() -> models.User {\n  models.User(name: models.origin)\n}",
+            ),
+        ),
+    ];
+    assert_ok(&files, "app.lt");
 }
 
 #[test]
-fn tagged_template_cannot_interpolate_unit() {
-    let src = r#"
-pub class Sql {
-  static fn tag(parts: List<Str>, values: List<Str>) -> Str {
-    parts.join("|")
-  }
-}
-
-pub class A {
-  static fn side_effect() {}
-
-  fn f() -> Str {
-    Sql.tag`x ${A.side_effect()}`
-  }
-}
-"#;
-    assert_has(&[("a.lt", src)], "a.lt", "found `Unit`");
+fn private_binding_is_not_reachable_by_qualifier() {
+    let files = [
+        ("models.lt", pkg("models", "let origin: Str = \"local\"")),
+        (
+            "app.lt",
+            file(
+                "import models from \"./models.lt\"",
+                "app",
+                "export fn read() -> Str {\n  models.origin\n}",
+            ),
+        ),
+    ];
+    assert_has(&files, "app.lt", "private to package `models`");
 }
 
 #[test]
-fn tagged_template_values_must_match_the_declared_type() {
-    let src = r#"
-pub class Sql {
-  static fn tag(parts: List<Str>, values: List<Int>) -> Str {
-    parts.join("|")
-  }
-}
-
-pub class A {
-  fn f() -> Str {
-    Sql.tag`x ${"text"}`
-  }
-}
-"#;
-    assert_has(
-        &[("a.lt", src)],
-        "a.lt",
-        "expected `Int` in this tagged template value, found `Str`",
-    );
+fn import_must_name_a_package_that_exists() {
+    let files = [
+        ("a.lt", pkg("alpha", "export fn f() -> Int {\n  1\n}")),
+        (
+            "b.lt",
+            file("import missing { f } from \"./a.lt\"", "beta", ""),
+        ),
+    ];
+    assert_has(&files, "b.lt", "does not declare `package missing`");
 }
 
 #[test]
-fn tagged_template_does_not_display_convert_values() {
-    let src = r#"
-pub class Sql {
-  static fn tag(parts: List<Str>, values: List<Str>) -> Str {
-    parts.join("|")
-  }
-}
-
-pub class A {
-  fn f() -> Str {
-    Sql.tag`x ${1}`
-  }
-}
-"#;
-    assert_has(
-        &[("a.lt", src)],
-        "a.lt",
-        "expected `Str` in this tagged template value, found `Int`",
-    );
+fn package_names_are_unique_per_build() {
+    let files = [
+        ("a.lt", pkg("shared", "export fn f() -> Int {\n  1\n}")),
+        ("b.lt", pkg("shared", "export fn g() -> Int {\n  2\n}")),
+        (
+            "c.lt",
+            file(
+                "import shared { f } from \"./a.lt\"\nimport shared from \"./b.lt\"",
+                "app",
+                "export fn h() -> Int {\n  f()\n}",
+            ),
+        ),
+    ];
+    assert_has(&files, "c.lt", "already declared");
 }
 
 #[test]
-fn tagged_template_accepts_option_values() {
-    let src = r#"
-pub class Sql {
-  static fn tag(parts: List<Str>, values: List<Option<Int>>) -> Str {
-    parts.join("|")
-  }
+fn to_string_override_is_used_by_interpolation() {
+    let body = r#"
+export struct Price {
+  amount: Int
 }
 
-pub class A {
-  fn f() -> Str {
-    Sql.tag`a ${Some(1)} b ${None}`
-  }
+export fn to_string(p: Price) -> Str {
+  `${p.amount}`
+}
+
+export fn show(p: Price) -> Str {
+  `price: ${p}`
 }
 "#;
-    assert_ok(&[("a.lt", src)], "a.lt");
+    assert_ok(&one("money", body), "money.lt");
 }
 
 #[test]
-fn tagged_template_does_not_implicitly_wrap_some() {
-    let src = r#"
-pub class Sql {
-  static fn tag(parts: List<Str>, values: List<Option<Int>>) -> Str {
-    parts.join("|")
-  }
-}
-
-pub class A {
-  fn f() -> Str {
-    Sql.tag`a ${1}`
-  }
-}
-"#;
-    assert_has(
-        &[("a.lt", src)],
-        "a.lt",
-        "expected `Option<Int>` in this tagged template value, found `Int`",
-    );
-}
-
-#[test]
-fn tagged_template_accepts_a_user_enum_umbrella() {
-    let src = r#"
-pub enum SqlArg {
-  I(Int)
-  S(Str)
-}
-
-pub class Sql {
-  static fn tag(parts: List<Str>, values: List<SqlArg>) -> Str {
-    parts.join("|")
-  }
-}
-
-pub class A {
-  fn f() -> Str {
-    let id = 7
-    Sql.tag`id = ${SqlArg.I(id)} name = ${SqlArg.S("bo")}`
-  }
-}
-"#;
-    assert_ok(&[("a.lt", src)], "a.lt");
-}
-
-#[test]
-fn to_string_converts_any_value_to_str() {
-    let src = r#"
-pub class A {
-  fn f(x: Int, s: Str) -> Str {
-    `${x.to_string()}-${s.to_string()}`
-  }
-}
-"#;
-    assert_ok(&[("a.lt", src)], "a.lt");
-}
-
-#[test]
-fn a_user_defined_to_string_method_wins() {
-    let src = r#"
-pub class A {
-  fn to_string(self) -> Str {
-    "custom"
-  }
-
-  fn f(self) -> Str {
-    self.to_string()
-  }
-}
-"#;
-    assert_ok(&[("a.lt", src)], "a.lt");
-}
-
-#[test]
-fn to_string_takes_no_arguments() {
-    let src = r#"
-pub class A {
-  fn f(x: Int) -> Str {
-    x.to_string(1)
-  }
-}
-"#;
-    assert_has(
-        &[("a.lt", src)],
-        "a.lt",
-        "`to_string` expects 0 argument(s)",
-    );
-}
-
-#[test]
-fn unit_cannot_be_converted_to_str() {
-    let src = r#"
-pub class A {
-  static fn side_effect() {}
-
-  fn f() -> Str {
-    A.side_effect().to_string()
-  }
-}
-"#;
-    assert_has(&[("a.lt", src)], "a.lt", "`Unit` has no value");
-}
-
-#[test]
-fn to_string_works_on_classes_and_enums() {
-    let src = r#"
-pub enum Role {
+fn non_exhaustive_match_is_reported() {
+    let body = r#"
+export enum Role {
   Admin
+  Guest
 }
 
-pub class User {
-  name: Str
-}
-
-pub class A {
-  fn f(user: User, role: Role) -> Str {
-    `${user.to_string()}-${role.to_string()}`
+export fn label(r: Role) -> Str {
+  match r {
+    Role.Admin => "admin"
   }
 }
 "#;
-    assert_ok(&[("a.lt", src)], "a.lt");
+    assert_has(&one("models", body), "models.lt", "not exhaustive");
+}
+
+#[test]
+fn generic_struct_is_usable() {
+    let body = r#"
+export struct Box<T> {
+  value: T
+}
+
+export fn unbox(b: Box<Int>) -> Int {
+  b.value
+}
+"#;
+    assert_ok(&one("box", body), "box.lt");
+}
+
+#[test]
+fn package_level_bindings_are_inferred() {
+    let body = r#"
+let limit = 10
+
+export fn at_limit(n: Int) -> Bool {
+  n >= limit
+}
+"#;
+    assert_ok(&one("config", body), "config.lt");
+}
+
+#[test]
+fn bindings_are_immutable() {
+    let files = [
+        ("config.lt", pkg("config", "export let limit = 10")),
+        (
+            "app.lt",
+            file(
+                "import config { limit } from \"./config.lt\"",
+                "app",
+                "export fn bump() -> Int {\n  limit = 11\n  limit\n}",
+            ),
+        ),
+    ];
+    assert_has(&files, "app.lt", "immutable");
+}
+
+#[test]
+fn expect_is_only_available_in_tests() {
+    let body = r#"
+export fn f() -> Int {
+  expect.eq(1, 1)
+  0
+}
+"#;
+    assert_has(&one("app", body), "app.lt", "only available inside");
+}
+
+#[test]
+fn test_declaration_uses_expect() {
+    let body = r#"
+export fn double(n: Int) -> Int {
+  n * 2
+}
+
+test "doubles" {
+  expect.eq(double(2), 4)
+}
+"#;
+    assert_ok(&one("app", body), "app.lt");
+}
+
+#[test]
+fn tagged_template_tag_is_a_package_function() {
+    let body = r#"
+export fn query(parts: List<Str>, values: List<Int>) -> Str {
+  "q"
+}
+
+export fn find(id: Int) -> Str {
+  query`select ${id}`
+}
+"#;
+    assert_ok(&one("sql", body), "sql.lt");
+}
+
+#[test]
+fn jsx_tag_is_a_struct() {
+    let body = r#"
+export struct Element {
+  tag: Str
+  children: List<Str>
+}
+
+export fn render() -> Element {
+  <Element tag="div">hello</Element>
+}
+"#;
+    assert_ok(&one("view", body), "view.lt");
+}
+
+#[test]
+fn jsx_rejects_unknown_tag() {
+    let body = r#"
+export fn render() -> Int {
+  <Missing tag="div" />
+  0
+}
+"#;
+    assert_has(&one("view", body), "view.lt", "unknown struct `Missing`");
+}
+
+#[test]
+fn assigning_to_a_non_mut_local_is_reported() {
+    let body = r#"
+export fn f() -> Int {
+  let x = 1
+  x = 2
+  x
+}
+"#;
+    assert_has(&one("app", body), "app.lt", "immutable");
+}
+
+#[test]
+fn struct_field_types_are_checked() {
+    let body = r#"
+export struct Point {
+  x: Int
+}
+
+export fn bad() -> Point {
+  Point(x: "no")
+}
+"#;
+    assert_has(&one("geo", body), "geo.lt", "expected `Int`");
+}
+
+#[test]
+fn importing_a_missing_name_is_reported() {
+    let files = [
+        ("models.lt", pkg("models", "export fn f() -> Int {\n  1\n}")),
+        (
+            "app.lt",
+            file(
+                "import models { nowhere } from \"./models.lt\"",
+                "app",
+                "export fn g() -> Int {\n  1\n}",
+            ),
+        ),
+    ];
+    assert_has(&files, "app.lt", "package `models` has no `nowhere`");
+}
+
+#[test]
+fn receiver_sugar_respects_export() {
+    let files = [
+        (
+            "geo.lt",
+            pkg(
+                "geo",
+                "export struct Point {\n  x: Int\n}\n\nfn secret(p: Point) -> Int {\n  42\n}",
+            ),
+        ),
+        (
+            "app.lt",
+            file(
+                "import geo { Point } from \"./geo.lt\"",
+                "app",
+                "export fn peek(p: Point) -> Int {\n  p.secret()\n}",
+            ),
+        ),
+    ];
+    assert_has(&files, "app.lt", "`secret` is private to package `geo`");
+}
+
+#[test]
+fn private_receiver_functions_work_inside_their_package() {
+    let body = r#"
+export struct Point {
+  x: Int
+}
+
+fn secret(p: Point) -> Int {
+  42
+}
+
+export fn peek(p: Point) -> Int {
+  p.secret()
+}
+"#;
+    assert_ok(&one("geo", body), "geo.lt");
+}
+
+#[test]
+fn ordering_is_not_a_surface_type_yet() {
+    let body = "export fn cmp(a: Int, b: Int) -> Ordering {\n  a\n}\n";
+    assert_has(&one("cmp", body), "cmp.lt", "unknown type `Ordering`");
 }

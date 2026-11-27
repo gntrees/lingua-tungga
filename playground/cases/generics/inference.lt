@@ -1,14 +1,14 @@
-pub class Box<T> {
-  value: T
-
-  pub fn get(self) -> T {
-    self.value
+package inference {
+  export struct Box<T> {
+    value: T
   }
-}
 
-test class BoxTest {
-  test fn infers_int() {
+  export fn get<T>(b: Box<T>) -> T {
+    b.value
+  }
+
+  test "infers int" {
     let box = Box(value: 7)
-    Expect.equal(box.get(), 7)
+    expect.eq(box.get(), 7)
   }
 }
