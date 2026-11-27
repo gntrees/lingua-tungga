@@ -415,12 +415,30 @@ Setiap milestone harus hijau sebelum lanjut. Estimasi asumsi ~10 jam/minggu solo
 - Estimasi: 4–8 minggu.
 
 ### M8 — Polish
-- Dokumentasi bahasa + tutorial + contoh nyata (satu library domain dipublikasikan ke npm/PyPI/Go module).
+- Dokumentasi bahasa + tutorial + contoh nyata.
 - Playground statis (WASM) — opsional.
-- **Selesai:** orang lain bisa menyelesaikan tutorial tanpa bertanya.
+- **Selesai (versi diturunkan, 2026-11-27):** dokumentasi, tutorial, `examples/library`, playground statis per aturan. Publikasi library ke registry **dipindah ke M9**; sebelumnya bagian ini mensyaratkannya, tetapi kriteria itu tidak pernah diuji dan membuat status milestone ambigu.
 - Estimasi: 4–8 minggu.
 
+### M9 — Distribusi
+- CI di repo `lt`: `fmt`, `clippy -D warnings`, `cargo test`, tiga suite conformance, dan gate evidence playground.
+- Rilis binary `lt` lewat GitHub Releases: `x86_64-unknown-linux-musl`, `aarch64-unknown-linux-musl`, `aarch64-apple-darwin`, `x86_64-apple-darwin`, `x86_64-pc-windows-msvc`, plus checksum per arsip.
+- `scripts/install.sh` (unduh + verifikasi checksum + pasang ke `$LT_PREFIX/bin`).
+- **Selesai:** orang lain bisa memasang `lt` di mesin bersih tanpa Rust, dan setiap PR diverifikasi di CI pada tiga target.
+
 **Total realistis sampai M6:** ~37–64 minggu part-time. Ini alasan target dipangkas ke 3.
+
+---
+
+## 9b. Arah Setelah M9 (diputuskan 2026-11-27)
+
+Tidak ada pembekuan fitur bahasa. Yang dikunci hanya tiga hal:
+
+1. **Pengguna pertama adalah pembuatnya sendiri.** Proyek pilot: SQL builder di repo `gntrees-sql-builder`, ditulis ulang di `.lt` pada branch baru, hanya untuk target TS/Python/Go. `main` di repo itu tetap mempertahankan 15 bahasa yang di-generate cara lama; keduanya tidak disinkronkan.
+2. **Urutan pekerjaan ditentukan temuan pilot**, bukan kelengkapan spec. Backlog tertulis di bawah, dan setiap entri butuh alasan yang bisa ditunjuk.
+3. **Kompatibilitas: tidak ada janji sampai 1.0.** Setelah 1.0, arti fitur yang sudah dirilis dikunci; tambahan masuk versi minor. Sebelum 1.0, perubahan semantik boleh, tetapi harus dicatat di `CHANGELOG.md` dan tercermin di evidence playground.
+
+Kandidat fitur (urutan belum final, menunggu bukti pilot): `enum Value` + `Json`, override manual `to_string`/`equals`, pola `match` bertingkat, `Map`/`Set` di permukaan API bila pilot membutuhkannya.
 
 ---
 

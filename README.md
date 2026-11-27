@@ -13,6 +13,14 @@ pub class Price {
 }
 ```
 
+Pasang compiler (tanpa Rust, binary rilis + verifikasi checksum):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/gntrees/lingua-tungga/main/scripts/install.sh | bash
+# atau kunci versi: LT_VERSION=v0.1.0 ... | bash
+# dari sumber: cargo install --path crates/lt-cli
+```
+
 ```sh
 lt build -t go      # → out/go, siap di-import proyek Go
 lt build -t py      # → out/py, siap di-import proyek Python
@@ -64,7 +72,8 @@ Lingua Tungga tidak punya runtime sendiri, tidak punya UI, tidak punya `main`, d
 
 | | |
 |---|---|
-| Fase | M8 — polish (tutorial, contoh, playground, gate kualitas) |
+| Fase | M9 — distribusi (CI, rilis binary, installer) |
+| Status | **eksperimental** — belum ada janji kompatibilitas sebelum 1.0 |
 | Bahasa | ekstensi `.lt` |
 | Compiler | Rust, binary `lt` |
 | Target | TypeScript ✅, Python ✅, Go ✅ (100% conformance di ketiganya) |
@@ -87,4 +96,4 @@ Build memakai compiler cache [Kache](docs/kache.md) yang datanya disimpan di dri
 ADATA. `cargo build`/`cargo test` tidak butuh langkah tambahan; untuk CLI Kache
 lihat [docs/kache.md](docs/kache.md).
 
-Struktur saat ini: `lt-syntax` (lexer, AST, parser, formatter), `lt-hir` (loader modul, tabel simbol, typechecker), `lt-ir` (typed IR + lowering), `lt-emit-ts` (backend TypeScript + runtime inline), dan `lt-cli` (binary `lt`). Total 165 test Rust + 38 test conformance di tiga target + 42 kasus playground. Backend Python dan Go menyusul sesuai milestone di `PLAN.md`.
+Struktur saat ini: `lt-syntax` (lexer, AST, parser, formatter), `lt-hir` (loader modul, tabel simbol, typechecker), `lt-ir` (typed IR + lowering), `lt-emit-ts`/`lt-emit-py`/`lt-emit-go` (backend + runtime inline), `lt-pkg` (URL import, lockfile, vendor), `lt-playground`, dan `lt-cli` (binary `lt`). Total 165 test Rust + 38 test conformance di tiga target + 42 kasus playground.
