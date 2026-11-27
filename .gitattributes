@@ -1,0 +1,4 @@
+# Generated code and golden files are compared byte for byte; keep LF on every
+# platform so a Windows checkout does not turn them into CRLF.
+* text=auto eol=lf
+*.png binary

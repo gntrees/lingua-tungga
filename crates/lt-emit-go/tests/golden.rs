@@ -93,6 +93,12 @@ fn go_emitter_matches_golden_files() {
                 golden.display()
             )
         });
-        assert_eq!(contents, &expected, "emitted {} differs", path.display());
+        // A Windows checkout may turn golden files into CRLF; compare content.
+        assert_eq!(
+            contents,
+            &expected.replace("\r\n", "\n"),
+            "emitted {} differs",
+            path.display()
+        );
     }
 }
