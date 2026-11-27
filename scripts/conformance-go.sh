@@ -13,6 +13,7 @@ if ! command -v go >/dev/null 2>&1; then
     exit 1
   fi
 fi
+
 # Local tool cache, only when it exists and is writable. On CI (or any machine
 # without it) let the Go toolchain use its default locations.
 local_tools="/mnt/A29EE2F79EE2C341/tools"
@@ -23,8 +24,16 @@ if [ -z "${GOPATH:-}" ] && [ -w "$local_tools/go-path" ]; then
   export GOPATH="$local_tools/go-path"
 fi
 
-cargo run -q --manifest-path "$root/Cargo.toml" --bin lt -- \
-  test -t go "$root"/tests/conformance/*.lt --out "$out"
+emit() {
+  if [ -n "${LT_BIN:-}" ]; then
+    "$LT_BIN" test -t go "$root"/tests/conformance/*.lt --out "$out"
+  else
+    cargo run -q --manifest-path "$root/Cargo.toml" --bin lt -- \
+      test -t go "$root"/tests/conformance/*.lt --out "$out"
+  fi
+}
+
+emit
 
 cd "$out/go"
 go vet ./...

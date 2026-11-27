@@ -1,9 +1,22 @@
 name: ci
 
+# The heavy, slow checks live outside the per-push path:
+#   - playground: .github/workflows/nightly.yml (all 42 cases x 3 targets)
+#   - full conformance matrix: only on pushes to main
+#   - macOS/Windows: only on pushes to main
+# Run everything locally with ./scripts/check.sh --full.
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "dist/**"
   pull_request:
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "dist/**"
 
 env:
   CARGO_TERM_COLOR: always
@@ -16,12 +29,8 @@ defaults:
 
 jobs:
   rust:
-    name: rust (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+    name: rust (ubuntu)
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -43,8 +52,35 @@ jobs:
           printf '%s\n' "$lines" | sed 's/^/::error::/' || true
           exit 0
 
+  rust-platforms:
+    name: rust (${{ matrix.os }})
+    # Cross-platform breakage is rare; catch it on main instead of every PR.
+    if: github.event_name == 'push'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.96.0"
+      - uses: Swatinem/rust-cache@v2
+      - name: test
+        run: set -o pipefail; cargo test --workspace 2>&1 | tee test.log
+      - name: annotate failure
+        if: failure()
+        run: |
+          lines="$(grep -ahE 'error(\[E[0-9]+\])?:|panicked at|FAILED|test result: FAILED' test.log 2>/dev/null | tail -10)"
+          if [ -z "$lines" ]; then lines="$(tail -10 test.log 2>/dev/null)"; fi
+          printf '%s\n' "$lines" | sed 's/^/::error::/' || true
+          exit 0
+
   conformance:
     name: conformance (${{ matrix.target }})
+    # PRs get the TypeScript target only; the full matrix runs on main.
+    if: matrix.target == 'ts' || github.event_name == 'push'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -76,45 +112,7 @@ jobs:
       - name: annotate failure
         if: failure()
         run: |
-          lines="$(grep -ahE 'error(\[E[0-9]+\])?:|panicked at|FAILED|test result: FAILED|No such file' *.log 2>/dev/null | tail -10)"
-          if [ -z "$lines" ]; then lines="$(tail -10 *.log 2>/dev/null)"; fi
-          printf '%s\n' "$lines" | sed 's/^/::error::/' || true
+          lines="$(grep -ahE 'error(\\[E[0-9]+\\])?:|panicked at|FAILED|test result: FAILED|No such file' conformance.log 2>/dev/null | tail -10)"
+          if [ -z "$lines" ]; then lines="$(tail -10 conformance.log 2>/dev/null)"; fi
+          printf '%s\\n' "$lines" | sed 's/^/::error::/' || true
           exit 0
-
-  playground:
-    name: playground evidence
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: "1.96.0"
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: playground
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.22"
-      # The gate is the run itself: every case is compiled and executed on all
-      # three targets. evidence.json carries a timestamp and toolchain versions,
-      # so diffing it would fail on every run.
-      - name: run playground suite
-        run: set -o pipefail; bash scripts/playground.sh 2>&1 | tee playground.log
-      - name: annotate failure
-        if: failure()
-        run: |
-          lines="$(grep -ahE 'error(\[E[0-9]+\])?:|panicked at|FAILED|test result: FAILED|No such file' *.log 2>/dev/null | tail -10)"
-          if [ -z "$lines" ]; then lines="$(tail -10 *.log 2>/dev/null)"; fi
-          printf '%s\n' "$lines" | sed 's/^/::error::/' || true
-          exit 0
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: playground
-          path: out/playground/index.html

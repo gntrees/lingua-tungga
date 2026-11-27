@@ -91,9 +91,15 @@ Lingua Tungga tidak punya runtime sendiri, tidak punya UI, tidak punya `main`, d
 ## Pengembangan
 
 ```sh
-cargo test
-cargo clippy --all-targets -- -D warnings
+./scripts/check.sh          # fmt + clippy + test (yang dijalankan CI tiap push)
+./scripts/check.sh --full   # + conformance tiga target + playground
+./scripts/release.sh v0.2.0 # build rilis lokal (lihat docs/release.md)
 ```
+
+Pembagian beban: CI per-push hanya ubuntu + target TypeScript; matriks penuh
+(macOS, Windows, Python, Go) hanya saat push ke `main`; playground harian
+terpisah di `nightly.yml`. Semua yang berat bisa dijalankan lokal dengan
+`--full`.
 
 Build memakai compiler cache [Kache](docs/kache.md) yang datanya disimpan di drive
 ADATA. `cargo build`/`cargo test` tidak butuh langkah tambahan; untuk CLI Kache
