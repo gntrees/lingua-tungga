@@ -4,8 +4,9 @@
 #   curl -fsSL https://raw.githubusercontent.com/gntrees/lingua-tungga/main/scripts/install.sh | bash
 #
 # Environment:
-#   LT_VERSION  version to install (default: latest), e.g. v0.1.0
-#   LT_PREFIX   install prefix (default: $HOME/.local)
+#   LT_VERSION   version to install (default: latest), e.g. v0.2.0
+#   LT_PREFIX    install prefix (default: $HOME/.local)
+#   LT_BASE_URL  override the download base (mirror or local server)
 set -euo pipefail
 
 repo="gntrees/lingua-tungga"
@@ -45,7 +46,10 @@ else
   target="$arch_part-apple-darwin"
 fi
 
-if [ "$version" = "latest" ]; then
+if [ -n "${LT_BASE_URL:-}" ]; then
+  # Override for mirrors, air-gapped hosts, and tests of this script.
+  base="$LT_BASE_URL"
+elif [ "$version" = "latest" ]; then
   base="https://github.com/$repo/releases/latest/download"
 else
   base="https://github.com/$repo/releases/download/$version"

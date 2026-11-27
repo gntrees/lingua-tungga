@@ -25,6 +25,15 @@ lt-<target>.tar.gz.sha256
 Nama target mengikuti triple Rust, mis. `x86_64-unknown-linux-gnu`. Skrip
 `scripts/install.sh` mencari nama yang sama, jadi tidak ada langkah tambahan.
 
+`install.sh` juga menerima `LT_BASE_URL` untuk mirror atau server lokal, jadi
+jalur unduh + checksum + pasang bisa diuji tanpa mempublikasikan apa pun:
+
+```sh
+cd dist && python3 -m http.server 8765 &
+LT_BASE_URL=http://127.0.0.1:8765 LT_PREFIX=/tmp/lt-prefix \
+  ./scripts/install.sh
+```
+
 ## Batas cross-compile
 
 | Target | Bisa dibangun di | Catatan |
