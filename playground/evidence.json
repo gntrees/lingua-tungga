@@ -1,9 +1,9 @@
 {
   "schema": 1,
-  "generated_at": "2026-11-27T04:32:49Z",
+  "generated_at": "2026-11-27T04:38:43Z",
   "git": {
-    "commit": "3d785f0",
-    "dirty": false
+    "commit": "bdfe91f",
+    "dirty": true
   },
   "tools": {
     "rustc": "rustc 1.96.0 (ac68faa20 2026-05-25)",
@@ -16,22 +16,22 @@
       "suite": "vitest",
       "cases": 43,
       "passed": 43,
-      "conformance": 44,
-      "conformance_passed": 44
+      "conformance": 45,
+      "conformance_passed": 45
     },
     "py": {
       "suite": "pytest+mypy",
       "cases": 43,
       "passed": 43,
-      "conformance": 44,
-      "conformance_passed": 44
+      "conformance": 45,
+      "conformance_passed": 45
     },
     "go": {
       "suite": "go test+vet",
       "cases": 43,
       "passed": 43,
-      "conformance": 44,
-      "conformance_passed": 44
+      "conformance": 45,
+      "conformance_passed": 45
     }
   },
   "cases": {

@@ -1,6 +1,6 @@
 # Backend Python
 
-Target kedua. Conformance suite yang sama (44 test) harus lulus di sini dan di
+Target kedua. Conformance suite yang sama (45 test) harus lulus di sini dan di
 TypeScript; bila keduanya lulus, semantik inti terbukti portabel.
 
 ## Representasi
