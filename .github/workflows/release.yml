@@ -1,14 +1,29 @@
-name: release
+name: release (manual)
 
+# Releases are built locally with scripts/release.sh. This workflow exists only
+# for targets you cannot build on your own machine (notably macOS: the SDK
+# cannot be redistributed). It never runs on a tag push, so it costs nothing
+# unless you dispatch it on purpose.
 on:
-  push:
-    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Version to publish, e.g. v0.2.0 (must already exist as a tag)"
+        required: true
+      targets:
+        description: "Comma-separated matrix targets"
+        required: false
+        default: "aarch64-apple-darwin,x86_64-apple-darwin,x86_64-pc-windows-msvc"
 
 permissions:
   contents: write
 
 env:
   CARGO_TERM_COLOR: always
+
+defaults:
+  run:
+    shell: bash
 
 jobs:
   build:
@@ -18,12 +33,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            archive: tar.gz
-          # aarch64 Linux is not in the matrix yet: the cross build failed at
-          # link time and the cause is not visible without job logs. Add it back
-          # once a reproducible cross toolchain (zigbuild or cross) is wired.
           - os: macos-14
             target: aarch64-apple-darwin
             archive: tar.gz
@@ -35,22 +44,15 @@ jobs:
             archive: zip
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          toolchain: "1.96.0"
       - uses: Swatinem/rust-cache@v2
         with:
           key: release-${{ matrix.target }}
-
-      - name: install cross linker
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu
-          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> "$GITHUB_ENV"
-
       - run: set -o pipefail; cargo build --release --bin lt --target ${{ matrix.target }} 2>&1 | tee build.log
-
       - name: annotate failure
         if: failure()
         run: |
@@ -58,18 +60,15 @@ jobs:
           if [ -z "$lines" ]; then lines="$(tail -10 build.log 2>/dev/null)"; fi
           printf '%s\n' "$lines" | sed 's/^/::error::/' || true
           exit 0
-
       - name: package (tar.gz)
         if: matrix.archive == 'tar.gz'
-        shell: bash
         run: |
           name="lt-${{ matrix.target }}"
           mkdir -p "dist/$name"
           cp "target/${{ matrix.target }}/release/lt" "dist/$name/lt"
-          cp README.md LICENSE "dist/$name/" 2>/dev/null || cp README.md "dist/$name/"
+          cp README.md LICENSE "dist/$name/"
           tar -C dist -czf "dist/$name.tar.gz" "$name"
-          (cd dist && sha256sum "$name.tar.gz" > "$name.tar.gz.sha256")
-
+          (cd dist && shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256")
       - name: package (zip)
         if: matrix.archive == 'zip'
         shell: pwsh
@@ -78,16 +77,16 @@ jobs:
           New-Item -ItemType Directory -Force -Path "dist/$name" | Out-Null
           Copy-Item "target/${{ matrix.target }}/release/lt.exe" "dist/$name/lt.exe"
           Copy-Item README.md "dist/$name/"
+          Copy-Item LICENSE "dist/$name/"
           Compress-Archive -Path "dist/$name" -DestinationPath "dist/$name.zip"
           $hash = (Get-FileHash "dist/$name.zip" -Algorithm SHA256).Hash.ToLower()
           "$hash  $name.zip" | Out-File -Encoding ascii "dist/$name.zip.sha256"
-
       - uses: actions/upload-artifact@v4
         with:
           name: lt-${{ matrix.target }}
           path: dist/lt-${{ matrix.target }}.${{ matrix.archive }}*
 
-  release:
+  attach:
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -96,15 +95,12 @@ jobs:
         with:
           path: dist
           merge-multiple: true
-      - name: publish
-        env:
+      - env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          tag="${GITHUB_REF_NAME}"
+          tag="${{ inputs.tag }}"
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release upload "$tag" dist/* --clobber
           else
-            gh release create "$tag" dist/* \
-              --title "$tag" \
-              --notes "Lingua Tungga \`lt\` $tag. Experimental; see README for install."
+            gh release create "$tag" dist/* --title "$tag" --notes "Targets built by the manual release workflow."
           fi

@@ -13,6 +13,9 @@ pub class Price {
 }
 ```
 
+Rilis dibangun lokal (`./scripts/release.sh v0.2.0 --publish`) — lihat
+[docs/release.md](docs/release.md).
+
 Pasang compiler (tanpa Rust, binary rilis + verifikasi checksum):
 
 ```sh
