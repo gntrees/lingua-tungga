@@ -1,9 +1,9 @@
 {
   "schema": 1,
-  "generated_at": "2026-11-27T15:20:03Z",
+  "generated_at": "2026-11-27T15:27:49Z",
   "git": {
-    "commit": "3800982",
-    "dirty": true
+    "commit": "4f90f37",
+    "dirty": false
   },
   "tools": {
     "rustc": "rustc 1.96.0 (ac68faa20 2026-05-25)",
