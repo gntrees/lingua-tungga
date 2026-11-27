@@ -3,7 +3,7 @@ resolver = "2"
 members = ["crates/lt-syntax", "crates/lt-hir", "crates/lt-ir", "crates/lt-emit-ts", "crates/lt-emit-py", "crates/lt-emit-go", "crates/lt-pkg", "crates/lt-playground", "crates/lt-cli"]
 
 [workspace.package]
-version = "0.2.1"
+version = "0.3.0"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/gntrees/lingua-tungga"

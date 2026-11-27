@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 — 2026-11-28 (breaking: import syntax, enum output)
 
 ### Added
 

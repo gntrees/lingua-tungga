@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generated_at": "2026-11-27T19:06:48Z",
+  "generated_at": "2026-11-27T19:28:02Z",
   "cases": {
     "bindings/export_let": {
       "ts": {
