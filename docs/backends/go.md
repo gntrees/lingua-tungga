@@ -56,3 +56,11 @@ menjalankan `go vet ./...` dan memakai toolchain di
   salinannya).
 - Tipe generik kelas dipertahankan (`Box[T]`), tetapi parameter generik dihapus
   dari tipe enum (karena enum memakai `lt.Variant`).
+
+## Formatting
+
+gofmt is context-sensitive (it removes spaces around `+` inside call arguments
+but keeps them in `return`), so the emitter does not try to reproduce it byte
+for byte. Generated Go is formatted by running `gofmt -w` as part of packaging
+(see `scripts/conformance-go.sh` and downstream build scripts); the shipped
+package must still satisfy `gofmt -l` being empty.

@@ -178,17 +178,23 @@ pub fn emit_tests(program: &IrProgram, module: &IrModule) -> Option<String> {
         "package {}_test\n\n",
         package_name(&module.name)
     ));
-    out.push_str("import (\n");
-    out.push_str("\t\"testing\"\n\n");
+    // gofmt sorts the second import group by path; "testing" stays alone.
+    let mut imports: Vec<(String, String)> = Vec::new();
     if body.contains("lt.") {
-        out.push_str("\tlt \"linguatungga/lt\"\n");
+        imports.push((
+            "linguatungga/lt".to_string(),
+            "\tlt \"linguatungga/lt\"\n".to_string(),
+        ));
     }
     for id in &emitter.used {
-        out.push_str(&format!(
-            "\tm{} \"linguatungga/gen/{}\"\n",
-            id,
-            program.names[*id]
-        ));
+        let path = format!("linguatungga/gen/{}", program.names[*id]);
+        imports.push((path.clone(), format!("\tm{} \"{path}\"\n", id)));
+    }
+    imports.sort_by(|a, b| a.0.cmp(&b.0));
+    out.push_str("import (\n");
+    out.push_str("\t\"testing\"\n\n");
+    for (_, line) in &imports {
+        out.push_str(line);
     }
     out.push_str(")\n\n");
     out.push_str(&body);
@@ -661,7 +667,7 @@ impl<'a> Emitter<'a> {
             IrStmt::While { cond, body } => {
                 let frag = self.expr(cond, level);
                 let mut lines = frag.prelude;
-                lines.push(format!("{pad}for {} {{", frag.code));
+                lines.push(format!("{pad}for {} {{", unwrap_condition(&frag.code)));
                 lines.extend(self.block_lines(body, level + 1, &Tail::Plain));
                 lines.push(format!("{pad}}}"));
                 lines
@@ -713,7 +719,7 @@ impl<'a> Emitter<'a> {
         let pad = indent(level);
         let cond_frag = self.expr(cond, level);
         let mut lines = cond_frag.prelude;
-        lines.push(format!("{pad}if {} {{", cond_frag.code));
+        lines.push(format!("{pad}if {} {{", unwrap_condition(&cond_frag.code)));
         lines.extend(self.block_lines(then_block, level + 1, tail));
 
         let mut current = else_branch;
@@ -739,7 +745,7 @@ impl<'a> Emitter<'a> {
                     {
                         let cond_frag = self.expr(cond, level);
                         lines.extend(cond_frag.prelude);
-                        lines.push(format!("{pad}}} else if {} {{", cond_frag.code));
+                        lines.push(format!("{pad}}} else if {} {{", unwrap_condition(&cond_frag.code)));
                         lines.extend(self.block_lines(then_block, level + 1, tail));
                         current = else_branch;
                     } else {
@@ -1525,6 +1531,30 @@ fn collect_expr(expr: &IrExpr, used: &mut HashSet<String>) {
         | IrExpr::SelfRef
         | IrExpr::EmptyCollection { .. } => {}
     }
+}
+
+/// gofmt drops a redundant outer parenthesis pair in `if`/`for` conditions.
+/// Only strip it when the opening paren matches the final closing paren, so
+/// `(a) && (b)` is left alone.
+fn unwrap_condition(code: &str) -> String {
+    let trimmed = code.trim();
+    if !trimmed.starts_with('(') || !trimmed.ends_with(')') {
+        return trimmed.to_string();
+    }
+    let mut depth = 0usize;
+    for (index, ch) in trimmed.char_indices() {
+        match ch {
+            '(' => depth += 1,
+            ')' => {
+                depth -= 1;
+                if depth == 0 && index + 1 != trimmed.len() {
+                    return trimmed.to_string();
+                }
+            }
+            _ => {}
+        }
+    }
+    trimmed[1..trimmed.len() - 1].trim().to_string()
 }
 
 /// gofmt ends a file with exactly one newline and no trailing blank line.

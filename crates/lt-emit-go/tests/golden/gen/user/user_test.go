@@ -4,8 +4,8 @@ package user_test
 import (
 	"testing"
 
-	lt "linguatungga/lt"
 	m0 "linguatungga/gen/user"
+	lt "linguatungga/lt"
 )
 
 func TestLabelOfAdmin(t *testing.T) {
