@@ -346,6 +346,11 @@ impl<'a> Emitter<'a> {
 
     fn enum_decl(&mut self, decl: &IrEnum) -> String {
         let mut out = String::new();
+        let decl_generics = if decl.generics.is_empty() {
+            String::new()
+        } else {
+            format!("[{} any]", decl.generics.join(", "))
+        };
         for (order, variant) in decl.variants.iter().enumerate() {
             let name = export_name(&format!("{}_{}", decl.name, variant.name));
             if variant.payload.is_empty() {
@@ -365,7 +370,7 @@ impl<'a> Emitter<'a> {
                     .map(|index| format!("_{index}"))
                     .collect();
                 out.push_str(&format!(
-                    "func {name}({}) lt.Variant {{\n\treturn lt.Variant{{Tag: {}, Order: {order}, Values: []any{{{}}}, Display: {}Display}}\n}}\n\n",
+                    "func {name}{decl_generics}({}) lt.Variant {{\n\treturn lt.Variant{{Tag: {}, Order: {order}, Values: []any{{{}}}, Display: {}Display}}\n}}\n\n",
                     params.join(", "),
                     quote(&variant.name),
                     values.join(", "),
@@ -940,7 +945,7 @@ impl<'a> Emitter<'a> {
                 target,
                 variant,
                 args,
-                ..
+                ty,
             } => {
                 let mut prelude = Vec::new();
                 let rendered: Vec<String> = args
@@ -971,7 +976,18 @@ impl<'a> Emitter<'a> {
                         if rendered.is_empty() {
                             reference
                         } else {
-                            format!("{reference}({})", rendered.join(", "))
+                            // Go cannot infer type arguments when the payload erases
+                            // a type parameter (Option/Result/nested enums), so pass
+                            // the enum's resolved arguments explicitly.
+                            let type_args = match ty {
+                                Ty::Named(_, args) if !args.is_empty() => {
+                                    let rendered: Vec<String> =
+                                        args.iter().map(|arg| self.type_ref(arg)).collect();
+                                    format!("[{}]", rendered.join(", "))
+                                }
+                                _ => String::new(),
+                            };
+                            format!("{reference}{type_args}({})", rendered.join(", "))
                         }
                     }
                 };

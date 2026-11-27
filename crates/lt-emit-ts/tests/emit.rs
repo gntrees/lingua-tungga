@@ -239,3 +239,38 @@ pub class A {
     let module = find(&files, "src/a.ts");
     assert!(module.contains("return lt.disp(x);"), "{module}");
 }
+
+const GENERIC_ENUM: &str = r#"
+pub enum MaybeBox<T> {
+  Empty
+  Value(T)
+}
+
+pub class A {
+  pub fn make() -> MaybeBox<Int> {
+    MaybeBox.Value(7)
+  }
+
+  pub fn unwrap(value: MaybeBox<Int>) -> Int {
+    match value {
+      MaybeBox.Empty => 0
+      MaybeBox.Value(n) => n
+    }
+  }
+}
+"#;
+
+#[test]
+fn generic_enum_nullary_variant_is_not_generic() {
+    let files = emit(&[("a.lt", GENERIC_ENUM)], "a.lt");
+    let module = find(&files, "src/a.ts");
+    assert!(
+        module.contains("export const MaybeBox_Empty: MaybeBox<any>"),
+        "{module}"
+    );
+    assert!(!module.contains("MaybeBox_Empty<T>"), "{module}");
+    assert!(
+        module.contains("export function MaybeBox_Value<T>(_0: T): MaybeBox<T>"),
+        "{module}"
+    );
+}

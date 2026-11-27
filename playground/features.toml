@@ -81,6 +81,11 @@ title = "Ord enum menurut deklarasi"
 spec = "#10"
 
 [[feature]]
+id = "enums/generic"
+title = "Enum generik"
+spec = "#6.2"
+
+[[feature]]
 id = "generics/inference"
 title = "Inferensi tipe generik"
 spec = "#5.5"
