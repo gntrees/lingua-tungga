@@ -38,9 +38,9 @@ jobs:
       - name: annotate failure
         if: failure()
         run: |
-          for log in fmt.log clippy.log test.log; do
-            [ -f "$log" ] && tail -40 "$log" | sed 's/^/::error::/'
-          done
+          lines="$(grep -ahE 'error(\[E[0-9]+\])?:|panicked at|FAILED|test result: FAILED|No such file' *.log 2>/dev/null | tail -10)"
+          if [ -z "$lines" ]; then lines="$(tail -10 *.log 2>/dev/null)"; fi
+          printf '%s\n' "$lines" | sed 's/^/::error::/' || true
           exit 0
 
   conformance:
@@ -68,10 +68,18 @@ jobs:
         with:
           go-version: "1.22"
       - name: run conformance suite
-        run: set -o pipefail; bash scripts/conformance-${{ matrix.target }}.sh 2>&1 | tee conformance.log
+        run: |
+          set -o pipefail
+          script="scripts/conformance-${{ matrix.target }}.sh"
+          if [ "${{ matrix.target }}" = "ts" ]; then script="scripts/conformance.sh"; fi
+          bash "$script" 2>&1 | tee conformance.log
       - name: annotate failure
         if: failure()
-        run: tail -60 conformance.log | sed 's/^/::error::/'; exit 0
+        run: |
+          lines="$(grep -ahE 'error(\[E[0-9]+\])?:|panicked at|FAILED|test result: FAILED|No such file' *.log 2>/dev/null | tail -10)"
+          if [ -z "$lines" ]; then lines="$(tail -10 *.log 2>/dev/null)"; fi
+          printf '%s\n' "$lines" | sed 's/^/::error::/' || true
+          exit 0
 
   playground:
     name: playground evidence
@@ -100,7 +108,11 @@ jobs:
         run: set -o pipefail; bash scripts/playground.sh 2>&1 | tee playground.log
       - name: annotate failure
         if: failure()
-        run: tail -60 playground.log | sed 's/^/::error::/'; exit 0
+        run: |
+          lines="$(grep -ahE 'error(\[E[0-9]+\])?:|panicked at|FAILED|test result: FAILED|No such file' *.log 2>/dev/null | tail -10)"
+          if [ -z "$lines" ]; then lines="$(tail -10 *.log 2>/dev/null)"; fi
+          printf '%s\n' "$lines" | sed 's/^/::error::/' || true
+          exit 0
       - uses: actions/upload-artifact@v4
         if: always()
         with:
