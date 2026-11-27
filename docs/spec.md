@@ -203,6 +203,8 @@ Aturan:
 - Isi package: `struct`, `enum`, fungsi, binding `let`, dan `test`. Tidak ada kelas, tidak ada
   method di dalam tipe.
 - Visibilitas ditentukan `export` per-deklarasi; default private (hanya terlihat di package itu).
+  Aturan ini berlaku untuk **semua** jalan pemanggilan: nama polos, path berkualifikasi, dan sugar
+  receiver `p.f()` — fungsi private tidak bisa dipanggil dari package lain lewat jalur mana pun.
 - Binding level-package immutable, dievaluasi eager, dan tidak boleh membentuk siklus.
 
 ### 6.2 Struct
@@ -391,7 +393,9 @@ Tiga trait yang dikenal compiler. Semuanya **di-derive otomatis** untuk setiap `
   `export fn to_string(p: Price) -> Str { … }`.
 - Setiap nilai yang punya `Display` bisa dikonversi lewat `to_string()`. Fungsi `to_string`
   milik user menang atas versi bawaan, **termasuk di dalam interpolasi `${…}`**.
-- `Ordering` adalah enum bawaan: `Less`, `Equal`, `Greater`; belum muncul di permukaan bahasa.
+- `Ordering` dipakai secara internal oleh runtime (`sort`, `Map`, `Set`) tetapi **belum tersedia di
+  permukaan bahasa**: `Ordering` ditolak sebagai tipe dan `Ordering.Less` bukan nilai. Ini keputusan
+  sadar sampai ada kebutuhan nyata dan konstanta di ketiga runtime.
 
 Ord dipakai oleh `sort`, `Map`, dan `Set`:
 - struct: lexicographic atas field sesuai urutan deklarasi (dibandingkan rekursif dengan `Ord`).
@@ -576,8 +580,10 @@ package. Semuanya tersedia tanpa `import`.
 | `expect` | `eq`, `not_equal`, `true`, `false` (hanya sah di dalam `test`) |
 | Enum bawaan | `Ordering` (`Less`, `Equal`, `Greater`); `Value` belum ada |
 
-Cara pakai: fungsi koleksi dipanggil dengan sugar receiver (`xs.map(…)`, `s.len()`, `m.get(k)`)
-atau sebagai fungsi biasa (`list.map(xs, …)`). Nama pseudo-package adalah kata kunci
-tercadang: mendeklarasikan `package str { … }` sendiri = compile error.
+Cara pakai: fungsi bawaan dipanggil **hanya** lewat sugar receiver (`xs.map(…)`, `s.len()`,
+`m.get(k)`, `o.is_some()`). Bentuk fungsi berkualifikasi (`list.map(xs, …)`, `str.len(s)`) **belum
+didukung**; yang tersedia sebagai path hanya `map.empty()`, `set.empty()`, `math.*`, dan `expect.*`.
+Nama pseudo-package adalah kata kunci tercadang: mendeklarasikan `package str { … }` sendiri =
+compile error.
 
 Perubahan stdlib bukan breaking change selama signature lama dipertahankan.

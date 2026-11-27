@@ -481,3 +481,49 @@ fn importing_a_missing_name_is_reported() {
     ];
     assert_has(&files, "app.lt", "package `models` has no `nowhere`");
 }
+
+#[test]
+fn receiver_sugar_respects_export() {
+    let files = [
+        (
+            "geo.lt",
+            pkg(
+                "geo",
+                "export struct Point {\n  x: Int\n}\n\nfn secret(p: Point) -> Int {\n  42\n}",
+            ),
+        ),
+        (
+            "app.lt",
+            file(
+                "import geo { Point } from \"./geo.lt\"",
+                "app",
+                "export fn peek(p: Point) -> Int {\n  p.secret()\n}",
+            ),
+        ),
+    ];
+    assert_has(&files, "app.lt", "`secret` is private to package `geo`");
+}
+
+#[test]
+fn private_receiver_functions_work_inside_their_package() {
+    let body = r#"
+export struct Point {
+  x: Int
+}
+
+fn secret(p: Point) -> Int {
+  42
+}
+
+export fn peek(p: Point) -> Int {
+  p.secret()
+}
+"#;
+    assert_ok(&one("geo", body), "geo.lt");
+}
+
+#[test]
+fn ordering_is_not_a_surface_type_yet() {
+    let body = "export fn cmp(a: Int, b: Int) -> Ordering {\n  a\n}\n";
+    assert_has(&one("cmp", body), "cmp.lt", "unknown type `Ordering`");
+}

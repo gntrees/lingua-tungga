@@ -604,9 +604,6 @@ fn lookup_type(
         }
     }
 
-    if qualifier.is_none() && builtin_enum(name).is_some() {
-        return Some((TypeName::builtin(name), 0));
-    }
     None
 }
 
@@ -2175,22 +2172,44 @@ impl<'a> Checker<'a> {
     fn call_method(&mut self, receiver: &Ty, name: &str, args: &ast::Args, span: Span) -> Ty {
         let receiver_ty = self.resolve_deep(receiver);
 
-        // Receiver function declared in the package that owns the type.
+        // Receiver function declared in the package that owns the type. Like a
+        // plain call, it is only visible outside its package when exported.
         let receiver_fn = match &receiver_ty {
             Ty::Named(type_name, _) => self
                 .program
                 .find_fn(type_name.module, name)
                 .filter(|decl| {
-                    decl.params.first().is_some_and(|(_, ty, _)| match ty {
-                        Ty::Named(first, _) => {
-                            first.module == type_name.module && first.name == type_name.name
-                        }
-                        _ => false,
-                    })
+                    (decl.is_export || type_name.module == self.module)
+                        && decl.params.first().is_some_and(|(_, ty, _)| match ty {
+                            Ty::Named(first, _) => {
+                                first.module == type_name.module && first.name == type_name.name
+                            }
+                            _ => false,
+                        })
                 })
                 .cloned(),
             _ => None,
         };
+
+        if receiver_fn.is_none() {
+            if let Ty::Named(type_name, _) = &receiver_ty {
+                let hidden = self
+                    .program
+                    .find_fn(type_name.module, name)
+                    .filter(|decl| !decl.is_export && type_name.module != self.module);
+                if let Some(decl) = hidden {
+                    let package = self.program.modules[type_name.module].name.clone();
+                    self.diag(
+                        span,
+                        format!(
+                            "`{}` is private to package `{package}`; add `export`",
+                            decl.name
+                        ),
+                    );
+                    return Ty::Error;
+                }
+            }
+        }
 
         if name == "to_string" && receiver_fn.is_none() {
             let Some(items) = self.positional(args, span, name) else {

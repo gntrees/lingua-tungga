@@ -766,9 +766,10 @@ impl<'a> Lowerer<'a> {
                 if let Ty::Named(type_name, _) = &receiver_ty {
                     let program = self.program;
                     if let Some(decl) = program.find_fn(type_name.module, name) {
-                        let is_receiver = decl.params.first().is_some_and(|(_, ty, _)| {
-                            matches!(ty, Ty::Named(first, _) if first.module == type_name.module && first.name == type_name.name)
-                        });
+                        let is_receiver = (decl.is_export || type_name.module == self.module)
+                            && decl.params.first().is_some_and(|(_, ty, _)| {
+                                matches!(ty, Ty::Named(first, _) if first.module == type_name.module && first.name == type_name.name)
+                            });
                         if is_receiver {
                             let module = type_name.module;
                             let fn_name = decl.name.clone();

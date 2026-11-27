@@ -167,7 +167,7 @@ Dicatat agar tidak diusulkan ulang tanpa konteks baru.
 ## 11. Item terbuka
 
 1. ~~**Nama pseudo-package**~~ — **diputuskan**: lowercase (`math`, `map`, `set`, `json`, `expect`, `str`, `list`, `option`, `result`).
-2. **`Ordering`**: enum bawaan yang belum muncul di permukaan. `resolve_type` sudah menerimanya sebagai tipe, tetapi `Ordering.Less` belum bisa dikonstruksi dan belum ada konstantanya di tiga runtime — jadi masih **terbuka**, dan sengaja tidak dipaksakan.
+2. ~~**`Ordering`**~~ — **diputuskan (sementara)**: ditolak sebagai tipe sampai ada konstanta di tiga runtime. Runtime tetap memakainya secara internal. Ada test yang mengunci perilaku ini.
 3. ~~**`lt fmt` multi-package**~~ — **diputuskan**: satu baris kosong antar blok `package`, urutan dipertahankan seperti di sumber; ada test formatter.
 4. ~~**Diagnostik package ganda / import salah**~~ — **diputuskan**: nama package ganda dilaporkan di deklarasi (dengan path file lain), import yang tidak ada dilaporkan `` package `p` has no `X` ``, import yang tidak di-`export` dilaporkan `` `X` is private to package `p`; add `export` ``.
 
@@ -183,6 +183,7 @@ Dicatat agar tidak diusulkan ulang tanpa konteks baru.
 | `lt-emit-ts` / `lt-emit-py` / `lt-emit-go` | ✅ (emit + golden) |
 | `lt-cli` (naming per package) | ✅ 19 test |
 | Korpus: conformance, examples, playground, golden | ✅ dimigrasikan |
+| Privasi receiver sugar | ✅ `p.f()` lintas package menolak fungsi non-`export` (checker + lowering) |
 | Verifikasi runtime | Go `go test` 13/13 paket; Python `pytest` 45 test; TypeScript `vitest` 45 test + `tsc --noEmit` bersih; playground 43 kasus + 9 diagnostik. |
 
 ## 12. Urutan kerja
