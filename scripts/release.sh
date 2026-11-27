@@ -4,6 +4,7 @@
 #   ./scripts/release.sh v0.2.0                  # build the host target
 #   ./scripts/release.sh v0.2.0 --publish        # build + upload with gh
 #   LT_TARGET=x86_64-pc-windows-msvc ./scripts/release.sh v0.2.0
+#   ./scripts/release.sh v0.2.0 --allow-dirty    # when the tree is dirty
 #
 # Cross-compiling is not attempted. Build the targets whose toolchain you
 # actually have: Linux and Windows binaries can be produced on Linux (Windows
@@ -16,11 +17,13 @@ cd "$root"
 
 version=""
 publish=0
+allow_dirty=0
 target="${LT_TARGET:-}"
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --publish) publish=1 ;;
+    --allow-dirty) allow_dirty=1 ;;
     --target) shift; target="${1:-}" ;;
     -h|--help)
       sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'
@@ -43,6 +46,11 @@ fi
 
 if [ -z "$target" ]; then
   target="$(rustc -vV | sed -n 's/^host: //p')"
+fi
+
+if [ -n "$(git status --porcelain)" ] && [ "$allow_dirty" -eq 0 ]; then
+  echo "release: working tree is dirty; commit first or pass --allow-dirty" >&2
+  exit 1
 fi
 
 echo "==> building lt $version for $target"
