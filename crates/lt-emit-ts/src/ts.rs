@@ -361,8 +361,17 @@ impl<'a> Emitter<'a> {
         for (order, variant) in decl.variants.iter().enumerate() {
             let constructor = format!("{}_{}", decl.name, variant.name);
             if variant.payload.is_empty() {
+                // A nullary variant carries no value, so it cannot be generic:
+                // `const X<T>` is illegal in TypeScript. Type it with `any`
+                // arguments so it is assignable to every instantiation.
+                let value_ty = if generic_names.is_empty() {
+                    applied.clone()
+                } else {
+                    let anys: Vec<&str> = generic_names.iter().map(|_| "any").collect();
+                    format!("{}<{}>", decl.name, anys.join(", "))
+                };
                 out.push_str(&format!(
-                    "export const {constructor}{generics}: {applied} = {{ tag: {}, values: [], __lt_order: {order}, __lt_display: {}_display }};\n",
+                    "export const {constructor}: {value_ty} = {{ tag: {}, values: [], __lt_order: {order}, __lt_display: {}_display }};\n",
                     quote(&variant.name),
                     decl.name
                 ));
