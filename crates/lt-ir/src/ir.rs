@@ -1,8 +1,8 @@
 //! Target-neutral typed IR.
 //!
 //! Produced from a type-checked [`lt_hir::Program`]. Every expression carries
-//! its final type; resolution decisions (which class, which builtin method,
-//! which enum variant) are already made, so an emitter only has to render.
+//! its final type; resolution decisions (which struct, which function, which
+//! enum variant) are already made, so an emitter only has to render.
 
 use lt_hir::{ModuleId, Ty, TypeName};
 
@@ -13,22 +13,25 @@ pub struct IrProgram {
     pub names: Vec<String>,
 }
 
+/// One package.
 #[derive(Debug, Clone)]
 pub struct IrModule {
     pub id: ModuleId,
+    /// Package name; also the output module name.
     pub name: String,
-    pub classes: Vec<IrClass>,
+    pub structs: Vec<IrStruct>,
     pub enums: Vec<IrEnum>,
-    pub tests: Vec<IrTestClass>,
+    pub functions: Vec<IrFn>,
+    pub bindings: Vec<IrBinding>,
+    pub tests: Vec<IrTest>,
 }
 
 #[derive(Debug, Clone)]
-pub struct IrClass {
+pub struct IrStruct {
     pub name: String,
     pub generics: Vec<String>,
-    pub is_pub: bool,
+    pub is_export: bool,
     pub fields: Vec<IrField>,
-    pub methods: Vec<IrMethod>,
 }
 
 #[derive(Debug, Clone)]
@@ -37,14 +40,18 @@ pub struct IrField {
     pub ty: Ty,
 }
 
+/// A package-level function. Receiver functions are ordinary functions whose
+/// first parameter is a struct/enum declared in the same package.
 #[derive(Debug, Clone)]
-pub struct IrMethod {
+pub struct IrFn {
     pub name: String,
-    pub is_pub: bool,
-    pub is_static: bool,
+    pub is_export: bool,
+    pub generics: Vec<String>,
     pub params: Vec<IrParam>,
     pub ret: Ty,
     pub body: IrBlock,
+    /// True when the first parameter is the receiver type.
+    pub is_receiver: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -57,7 +64,7 @@ pub struct IrParam {
 pub struct IrEnum {
     pub name: String,
     pub generics: Vec<String>,
-    pub is_pub: bool,
+    pub is_export: bool,
     pub variants: Vec<IrVariant>,
 }
 
@@ -67,16 +74,18 @@ pub struct IrVariant {
     pub payload: Vec<Ty>,
 }
 
+/// Immutable package-level binding.
 #[derive(Debug, Clone)]
-pub struct IrTestClass {
+pub struct IrBinding {
     pub name: String,
-    pub tests: Vec<IrTestFn>,
-    pub helpers: Vec<IrMethod>,
+    pub is_export: bool,
+    pub ty: Ty,
+    pub value: IrExpr,
 }
 
 #[derive(Debug, Clone)]
-pub struct IrTestFn {
-    pub name: String,
+pub struct IrTest {
+    pub title: String,
     pub body: IrBlock,
 }
 
@@ -145,21 +154,26 @@ pub enum IrExpr {
         items: Vec<IrExpr>,
         ty: Ty,
     },
-    /// `Map.empty()` / `Set.empty()`.
+    /// `map.empty()` / `set.empty()`.
     EmptyCollection {
         ty: Ty,
     },
     Var(String),
-    SelfRef,
+    /// A package-level binding, possibly in another package.
+    BindingRef {
+        module: ModuleId,
+        name: String,
+        ty: Ty,
+    },
     Field {
         base: Box<IrExpr>,
         name: String,
         ty: Ty,
     },
-    ClassNew {
+    StructNew {
         module: ModuleId,
-        class: String,
-        /** Values in field declaration order. */
+        strukt: String,
+        /// Values in field declaration order.
         args: Vec<(String, IrExpr)>,
         ty: Ty,
     },
@@ -169,22 +183,11 @@ pub enum IrExpr {
         args: Vec<IrExpr>,
         ty: Ty,
     },
-    /// Call to a function declared in a `test class` (helpers).
-    LocalCall {
-        name: String,
-        args: Vec<IrExpr>,
-        ty: Ty,
-    },
-    StaticCall {
+    /// A package-level function call, including receiver calls: the receiver
+    /// is the first argument.
+    FnCall {
         module: ModuleId,
-        class: String,
-        method: String,
-        args: Vec<IrExpr>,
-        ty: Ty,
-    },
-    InstanceCall {
-        receiver: Box<IrExpr>,
-        method: String,
+        name: String,
         args: Vec<IrExpr>,
         ty: Ty,
     },

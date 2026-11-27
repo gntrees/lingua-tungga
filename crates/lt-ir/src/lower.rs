@@ -3,8 +3,8 @@
 use std::collections::HashMap;
 
 use lt_hir::{
-    builtin_enum, types::substitute, ClassInfo, EnumInfo, ModuleId, Program, Ty, TypeName,
-    TypeTable,
+    builtin_enum, types::substitute, BindingInfo, EnumInfo, FnInfo, ModuleId, Program, StructInfo,
+    Ty, TypeName, TypeTable,
 };
 use lt_syntax::ast::{self, LambdaBody, MatchBody, Pattern};
 use lt_syntax::span::line_col_at;
@@ -28,29 +28,46 @@ pub fn lower(program: &Program, types: &TypeTable, names: Vec<String>) -> LowerO
             module: module_id,
             diags: Vec::new(),
             scopes: Vec::new(),
-            self_ty: None,
-            class_generics: Vec::new(),
-            test_helpers: Vec::new(),
+            fn_generics: Vec::new(),
         };
 
-        let mut classes = Vec::new();
+        let mut structs = Vec::new();
         let mut enums = Vec::new();
+        let mut functions = Vec::new();
+        let mut bindings = Vec::new();
         let mut tests = Vec::new();
 
         for item in &module.ast.items {
             match item {
-                ast::Item::Class(class) => {
-                    if let Some(info) = module.classes.iter().find(|c| c.name == class.name) {
-                        classes.push(lowerer.lower_class(class, info));
+                ast::PackageItem::Struct(decl) => {
+                    if let Some(info) = module.structs.iter().find(|s| s.name == decl.name) {
+                        structs.push(lowerer.lower_struct(decl, info));
                     }
                 }
-                ast::Item::Enum(decl) => {
+                ast::PackageItem::Enum(decl) => {
                     if let Some(info) = module.enums.iter().find(|e| e.name == decl.name) {
                         enums.push(lowerer.lower_enum(decl, info));
                     }
                 }
-                ast::Item::TestClass(decl) => {
-                    tests.push(lowerer.lower_test_class(decl));
+                ast::PackageItem::Fn(decl) => {
+                    if let Some(info) = module.functions.iter().find(|f| f.name == decl.name) {
+                        functions.push(lowerer.lower_fn(decl, info));
+                    }
+                }
+                ast::PackageItem::Binding(decl) => {
+                    if let Some(info) = module.bindings.iter().find(|b| b.name == decl.name) {
+                        bindings.push(lowerer.lower_binding(decl, info));
+                    }
+                }
+                ast::PackageItem::Test(decl) => {
+                    lowerer.scopes.clear();
+                    lowerer.scopes.push(HashMap::new());
+                    let body = lowerer.block(&decl.body);
+                    lowerer.scopes.clear();
+                    tests.push(IrTest {
+                        title: decl.title.clone(),
+                        body,
+                    });
                 }
             }
         }
@@ -60,8 +77,10 @@ pub fn lower(program: &Program, types: &TypeTable, names: Vec<String>) -> LowerO
         modules.push(IrModule {
             id: module_id,
             name: names[module_id].clone(),
-            classes,
+            structs,
             enums,
+            functions,
+            bindings,
             tests,
         });
     }
@@ -107,9 +126,18 @@ struct Lowerer<'a> {
     module: ModuleId,
     diags: Vec<Diagnostic>,
     scopes: Vec<HashMap<String, Ty>>,
-    self_ty: Option<Ty>,
-    class_generics: Vec<String>,
-    test_helpers: Vec<(String, Vec<Ty>, Ty)>,
+    fn_generics: Vec<String>,
+}
+
+fn destructured_module(program: &Program, module: ModuleId, name: &str) -> Option<ModuleId> {
+    for import in &program.modules[module].imports {
+        for item in &import.items {
+            if item.binding == name {
+                return Some(import.module);
+            }
+        }
+    }
+    None
 }
 
 impl<'a> Lowerer<'a> {
@@ -140,30 +168,67 @@ impl<'a> Lowerer<'a> {
         }
     }
 
-    fn class_ref(&self, name: &str) -> Option<(&'a ClassInfo, TypeName)> {
+    fn struct_ref(&self, name: &str) -> Option<(&'a StructInfo, TypeName)> {
         let program = self.program;
-        if let Some(class) = program.find_class(self.module, name) {
+        if let Some(decl) = program.find_struct(self.module, name) {
             return Some((
-                class,
+                decl,
                 TypeName {
                     module: self.module,
                     name: name.to_string(),
                 },
             ));
         }
-        let import = program.modules[self.module]
-            .imports
-            .iter()
-            .find(|import| import.name == name)?;
-        let class = program.find_class(import.module, name)?;
+        let module = destructured_module(program, self.module, name)?;
+        let decl = program.find_struct(module, name)?;
+        if !decl.is_export {
+            return None;
+        }
         Some((
-            class,
+            decl,
             TypeName {
-                module: import.module,
+                module,
                 name: name.to_string(),
             },
         ))
     }
+
+
+
+    fn fn_ref(&self, name: &str) -> Option<(ModuleId, &'a FnInfo)> {
+        let program = self.program;
+        if let Some(decl) = program.find_fn(self.module, name) {
+            return Some((self.module, decl));
+        }
+        let module = destructured_module(program, self.module, name)?;
+        let decl = program.find_fn(module, name)?;
+        if !decl.is_export {
+            return None;
+        }
+        Some((module, decl))
+    }
+
+    fn binding_ref(&self, name: &str) -> Option<(ModuleId, &'a BindingInfo)> {
+        let program = self.program;
+        if let Some(decl) = program.find_binding(self.module, name) {
+            return Some((self.module, decl));
+        }
+        let module = destructured_module(program, self.module, name)?;
+        let decl = program.find_binding(module, name)?;
+        if !decl.is_export {
+            return None;
+        }
+        Some((module, decl))
+    }
+
+    fn package_ref(&self, name: &str) -> Option<ModuleId> {
+        self.program.modules[self.module]
+            .imports
+            .iter()
+            .find(|import| import.binding == name)
+            .map(|import| import.module)
+    }
+
 
     fn enum_ref(&self, name: &str) -> Option<(&'a EnumInfo, TypeName)> {
         let program = self.program;
@@ -176,15 +241,15 @@ impl<'a> Lowerer<'a> {
                 },
             ));
         }
-        let import = program.modules[self.module]
-            .imports
-            .iter()
-            .find(|import| import.name == name)?;
-        let decl = program.find_enum(import.module, name)?;
+        let module = destructured_module(program, self.module, name)?;
+        let decl = program.find_enum(module, name)?;
+        if !decl.is_export {
+            return None;
+        }
         Some((
             decl,
             TypeName {
-                module: import.module,
+                module,
                 name: name.to_string(),
             },
         ))
@@ -238,60 +303,11 @@ impl<'a> Lowerer<'a> {
 
     // ------------------------------------------------------------ top items
 
-    fn lower_class(&mut self, class: &ast::ClassDecl, info: &ClassInfo) -> IrClass {
-        let type_name = TypeName {
-            module: self.module,
-            name: class.name.clone(),
-        };
-        self.class_generics = class.generics.clone();
-        self.self_ty = Some(Ty::Named(
-            type_name,
-            class
-                .generics
-                .iter()
-                .map(|g| Ty::Generic(g.clone()))
-                .collect(),
-        ));
-
-        let mut methods = Vec::new();
-        for method in &class.methods {
-            let Some(method_info) = info.methods.iter().find(|m| m.name == method.name) else {
-                continue;
-            };
-            self.scopes.clear();
-            self.scopes.push(HashMap::new());
-            if method.has_self {
-                if let Some(self_ty) = self.self_ty.clone() {
-                    self.declare("self", self_ty);
-                }
-            }
-            for (param, (_, ty, _)) in method.params.iter().zip(method_info.params.iter()) {
-                self.declare(&param.name, ty.clone());
-            }
-            let body = self.block(&method.body);
-            self.scopes.clear();
-
-            methods.push(IrMethod {
-                name: method.name.clone(),
-                is_pub: method_info.is_pub,
-                is_static: method_info.is_static,
-                params: method_info
-                    .params
-                    .iter()
-                    .map(|(name, ty, _)| IrParam {
-                        name: name.clone(),
-                        ty: ty.clone(),
-                    })
-                    .collect(),
-                ret: method_info.ret.clone(),
-                body,
-            });
-        }
-
-        IrClass {
-            name: class.name.clone(),
-            generics: class.generics.clone(),
-            is_pub: info.is_pub,
+    fn lower_struct(&mut self, decl: &ast::StructDecl, info: &StructInfo) -> IrStruct {
+        IrStruct {
+            name: decl.name.clone(),
+            generics: decl.generics.clone(),
+            is_export: info.is_export,
             fields: info
                 .fields
                 .iter()
@@ -300,15 +316,61 @@ impl<'a> Lowerer<'a> {
                     ty: field.ty.clone(),
                 })
                 .collect(),
-            methods,
         }
     }
+
+    fn lower_fn(&mut self, decl: &ast::FnDecl, info: &FnInfo) -> IrFn {
+        self.fn_generics = decl.generics.clone();
+        self.scopes.clear();
+        self.scopes.push(HashMap::new());
+        let params: Vec<IrParam> = info
+            .params
+            .iter()
+            .map(|(name, ty, _)| IrParam {
+                name: name.clone(),
+                ty: ty.clone(),
+            })
+            .collect();
+        for param in &params {
+            self.declare(&param.name, param.ty.clone());
+        }
+        let body = self.block(&decl.body);
+        self.scopes.clear();
+
+        let is_receiver = info
+            .params
+            .first()
+            .is_some_and(|(_, ty, _)| matches!(ty, Ty::Named(name, _) if name.module == self.module));
+
+        IrFn {
+            name: decl.name.clone(),
+            is_export: info.is_export,
+            generics: decl.generics.clone(),
+            params,
+            ret: info.ret.clone(),
+            body,
+            is_receiver,
+        }
+    }
+
+    fn lower_binding(&mut self, decl: &ast::BindingDecl, info: &BindingInfo) -> IrBinding {
+        self.scopes.clear();
+        let value = self.expr(&decl.value);
+        self.scopes.clear();
+        IrBinding {
+            name: decl.name.clone(),
+            is_export: info.is_export,
+            ty: info.ty.clone(),
+            value,
+        }
+    }
+
 
     fn lower_enum(&mut self, decl: &ast::EnumDecl, info: &EnumInfo) -> IrEnum {
         IrEnum {
             name: decl.name.clone(),
             generics: decl.generics.clone(),
-            is_pub: info.is_pub,
+            is_export: info.is_export,
             variants: info
                 .variants
                 .iter()
@@ -320,103 +382,10 @@ impl<'a> Lowerer<'a> {
         }
     }
 
-    fn lower_test_class(&mut self, decl: &ast::TestClassDecl) -> IrTestClass {
-        let mut signatures: Vec<(String, Vec<Ty>, Ty)> = Vec::new();
-        for helper in &decl.helpers {
-            let params: Vec<Ty> = helper
-                .params
-                .iter()
-                .map(|param| self.type_annotation(&param.ty))
-                .collect();
-            let ret = match &helper.ret {
-                Some(ty) => self.type_annotation(ty),
-                None => Ty::Unit,
-            };
-            signatures.push((helper.name.clone(), params, ret));
-        }
-        self.test_helpers = signatures.clone();
-        let mut helpers = Vec::new();
-        for (index, helper) in decl.helpers.iter().enumerate() {
-            self.scopes.clear();
-            self.scopes.push(HashMap::new());
-            let params: Vec<IrParam> = helper
-                .params
-                .iter()
-                .map(|param| IrParam {
-                    name: param.name.clone(),
-                    ty: self.type_annotation(&param.ty),
-                })
-                .collect();
-            for param in &params {
-                self.declare(&param.name, param.ty.clone());
-            }
-            let body = self.block(&helper.body);
-            self.scopes.clear();
-            helpers.push(IrMethod {
-                name: helper.name.clone(),
-                is_pub: false,
-                is_static: true,
-                params,
-                ret: signatures
-                    .get(index)
-                    .map(|(_, _, ret)| ret.clone())
-                    .unwrap_or(Ty::Unit),
-                body,
-            });
-        }
 
-        let mut tests = Vec::new();
-        for test in &decl.tests {
-            self.scopes.clear();
-            self.scopes.push(HashMap::new());
-            let body = self.block(&test.body);
-            self.scopes.clear();
-            tests.push(IrTestFn {
-                name: test.name.clone(),
-                body,
-            });
-        }
 
-        self.test_helpers.clear();
 
-        IrTestClass {
-            name: decl.name.clone(),
-            tests,
-            helpers,
-        }
-    }
 
-    fn type_annotation(&self, ty: &ast::Type) -> Ty {
-        let name = ty.path.last().cloned().unwrap_or_default();
-        let args: Vec<Ty> = ty
-            .args
-            .iter()
-            .map(|arg| self.type_annotation(arg))
-            .collect();
-        let base = match name.as_str() {
-            "Int" => Ty::Int,
-            "Float" => Ty::Float,
-            "Bool" => Ty::Bool,
-            "Str" => Ty::Str,
-            "List" if args.len() == 1 => Ty::list(args[0].clone()),
-            "Set" if args.len() == 1 => Ty::set(args[0].clone()),
-            "Option" if args.len() == 1 => Ty::option(args[0].clone()),
-            "Map" if args.len() == 2 => Ty::map(args[0].clone(), args[1].clone()),
-            "Result" if args.len() == 2 => Ty::result(args[0].clone(), args[1].clone()),
-            _ => match self.class_ref(&name) {
-                Some((_, type_name)) => Ty::Named(type_name, args),
-                None => match self.enum_ref(&name) {
-                    Some((_, type_name)) => Ty::Named(type_name, args),
-                    None => Ty::Error,
-                },
-            },
-        };
-        if ty.optional {
-            Ty::option(base)
-        } else {
-            base
-        }
-    }
 
     // -------------------------------------------------------------- blocks
 
@@ -512,8 +481,14 @@ impl<'a> Lowerer<'a> {
                 ty: self.ty_of(expr),
             },
             ast::Expr::Ident { name, .. } => {
-                if name == "self" {
-                    IrExpr::SelfRef
+                if self.scopes.iter().any(|scope| scope.contains_key(name)) {
+                    IrExpr::Var(name.clone())
+                } else if let Some((module, binding)) = self.binding_ref(name) {
+                    IrExpr::BindingRef {
+                        module,
+                        name: binding.name.clone(),
+                        ty: binding.ty.clone(),
+                    }
                 } else {
                     IrExpr::Var(name.clone())
                 }
@@ -613,6 +588,73 @@ impl<'a> Lowerer<'a> {
         }
     }
 
+    fn struct_new(
+        &mut self,
+        decl: &StructInfo,
+        type_name: TypeName,
+        args: &ast::Args,
+        span: Span,
+        ty: Ty,
+    ) -> IrExpr {
+        let ast::Args::Named(named) = args else {
+            return self.unsupported(span, "construction needs named arguments");
+        };
+        let lowered: Vec<(String, IrExpr)> = decl
+            .fields
+            .iter()
+            .map(|field| {
+                let value = named
+                    .iter()
+                    .find(|arg| arg.name == field.name)
+                    .map(|arg| self.expr(&arg.value))
+                    .unwrap_or_else(|| IrExpr::Var("undefined".to_string()));
+                (field.name.clone(), value)
+            })
+            .collect();
+        IrExpr::StructNew {
+            module: type_name.module,
+            strukt: decl.name.clone(),
+            args: lowered,
+            ty,
+        }
+    }
+
+    fn positional_call(
+        &mut self,
+        args: &ast::Args,
+        span: Span,
+        module: ModuleId,
+        name: &str,
+        ty: Ty,
+    ) -> IrExpr {
+        let Some(items) = self.positional(args, span) else {
+            return IrExpr::Var("undefined".to_string());
+        };
+        IrExpr::FnCall {
+            module,
+            name: name.to_string(),
+            args: items.iter().map(|item| self.expr(item)).collect(),
+            ty,
+        }
+    }
+
+    fn package_call(&mut self, module: ModuleId, name: &str, args: &ast::Args, span: Span, ty: Ty) -> IrExpr {
+        let program = self.program;
+        if let Some(decl) = program.find_fn(module, name) {
+            let fn_name = decl.name.clone();
+            return self.positional_call(args, span, module, &fn_name, ty);
+        }
+        if let Some(decl) = program.find_struct(module, name) {
+            let decl = decl.clone();
+            let type_name = TypeName {
+                module,
+                name: name.to_string(),
+            };
+            return self.struct_new(&decl, type_name, args, span, ty);
+        }
+        self.unsupported(span, format!("unsupported package member `{name}`"))
+    }
+
     fn call(
         &mut self,
         callee: &ast::Expr,
@@ -624,49 +666,9 @@ impl<'a> Lowerer<'a> {
 
         match callee {
             ast::Expr::Ident { name, .. } => {
-                if let Some((class, type_name)) = self.class_ref(name) {
-                    let class = class.clone();
-                    let ast::Args::Named(named) = args else {
-                        return self.unsupported(span, "construction needs named arguments");
-                    };
-                    let lowered: Vec<(String, IrExpr)> = class
-                        .fields
-                        .iter()
-                        .map(|field| {
-                            let value = named
-                                .iter()
-                                .find(|arg| arg.name == field.name)
-                                .map(|arg| self.expr(&arg.value))
-                                .unwrap_or_else(|| IrExpr::Var("undefined".to_string()));
-                            (field.name.clone(), value)
-                        })
-                        .collect();
-                    return IrExpr::ClassNew {
-                        module: type_name.module,
-                        class: class.name.clone(),
-                        args: lowered,
-                        ty,
-                    };
-                }
-                if let Some((helper_name, params, ret)) = self
-                    .test_helpers
-                    .iter()
-                    .find(|(helper, _, _)| helper == name)
-                    .cloned()
-                {
-                    let Some(items) = self.positional(args, span) else {
-                        return IrExpr::Var("undefined".to_string());
-                    };
-                    let lowered: Vec<IrExpr> = items
-                        .iter()
-                        .zip(params.iter())
-                        .map(|(item, _)| self.expr(item))
-                        .collect();
-                    return IrExpr::LocalCall {
-                        name: helper_name,
-                        args: lowered,
-                        ty: ret,
-                    };
+                if let Some((decl, type_name)) = self.struct_ref(name) {
+                    let decl = decl.clone();
+                    return self.struct_new(&decl, type_name, args, span, ty);
                 }
 
                 if matches!(name.as_str(), "Some" | "Ok" | "Err") {
@@ -685,22 +687,18 @@ impl<'a> Lowerer<'a> {
                         ty,
                     };
                 }
+
+                if let Some((module, decl)) = self.fn_ref(name) {
+                    let fn_name = decl.name.clone();
+                    return self.positional_call(args, span, module, &fn_name, ty);
+                }
+
                 self.unsupported(span, format!("unsupported call of `{name}`"))
             }
             ast::Expr::Field { base, name, .. } => {
                 if let ast::Expr::Ident { name: owner, .. } = base.as_ref() {
-                    if let Some((class, type_name)) = self.class_ref(owner) {
-                        let class = class.clone();
-                        let Some(items) = self.positional(args, span) else {
-                            return IrExpr::Var("undefined".to_string());
-                        };
-                        return IrExpr::StaticCall {
-                            module: type_name.module,
-                            class: class.name.clone(),
-                            method: name.clone(),
-                            args: items.iter().map(|item| self.expr(item)).collect(),
-                            ty,
-                        };
+                    if let Some(module) = self.package_ref(owner) {
+                        return self.package_call(module, name, args, span, ty);
                     }
                     if let Some((decl, type_name)) = self.enum_ref(owner) {
                         let decl = decl.clone();
@@ -717,7 +715,7 @@ impl<'a> Lowerer<'a> {
                             ty,
                         };
                     }
-                    if owner == "Map" || owner == "Set" {
+                    if (owner == "map" || owner == "set") && name == "empty" {
                         let Some(items) = self.positional(args, span) else {
                             return IrExpr::Var("undefined".to_string());
                         };
@@ -726,7 +724,7 @@ impl<'a> Lowerer<'a> {
                         }
                         return IrExpr::EmptyCollection { ty };
                     }
-                    if owner == "Math" {
+                    if owner == "math" {
                         let Some(items) = self.positional(args, span) else {
                             return IrExpr::Var("undefined".to_string());
                         };
@@ -736,7 +734,7 @@ impl<'a> Lowerer<'a> {
                             ty,
                         };
                     }
-                    if owner == "Expect" {
+                    if owner == "expect" {
                         let Some(items) = self.positional(args, span) else {
                             return IrExpr::Var("undefined".to_string());
                         };
@@ -752,6 +750,27 @@ impl<'a> Lowerer<'a> {
                 let Some(items) = self.positional(args, span) else {
                     return IrExpr::Var("undefined".to_string());
                 };
+
+                if let Ty::Named(type_name, _) = &receiver_ty {
+                    let program = self.program;
+                    if let Some(decl) = program.find_fn(type_name.module, name) {
+                        let is_receiver = decl.params.first().is_some_and(|(_, ty, _)| {
+                            matches!(ty, Ty::Named(first, _) if first.module == type_name.module && first.name == type_name.name)
+                        });
+                        if is_receiver {
+                            let module = type_name.module;
+                            let fn_name = decl.name.clone();
+                            let mut lowered = vec![receiver];
+                            lowered.extend(items.iter().map(|item| self.expr(item)));
+                            return IrExpr::FnCall {
+                                module,
+                                name: fn_name,
+                                args: lowered,
+                                ty,
+                            };
+                        }
+                    }
+                }
 
                 if let Some(kind) = Builtin::from_method(&receiver_ty, name) {
                     let first_ty = items.first().map(|item| self.ty_of(item));
@@ -774,34 +793,19 @@ impl<'a> Lowerer<'a> {
                     };
                 }
 
-                let user_to_string = match &receiver_ty {
-                    Ty::Named(type_name, _) => {
-                        self.program.class_of(type_name).is_some_and(|class| {
-                            class
-                                .methods
-                                .iter()
-                                .any(|method| method.name == "to_string" && method.has_self)
-                        })
-                    }
-                    _ => false,
-                };
-                if !user_to_string && name == "to_string" && items.is_empty() {
+                if name == "to_string" && items.is_empty() {
                     return IrExpr::ToStr {
                         value: Box::new(receiver),
                         ty: receiver_ty,
                     };
                 }
 
-                IrExpr::InstanceCall {
-                    receiver: Box::new(receiver),
-                    method: name.clone(),
-                    args: items.iter().map(|item| self.expr(item)).collect(),
-                    ty,
-                }
+                self.unsupported(span, format!("unsupported method call `{name}`"))
             }
             _ => self.unsupported(span, "this expression is not callable"),
         }
     }
+
 
     fn lambda(&mut self, expr: &ast::Expr, param_types: Vec<Ty>) -> IrExpr {
         let ast::Expr::Lambda {
@@ -931,39 +935,45 @@ impl<'a> Lowerer<'a> {
         whole: &ast::Expr,
     ) -> IrExpr {
         let ty = self.ty_of(whole);
-        let (owner, method) = match tag {
-            ast::Expr::Field { base, name, .. } => match base.as_ref() {
-                ast::Expr::Ident { name: owner, .. } => (owner.clone(), name.clone()),
-                _ => return self.unsupported(tag.span(), "unsupported tagged template"),
+
+        let (module, decl) = match tag {
+            ast::Expr::Ident { name, .. } => match self.fn_ref(name) {
+                Some((module, decl)) => (module, decl.clone()),
+                None => return self.unsupported(tag.span(), format!("unknown tag `{name}`")),
             },
+            ast::Expr::Field { base, name, .. } => {
+                let ast::Expr::Ident { name: owner, .. } = base.as_ref() else {
+                    return self.unsupported(tag.span(), "unsupported tagged template");
+                };
+                let Some(module) = self.package_ref(owner) else {
+                    return self.unsupported(tag.span(), format!("unknown package `{owner}`"));
+                };
+                match self.program.find_fn(module, name) {
+                    Some(decl) => (module, decl.clone()),
+                    None => {
+                        return self.unsupported(tag.span(), format!("`{owner}.{name}` is not a function"))
+                    }
+                }
+            }
             _ => return self.unsupported(tag.span(), "unsupported tagged template"),
         };
-        let Some((class, type_name)) = self.class_ref(&owner) else {
-            return self.unsupported(tag.span(), format!("unknown tag owner `{owner}`"));
-        };
 
-        let value_ty = class
-            .methods
-            .iter()
-            .find(|candidate| candidate.name == method && candidate.is_static)
-            .and_then(|candidate| candidate.params.get(1))
+        let value_ty = decl
+            .params
+            .get(1)
             .map(|(_, ty, _)| ty.clone())
             .unwrap_or_else(|| Ty::list(Ty::Str));
 
-        let part_items: Vec<IrExpr> = parts.iter().map(|part| IrExpr::Str(part.clone())).collect();
-        let value_items: Vec<IrExpr> = exprs.iter().map(|inner| self.expr(inner)).collect();
-
-        IrExpr::StaticCall {
-            module: type_name.module,
-            class: class.name.clone(),
-            method,
+        IrExpr::FnCall {
+            module,
+            name: decl.name.clone(),
             args: vec![
                 IrExpr::List {
-                    items: part_items,
+                    items: parts.iter().map(|part| IrExpr::Str(part.clone())).collect(),
                     ty: Ty::list(Ty::Str),
                 },
                 IrExpr::List {
-                    items: value_items,
+                    items: exprs.iter().map(|inner| self.expr(inner)).collect(),
                     ty: value_ty,
                 },
             ],
@@ -971,9 +981,10 @@ impl<'a> Lowerer<'a> {
         }
     }
 
+
     fn jsx(&mut self, element: &ast::JsxElement, ty: Ty) -> IrExpr {
-        let Some((class, type_name)) = self.class_ref(&element.name) else {
-            return self.unsupported(element.span, format!("unknown class `{}`", element.name));
+        let Some((class, type_name)) = self.struct_ref(&element.name) else {
+            return self.unsupported(element.span, format!("unknown struct `{}`", element.name));
         };
         let class = class.clone();
 
@@ -1022,9 +1033,9 @@ impl<'a> Lowerer<'a> {
             })
             .collect();
 
-        IrExpr::ClassNew {
+        IrExpr::StructNew {
             module: type_name.module,
-            class: class.name.clone(),
+            strukt: class.name.clone(),
             args,
             ty,
         }
