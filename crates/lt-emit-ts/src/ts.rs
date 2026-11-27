@@ -148,8 +148,16 @@ pub fn emit_module(program: &IrProgram, module: &IrModule) -> String {
         body.push_str(&emitter.enum_decl(decl));
         body.push('\n');
     }
-    for class in &module.classes {
-        body.push_str(&emitter.class_decl(class));
+    for strukt in &module.structs {
+        body.push_str(&emitter.struct_decl(strukt));
+        body.push('\n');
+    }
+    for binding in &module.bindings {
+        body.push_str(&emitter.binding_decl(binding));
+        body.push('\n');
+    }
+    for function in &module.functions {
+        body.push_str(&emitter.fn_decl(function));
         body.push('\n');
     }
 
@@ -173,7 +181,7 @@ pub fn emit_module(program: &IrProgram, module: &IrModule) -> String {
 
 /// Emit the `vitest` file for one module, if it declares test classes.
 pub fn emit_tests(program: &IrProgram, module: &IrModule) -> Option<String> {
-    if module.tests.iter().all(|test| test.tests.is_empty()) {
+    if module.tests.is_empty() {
         return None;
     }
 
@@ -185,22 +193,14 @@ pub fn emit_tests(program: &IrProgram, module: &IrModule) -> Option<String> {
     };
 
     let mut body = String::new();
-    for test_class in &module.tests {
-        for helper in &test_class.helpers {
-            body.push_str(&emitter.free_function(helper));
+    for (index, test) in module.tests.iter().enumerate() {
+        if index > 0 {
             body.push('\n');
         }
-        body.push_str(&format!("describe({}, () => {{\n", quote(&test_class.name)));
-        for (index, test) in test_class.tests.iter().enumerate() {
-            if index > 0 {
-                body.push('\n');
-            }
-            body.push_str(&format!("  it({}, () => {{\n", quote(&test.name)));
-            for line in emitter.block_lines(&test.body, 2, &Tail::Plain) {
-                body.push_str(&line);
-                body.push('\n');
-            }
-            body.push_str("  });\n");
+        body.push_str(&format!("it({}, () => {{\n", quote(&test.title)));
+        for line in emitter.block_lines(&test.body, 1, &Tail::Plain) {
+            body.push_str(&line);
+            body.push('\n');
         }
         body.push_str("});\n");
     }
@@ -295,7 +295,7 @@ impl<'a> Emitter<'a> {
         }
     }
 
-    fn class_ref(&mut self, module: ModuleId, name: &str) -> String {
+    fn struct_ref(&mut self, module: ModuleId, name: &str) -> String {
         self.use_module(module);
         if self.is_local(module) {
             name.to_string()
@@ -427,7 +427,7 @@ impl<'a> Emitter<'a> {
         out
     }
 
-    fn class_decl(&mut self, class: &IrClass) -> String {
+    fn struct_decl(&mut self, class: &IrStruct) -> String {
         let generic_names = class.generics.clone();
         let generics = Self::generics(&generic_names);
         let mut out = format!("export class {}{} {{\n", class.name, generics);
@@ -457,10 +457,11 @@ impl<'a> Emitter<'a> {
             out.push_str("  }\n");
         }
 
-        for method in &class.methods {
-            out.push('\n');
-            out.push_str(&self.method_decl(method));
-        }
+        let overrides_display = self.module.functions.iter().any(|function| {
+            function.name == "to_string"
+                && function.is_receiver
+                && matches!(function.params.first().map(|p| &p.ty), Some(Ty::Named(name, _)) if name.name == class.name)
+        });
 
         out.push_str("\n  __lt_eq(other: unknown): boolean {\n");
         out.push_str(&format!(
@@ -512,7 +513,9 @@ impl<'a> Emitter<'a> {
         out.push_str("    return 0;\n  }\n");
 
         out.push_str("\n  __lt_to_string(): string {\n");
-        if class.fields.is_empty() {
+        if overrides_display {
+            out.push_str("    return to_string(this);\n");
+        } else if class.fields.is_empty() {
             out.push_str(&format!("    return {};\n", quote(&class.name)));
         } else {
             let pieces: Vec<String> = class
@@ -532,54 +535,46 @@ impl<'a> Emitter<'a> {
         out
     }
 
-    fn method_decl(&mut self, method: &IrMethod) -> String {
-        let params: Vec<String> = method
+    fn fn_decl(&mut self, function: &IrFn) -> String {
+        let params: Vec<String> = function
             .params
             .iter()
             .map(|param| format!("{}: {}", camel(&param.name), self.type_ref(&param.ty)))
             .collect();
-        let static_kw = if method.is_static { "static " } else { "" };
-        let ret = self.return_type(&method.ret);
+        let ret = self.return_type(&function.ret);
+        let exported = if function.is_export { "export " } else { "" };
         let mut out = format!(
-            "  {static_kw}{}({}): {ret} {{\n",
-            camel(&method.name),
+            "{exported}function {}({}): {ret} {{\n",
+            camel(&function.name),
             params.join(", ")
         );
-        let tail = if matches!(method.ret, Ty::Unit) {
+        let tail = if matches!(function.ret, Ty::Unit) {
             Tail::Plain
         } else {
             Tail::Return
         };
-        for line in self.block_lines(&method.body, 2, &tail) {
-            out.push_str(&line);
-            out.push('\n');
-        }
-        out.push_str("  }\n");
-        out
-    }
-
-    fn free_function(&mut self, method: &IrMethod) -> String {
-        let params: Vec<String> = method
-            .params
-            .iter()
-            .map(|param| format!("{}: {}", camel(&param.name), self.type_ref(&param.ty)))
-            .collect();
-        let ret = self.return_type(&method.ret);
-        let mut out = format!(
-            "function {}({}): {ret} {{\n",
-            camel(&method.name),
-            params.join(", ")
-        );
-        let tail = if matches!(method.ret, Ty::Unit) {
-            Tail::Plain
-        } else {
-            Tail::Return
-        };
-        for line in self.block_lines(&method.body, 1, &tail) {
+        for line in self.block_lines(&function.body, 1, &tail) {
             out.push_str(&line);
             out.push('\n');
         }
         out.push_str("}\n");
+        out
+    }
+
+    fn binding_decl(&mut self, binding: &IrBinding) -> String {
+        let frag = self.expr(&binding.value, 0);
+        let exported = if binding.is_export { "export " } else { "" };
+        let mut out = String::new();
+        for line in frag.prelude {
+            out.push_str(&line);
+            out.push('\n');
+        }
+        out.push_str(&format!(
+            "{exported}const {}: {} = {};\n",
+            camel(&binding.name),
+            self.type_ref(&binding.ty),
+            frag.code
+        ));
         out
     }
 
@@ -820,9 +815,17 @@ impl<'a> Emitter<'a> {
                 prelude: Vec::new(),
                 code: camel(name),
             },
-            IrExpr::SelfRef => Frag {
-                prelude: Vec::new(),
-                code: "this".to_string(),
+            IrExpr::BindingRef { module, name, .. } => {
+                let code = if *module == self.module.id && !self.tests_mode {
+                    camel(name)
+                } else {
+                    self.use_module(*module);
+                    format!("m{}.{}", module, camel(name))
+                };
+                Frag {
+                    prelude: Vec::new(),
+                    code,
+                }
             },
             IrExpr::List { items, ty } => {
                 let element = match ty {
@@ -865,13 +868,13 @@ impl<'a> Emitter<'a> {
                     code: format!("{}.{}", frag.code, camel(name)),
                 }
             }
-            IrExpr::ClassNew {
+            IrExpr::StructNew {
                 module,
-                class,
+                strukt,
                 args,
                 ..
             } => {
-                let class_ref = self.class_ref(*module, class);
+                let class_ref = self.struct_ref(*module, strukt);
                 let mut prelude = Vec::new();
                 let fields: Vec<String> = args
                     .iter()
@@ -927,29 +930,12 @@ impl<'a> Emitter<'a> {
                 };
                 Frag { prelude, code }
             }
-            IrExpr::LocalCall { name, args, .. } => {
-                let mut prelude = Vec::new();
-                let rendered: Vec<String> = args
-                    .iter()
-                    .map(|arg| {
-                        let frag = self.expr(arg, level);
-                        prelude.extend(frag.prelude);
-                        frag.code
-                    })
-                    .collect();
-                Frag {
-                    prelude,
-                    code: format!("{}({})", camel(name), rendered.join(", ")),
-                }
-            }
-            IrExpr::StaticCall {
+            IrExpr::FnCall {
                 module,
-                class,
-                method,
+                name,
                 args,
                 ..
             } => {
-                let class_ref = self.class_ref(*module, class);
                 let mut prelude = Vec::new();
                 let rendered: Vec<String> = args
                     .iter()
@@ -959,30 +945,15 @@ impl<'a> Emitter<'a> {
                         frag.code
                     })
                     .collect();
+                let target = if *module == self.module.id && !self.tests_mode {
+                    camel(name)
+                } else {
+                    self.use_module(*module);
+                    format!("m{}.{}", module, camel(name))
+                };
                 Frag {
                     prelude,
-                    code: format!("{class_ref}.{}({})", camel(method), rendered.join(", ")),
-                }
-            }
-            IrExpr::InstanceCall {
-                receiver,
-                method,
-                args,
-                ..
-            } => {
-                let recv = self.expr(receiver, level);
-                let mut prelude = recv.prelude;
-                let rendered: Vec<String> = args
-                    .iter()
-                    .map(|arg| {
-                        let frag = self.expr(arg, level);
-                        prelude.extend(frag.prelude);
-                        frag.code
-                    })
-                    .collect();
-                Frag {
-                    prelude,
-                    code: format!("{}.{}({})", recv.code, camel(method), rendered.join(", ")),
+                    code: format!("{target}({})", rendered.join(", ")),
                 }
             }
             IrExpr::Builtin {
