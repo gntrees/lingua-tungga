@@ -173,6 +173,18 @@ Dicatat agar tidak diusulkan ulang tanpa konteks baru.
 
 ---
 
+## 12b. Status implementasi
+
+| Lapis | Status |
+|---|---|
+| `lt-syntax` (lexer, AST, parser, formatter) | ✅ 75 test |
+| `lt-hir` (package = module, checker v2) | ✅ 32 test |
+| `lt-ir` (struct/fn/binding/test) | ✅ |
+| `lt-emit-ts` / `lt-emit-py` / `lt-emit-go` | ✅ (emit + golden) |
+| `lt-cli` (naming per package) | ✅ 19 test |
+| Korpus: conformance, examples, playground, golden | ✅ dimigrasikan |
+| Verifikasi runtime | Go `go test` 13/13 paket; Python `pytest` 45 test; playground 43 kasus + 9 diagnostik. TypeScript belum dijalankan (vitest tidak terpasang di mesin ini). |
+
 ## 12. Urutan kerja
 
 1. Dokumen: `PLAN.md`, `docs/spec.md`, `docs/grammar.ebnf` disesuaikan dengan ledger ini.
