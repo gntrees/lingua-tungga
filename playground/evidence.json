@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "generated_at": "2026-11-26T08:27:44Z",
+  "generated_at": "2026-11-27T04:32:49Z",
   "git": {
-    "commit": "5159ca0",
+    "commit": "3d785f0",
     "dirty": false
   },
   "tools": {
@@ -14,24 +14,24 @@
   "targets": {
     "ts": {
       "suite": "vitest",
-      "cases": 42,
-      "passed": 42,
-      "conformance": 38,
-      "conformance_passed": 38
+      "cases": 43,
+      "passed": 43,
+      "conformance": 44,
+      "conformance_passed": 44
     },
     "py": {
       "suite": "pytest+mypy",
-      "cases": 42,
-      "passed": 42,
-      "conformance": 38,
-      "conformance_passed": 38
+      "cases": 43,
+      "passed": 43,
+      "conformance": 44,
+      "conformance_passed": 44
     },
     "go": {
       "suite": "go test+vet",
-      "cases": 42,
-      "passed": 42,
-      "conformance": 38,
-      "conformance_passed": 38
+      "cases": 43,
+      "passed": 43,
+      "conformance": 44,
+      "conformance_passed": 44
     }
   },
   "cases": {
@@ -91,6 +91,11 @@
       "go": true
     },
     "enums/exhaustive": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "enums/generic": {
       "ts": true,
       "py": true,
       "go": true

@@ -262,9 +262,11 @@ Tiga trait yang dikenal compiler. Semuanya **di-derive otomatis**:
 | `Eq` | Perbandingan struktural seluruh field/varian. |
 | `Ord` | Lexicographic atas field sesuai urutan deklarasi; varian enum diurutkan sesuai urutan deklarasi. |
 
-**v1: derive otomatis saja.** Penimpaan manual `to_string`/`equals`/`compare` belum
-didukung (direncanakan v2). `Ordering` adalah enum bawaan: `Less`, `Equal`, `Greater`,
-tetapi belum muncul di permukaan bahasa.
+**v1: derive otomatis saja.** Penimpaan manual `equals`/`compare` belum didukung
+(direncanakan v2). Setiap nilai punya method universal `to_string() -> Str` yang memakai
+`Display`; method `to_string` yang dideklarasikan user menang atas versi bawaan.
+`Ordering` adalah enum bawaan: `Less`, `Equal`, `Greater`, tetapi belum muncul di
+permukaan bahasa.
 
 Ord dipakai oleh `sort`, `Map`, dan `Set`:
 - class: lexicographic atas field sesuai urutan deklarasi (dibandingkan rekursif dengan `Ord`).
@@ -277,14 +279,23 @@ Ord dipakai oleh `sort`, `Map`, dan `Set`:
 
 ```lt
 let s = `Hi ${user.name}, total ${n}`
-let q = Sql.query`SELECT * FROM users WHERE id = ${id}`
+
+enum SqlArg {
+  I(Int)
+  S(Str)
+}
+
+let q = Sql.query`SELECT * FROM users WHERE id = ${SqlArg.I(id)}`
 ```
 
-- `${expr}` wajib bertipe yang punya `Display`.
-- Hasil template selalu `Str`.
+- Pada **plain template**, `${expr}` wajib bertipe yang punya `Display`, dan hasilnya selalu `Str`. `Unit` tidak boleh diinterpolasi.
 - Multiline **verbatim**: newline dan indentasi di dalam backtick dipertahankan apa adanya. Tidak ada auto-dedent; gunakan `.trim_indent()` dari stdlib.
-- Tagged template: `tag` harus path yang menunjuk fungsi/static method (mis. `Sql.query`) dengan signature `(List<Str>, List<Str>) -> T`. Compiler menurunkan menjadi `tag(parts, values)` dengan invariant `parts.len() == values.len() + 1` dan setiap nilai sudah di-`Display`-kan.
-- Tidak ada tag bawaan. Tidak ada escaping otomatis.
+- **Tagged template**: `tag` harus path yang menunjuk static method pada class (mis. `Sql.query`), dengan signature `(List<Str>, List<T>) -> R`. `T` ditulis konkret dan tidak boleh memakai type parameter class.
+- Setiap `${expr}` pada tagged template harus **persis** bertipe `T`; tidak ada konversi `Display`, tidak ada pembungkusan `Some` implisit, dan tidak ada pemilihan varian enum otomatis. Nilai diteruskan apa adanya, sehingga tag dapat memeriksanya lewat `match`.
+- Nilai bertipe campuran dinyatakan dengan enum milik user yang dipakai sebagai `T`.
+- Invariant tetap `parts.len() == values.len() + 1`. Tidak ada tag bawaan dan tidak ada escaping otomatis.
+- `Unit` tidak boleh diinterpolasi. Untuk mengubah nilai menjadi `Str`, gunakan `to_string()`.
+- Konteks `T` mengalir ke `${expr}`: `${None}` dan `${[]}` bekerja bila `T` memberi tipenya. Konstruksi bersarang seperti `${Some([])}` atau `${None}` di dalam konstruktor class/enum belum mendapat konteks dan harus lewat binding lokal bertipe.
 
 ---
 
@@ -374,6 +385,7 @@ Trap dipetakan ke mekanisme native target (panic/exception) tetapi **tidak perna
 
 | Permukaan | Isi |
 |---|---|
+| Method universal | `to_string() -> Str` untuk setiap nilai yang punya `Display`; method user bernama sama menang |
 | Method `Str` | `len`, `trim`, `trim_indent`, `lower`, `upper`, `split`, `starts_with`, `ends_with`, `contains`, `replace`, `slice`, `chars`, `parse_int`, `parse_float` |
 | Method `List<T>` | `len`, `get(Int) -> T?`, `push`, `pop`, `map`, `filter`, `fold`, `any`, `all`, `sort`, `reverse`, `concat`, `contains`, `index_of`, `join(Str) -> Str` (khusus `List<Str>`) |
 | Method `Map<K,V>` | `len`, `get(K) -> V?`, `insert`, `remove`, `keys`, `values`, `contains_key` |

@@ -54,7 +54,9 @@ Yang perlu diperhatikan:
 
 - Semua field immutable. Tidak ada `null`; ketiadaan memakai `Option<T>`.
 - `match` wajib exhaustive.
-- Template literal memakai `Display`; `Int`/`Str`/class semuanya bisa.
+- Plain template literal memakai `Display`; `Int`/`Str`/class semuanya bisa.
+  Tagged template tidak: tag mendeklarasikan `List<T>` dan setiap nilai harus
+  persis `T`. Untuk mengubah nilai menjadi `Str`, pakai `to_string()`.
 
 ## 3. Tulis logika
 

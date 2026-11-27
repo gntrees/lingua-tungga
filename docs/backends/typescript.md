@@ -22,7 +22,8 @@ Target pertama, dipakai untuk memvalidasi IR dan semantik.
 | `Ord` | `lt.cmp(a, b)` |
 | `?` pada `Result`/`Option` | `const t = …; if (t.tag === "err"/"none") return t;` |
 | template | konkatenasi `+ lt.disp(...)` |
-| tagged template | pemanggilan static method dengan dua `LList<string>` |
+| `to_string()` | `lt.disp(value)` |
+| tagged template | pemanggilan static method dengan `LList<string>` + `LList<T>`; nilai tidak di-`disp` |
 | JSX | `new Class({ field: …, children: new LList([...]) })` |
 | `match` | `switch (value.tag)` |
 

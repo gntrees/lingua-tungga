@@ -1,6 +1,6 @@
 # Backend Python
 
-Target kedua. Conformance suite yang sama (17 test) harus lulus di sini dan di
+Target kedua. Conformance suite yang sama (44 test) harus lulus di sini dan di
 TypeScript; bila keduanya lulus, semantik inti terbukti portabel.
 
 ## Representasi
@@ -23,6 +23,8 @@ TypeScript; bila keduanya lulus, semantik inti terbukti portabel.
 | `Ord` | `_lt.cmp` |
 | `?` | `if t.tag == "err"/"none": return t` |
 | template | konkatenasi `+ _lt.disp(...)` |
+| `to_string()` | `_lt.disp(value)` |
+| tagged template | pemanggilan static method dengan `LList[str]` + `LList[T]`; type argument enum generik di-erase ke `Any` |
 | `match` | rantai `if/elif` pada `value.tag` |
 | JSX | pemanggilan konstruktor dengan keyword argument |
 

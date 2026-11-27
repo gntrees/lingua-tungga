@@ -70,8 +70,8 @@ Lingua Tungga adalah **portable core language**: satu sumber untuk logika murni 
 
 | # | Keputusan |
 |---|---|
-| 21 | Template literal backtick dengan `${expr}`, `expr` wajib `Display`, hasil selalu `Str`. Multiline verbatim, tanpa auto-dedent. |
-| 22 | **Tagged template**: ``tag`a ${x} b` `` → `tag(parts: List<Str>, values: List<Str>)`, invariant `parts.len() == values.len() + 1`, nilai di-`Display`-kan sebelum masuk tag. Tidak ada built-in tag. |
+| 21 | Template literal backtick dengan `${expr}`, `expr` wajib `Display`, hasil selalu `Str`. `Unit` ditolak. Multiline verbatim, tanpa auto-dedent. |
+| 22 | **Tagged template**: ``tag`a ${x} b` `` → `tag(parts: List<Str>, values: List<T>)`, `T` konkret di signature static method, setiap `${x}` harus persis `T` tanpa coercion, invariant `parts.len() == values.len() + 1`. Nilai campuran lewat enum user. Tidak ada built-in tag. |
 | 23 | **JSX/XML = literal typed tree**, nama tag = tipe/class, atribut = named argument, children = children. Bukan UI framework. |
 | 24 | Tidak ada tipe `Dynamic` bawaan. Kebutuhan heterogen diselesaikan dengan `enum Value` biasa di library. |
 
@@ -262,7 +262,7 @@ Aturan emitter:
 | `Eq` | `equals()` (deep) | `__eq__` | `Equal()` |
 | `Ord` | `cmp()` | `__lt__` + `__eq__` | `Compare()` |
 | template `` `a ${x}` `` | template literal / concat | f-string | `fmt.Sprintf` / concat |
-| tagged template | `tag([...parts], [...vals])` | `tag([...], [...])` | `tag(parts, vals)` |
+| tagged template | `tag([...parts], [...vals])` dengan `vals` bertipe `T[]` | `tag([...], [...])` dengan `vals` bertipe `List[T]` | `tag(parts, vals)` dengan `vals` bertipe `lt.List[T]` |
 | JSX | konstruktor class | konstruktor dataclass | struct literal |
 | import URL | tidak berlaku di output (sudah di-flatten) | idem | idem |
 | test class | file `*.test.ts` (vitest) | `test_*.py` (pytest) | `*_test.go` (`go test`) |
@@ -438,7 +438,7 @@ Tidak ada pembekuan fitur bahasa. Yang dikunci hanya tiga hal:
 2. **Urutan pekerjaan ditentukan temuan pilot**, bukan kelengkapan spec. Backlog tertulis di bawah, dan setiap entri butuh alasan yang bisa ditunjuk.
 3. **Kompatibilitas: tidak ada janji sampai 1.0.** Setelah 1.0, arti fitur yang sudah dirilis dikunci; tambahan masuk versi minor. Sebelum 1.0, perubahan semantik boleh, tetapi harus dicatat di `CHANGELOG.md` dan tercermin di evidence playground.
 
-Kandidat fitur (urutan belum final, menunggu bukti pilot): `enum Value` + `Json`, override manual `to_string`/`equals`, pola `match` bertingkat, `Map`/`Set` di permukaan API bila pilot membutuhkannya.
+Kandidat fitur (urutan belum final, menunggu bukti pilot): `enum Value` + `Json`, override manual `equals`, pola `match` bertingkat, `Map`/`Set` di permukaan API bila pilot membutuhkannya.
 
 ---
 
