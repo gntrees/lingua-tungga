@@ -103,6 +103,8 @@ Formatter (`lt fmt`) menghasilkan bentuk kanonik:
 - Lebar maksimum 100 kolom; container yang melebihi batas dipecah satu item per baris.
 - Trailing comma pada argumen/list yang multiline.
 - Satu baris kosong antar item package dan antar import; varian enum ditulis rapat.
+- Beberapa blok `package` dalam satu file dipisah **satu baris kosong**, dan urutannya
+  dipertahankan seperti di sumber (formatter tidak mengurutkan ulang package).
 - Kurung kurawal selalu di baris yang sama dengan header (`fn f() {`).
 - Body kosong ditulis `{}`.
 - Baris kosong berlebih dikolaps menjadi satu.

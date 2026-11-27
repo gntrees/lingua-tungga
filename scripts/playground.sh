@@ -22,7 +22,7 @@ lt() { cargo run -q --bin lt -- "$@"; }
 
 cases=(playground/cases/*/*.lt)
 case_count=${#cases[@]}
-conformance_count=$(grep -h "test fn" tests/conformance/*.lt | wc -l | tr -d ' ')
+conformance_count=$(grep -h '^  test "' tests/conformance/*.lt | wc -l | tr -d ' ')
 
 echo "== playground: ${case_count} cases, ${conformance_count} conformance tests =="
 rm -rf out/playground-cases
@@ -31,7 +31,13 @@ echo "== TypeScript =="
 lt test -t ts "${cases[@]}" --out out/playground-cases
 (
   cd out/playground-cases/ts
-  npm install --no-audit --no-fund >/dev/null
+  # Reuse the conformance install when present so a local --full run needs no
+  # network at all.
+  if [ -d "$root/out/conformance/ts/node_modules" ]; then
+    cp -R "$root/out/conformance/ts/node_modules" ./node_modules
+  else
+    npm install --prefer-offline --no-audit --no-fund >/dev/null
+  fi
   ./node_modules/.bin/tsc -p tsconfig.json
   ./node_modules/.bin/vitest run
 )
@@ -40,8 +46,14 @@ echo "== Python =="
 lt test -t py "${cases[@]}" --out out/playground-cases
 (
   cd out/playground-cases/py
-  python3 -m venv .venv
-  .venv/bin/pip -q install pytest mypy
+  if [ -x "$root/out/conformance/py/.venv/bin/python" ]; then
+    cp -R "$root/out/conformance/py/.venv" .venv
+  else
+    python3 -m venv .venv
+  fi
+  if ! .venv/bin/python -c "import pytest, mypy" >/dev/null 2>&1; then
+    .venv/bin/pip -q install pytest mypy
+  fi
   .venv/bin/python -m mypy --strict .
   .venv/bin/python -m pytest -q
 )

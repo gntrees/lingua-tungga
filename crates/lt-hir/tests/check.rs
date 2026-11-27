@@ -212,7 +212,7 @@ fn destructured_import_requires_export() {
             ),
         ),
     ];
-    assert_has(&files, "app.lt", "unknown type `User`");
+    assert_has(&files, "app.lt", "`User` is private to package `models`");
 }
 
 #[test]
@@ -464,4 +464,20 @@ export fn bad() -> Point {
 }
 "#;
     assert_has(&one("geo", body), "geo.lt", "expected `Int`");
+}
+
+#[test]
+fn importing_a_missing_name_is_reported() {
+    let files = [
+        ("models.lt", pkg("models", "export fn f() -> Int {\n  1\n}")),
+        (
+            "app.lt",
+            file(
+                "import models { nowhere } from \"./models.lt\"",
+                "app",
+                "export fn g() -> Int {\n  1\n}",
+            ),
+        ),
+    ];
+    assert_has(&files, "app.lt", "package `models` has no `nowhere`");
 }

@@ -166,10 +166,10 @@ Dicatat agar tidak diusulkan ulang tanpa konteks baru.
 
 ## 11. Item terbuka
 
-1. **Nama pseudo-package** (4.9): lowercase (`math`, `map`, `set`, `json`, `expect`) vs nama lama. Default diambil lowercase.
-2. **`Ordering`**: enum bawaan yang belum muncul di permukaan (`spec.md:273-275`); belum diputuskan apakah ikut jadi tipe package-level.
-3. **`lt fmt` dan multi-package per file**: aturan tata letak (satu baris kosong antar package? urutan package?) belum ditentukan.
-4. **Diagnostik saat satu file memuat dua package dengan nama sama**, dan saat nama package bertabrakan antar file — pesan dan titik laporannya belum ditentukan.
+1. ~~**Nama pseudo-package**~~ — **diputuskan**: lowercase (`math`, `map`, `set`, `json`, `expect`, `str`, `list`, `option`, `result`).
+2. **`Ordering`**: enum bawaan yang belum muncul di permukaan. `resolve_type` sudah menerimanya sebagai tipe, tetapi `Ordering.Less` belum bisa dikonstruksi dan belum ada konstantanya di tiga runtime — jadi masih **terbuka**, dan sengaja tidak dipaksakan.
+3. ~~**`lt fmt` multi-package**~~ — **diputuskan**: satu baris kosong antar blok `package`, urutan dipertahankan seperti di sumber; ada test formatter.
+4. ~~**Diagnostik package ganda / import salah**~~ — **diputuskan**: nama package ganda dilaporkan di deklarasi (dengan path file lain), import yang tidak ada dilaporkan `` package `p` has no `X` ``, import yang tidak di-`export` dilaporkan `` `X` is private to package `p`; add `export` ``.
 
 ---
 

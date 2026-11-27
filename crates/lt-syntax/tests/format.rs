@@ -325,3 +325,22 @@ fn rejects_inline_comments() {
     let error = lt_syntax::format_file_with_comments(&out.file, src, &lexed.comments).unwrap_err();
     assert!(error.message.contains("inline comments"), "{error:?}");
 }
+
+#[test]
+fn several_packages_in_one_file_are_separated_by_one_blank_line() {
+    let src = "package a{struct A{x:Int}}package b{struct B{y:Int}}";
+    let expected = "\
+package a {
+  struct A {
+    x: Int
+  }
+}
+
+package b {
+  struct B {
+    y: Int
+  }
+}
+";
+    assert_eq!(fmt(src), expected);
+}

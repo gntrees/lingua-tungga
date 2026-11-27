@@ -35,6 +35,35 @@ fn snake(name: &str) -> String {
 }
 
 /// Turn a free-form test title into a valid Python function name.
+/// Package-level functions and bindings that shadow a Python builtin, so type
+/// annotations in the same module must be qualified (`builtins.int`).
+fn module_shadowed(module: &IrModule) -> BTreeSet<String> {
+    const PRIMITIVES: [&str; 8] = [
+        "int", "float", "bool", "str", "list", "dict", "set", "object",
+    ];
+    let mut out = BTreeSet::new();
+    let mut consider = |name: String| {
+        if PRIMITIVES.contains(&name.as_str()) {
+            out.insert(name);
+        }
+    };
+    for function in &module.functions {
+        consider(if function.is_export {
+            snake(&function.name)
+        } else {
+            format!("_{}", snake(&function.name))
+        });
+    }
+    for binding in &module.bindings {
+        consider(if binding.is_export {
+            snake(&binding.name)
+        } else {
+            format!("_{}", snake(&binding.name))
+        });
+    }
+    out
+}
+
 fn test_name(title: &str) -> String {
     let mut out = String::new();
     for ch in title.chars() {
@@ -98,7 +127,7 @@ pub fn emit_module(program: &IrProgram, module: &IrModule) -> String {
         uses_math: false,
         aliases: Vec::new(),
         declared: std::collections::BTreeSet::new(),
-        shadowed: BTreeSet::new(),
+        shadowed: module_shadowed(module),
     };
 
     let mut body = String::new();
@@ -136,7 +165,7 @@ pub fn emit_tests(program: &IrProgram, module: &IrModule) -> Option<String> {
         uses_math: false,
         aliases: Vec::new(),
         declared: std::collections::BTreeSet::new(),
-        shadowed: BTreeSet::new(),
+        shadowed: module_shadowed(module),
     };
 
     let mut body = String::new();
@@ -376,10 +405,12 @@ impl<'a> Emitter<'a> {
             }
         }
 
+        let display_ret = self.primitive("str");
         out.push_str(&format!(
-            "def _{}_display(value: {}) -> str:\n",
+            "def _{}_display(value: {}) -> {}:\n",
             snake(&decl.name),
-            decl.name
+            decl.name,
+            display_ret
         ));
         for variant in &decl.variants {
             out.push_str(&format!("    if value.tag == {}:\n", quote(&variant.name)));
@@ -408,8 +439,6 @@ impl<'a> Emitter<'a> {
         let mut out = String::new();
         out.push_str("@dataclass(frozen=True)\n");
         out.push_str(&format!("class {}:\n", class.name));
-
-        self.shadowed.clear();
 
         if !class.fields.is_empty() {
             for field in &class.fields {

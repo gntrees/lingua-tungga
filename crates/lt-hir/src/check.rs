@@ -17,6 +17,7 @@ pub fn check_program(mut program: Program) -> (Program, Vec<(ModuleId, Diagnosti
     let mut types = TypeTable::default();
     collect_declarations(&mut program, &mut diagnostics);
     resolve_declarations(&mut program, &mut diagnostics);
+    check_imports(&program, &mut diagnostics);
     check_bindings(&mut program, &mut diagnostics, &mut types);
     check_bodies(&mut program, &mut diagnostics, &mut types);
     (program, diagnostics, types)
@@ -607,6 +608,77 @@ fn lookup_type(
         return Some((TypeName::builtin(name), 0));
     }
     None
+}
+
+/// Every destructured import must name a declaration that exists **and** is
+/// exported. Reported once per import item so the message is precise instead of
+/// surfacing later as "unknown type".
+fn check_imports(program: &Program, diagnostics: &mut Vec<(ModuleId, Diagnostic)>) {
+    for module_id in 0..program.modules.len() {
+        let module = &program.modules[module_id];
+        for import in &module.imports {
+            let target = &program.modules[import.module];
+            for item in &import.items {
+                let exported = target
+                    .structs
+                    .iter()
+                    .find(|decl| decl.name == item.name)
+                    .map(|decl| decl.is_export)
+                    .or_else(|| {
+                        target
+                            .enums
+                            .iter()
+                            .find(|decl| decl.name == item.name)
+                            .map(|decl| decl.is_export)
+                    })
+                    .or_else(|| {
+                        target
+                            .functions
+                            .iter()
+                            .find(|decl| decl.name == item.name)
+                            .map(|decl| decl.is_export)
+                    })
+                    .or_else(|| {
+                        target
+                            .bindings
+                            .iter()
+                            .find(|decl| decl.name == item.name)
+                            .map(|decl| decl.is_export)
+                    });
+
+                match exported {
+                    Some(true) => {}
+                    Some(false) => {
+                        let loc = line_col_at(&module.source, item.span.start);
+                        diagnostics.push((
+                            module_id,
+                            Diagnostic::error(
+                                format!(
+                                    "`{}` is private to package `{}`; add `export`",
+                                    item.name, target.name
+                                ),
+                                item.span,
+                                loc.line,
+                                loc.col,
+                            ),
+                        ));
+                    }
+                    None => {
+                        let loc = line_col_at(&module.source, item.span.start);
+                        diagnostics.push((
+                            module_id,
+                            Diagnostic::error(
+                                format!("package `{}` has no `{}`", target.name, item.name),
+                                item.span,
+                                loc.line,
+                                loc.col,
+                            ),
+                        ));
+                    }
+                }
+            }
+        }
+    }
 }
 
 // ------------------------------------------------------------ body checking
