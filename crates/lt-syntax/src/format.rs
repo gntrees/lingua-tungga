@@ -95,7 +95,7 @@ fn collect_file(file: &File, out: &mut Vec<Container>) {
         .iter()
         .map(|import| import.span.start)
         .collect();
-    children.extend(file.items.iter().map(|item| item.span().start));
+    children.extend(file.packages.iter().map(|package| package.span.start));
     children.sort_unstable();
     out.push(Container {
         start: file.span.start,
@@ -103,52 +103,27 @@ fn collect_file(file: &File, out: &mut Vec<Container>) {
         children,
     });
 
-    for item in &file.items {
-        match item {
-            Item::Class(class) => {
-                let mut children: Vec<usize> =
-                    class.fields.iter().map(|field| field.span.start).collect();
-                children.extend(class.methods.iter().map(|method| method.span.start));
-                children.sort_unstable();
-                out.push(Container {
-                    start: class.span.start,
-                    end: class.span.end,
-                    children,
-                });
-                for method in &class.methods {
-                    collect_block(&method.body, out);
-                }
-            }
-            Item::Enum(decl) => {
-                out.push(Container {
+    for package in &file.packages {
+        out.push(Container {
+            start: package.span.start,
+            end: package.span.end,
+            children: package.items.iter().map(|item| item.span().start).collect(),
+        });
+        for item in &package.items {
+            match item {
+                PackageItem::Struct(decl) => out.push(Container {
                     start: decl.span.start,
                     end: decl.span.end,
-                    children: decl
-                        .variants
-                        .iter()
-                        .map(|variant| variant.span.start)
-                        .collect(),
-                });
-            }
-            Item::TestClass(decl) => {
-                let mut children: Vec<usize> = decl
-                    .helpers
-                    .iter()
-                    .map(|helper| helper.span.start)
-                    .collect();
-                children.extend(decl.tests.iter().map(|test| test.span.start));
-                children.sort_unstable();
-                out.push(Container {
+                    children: decl.fields.iter().map(|field| field.span.start).collect(),
+                }),
+                PackageItem::Enum(decl) => out.push(Container {
                     start: decl.span.start,
                     end: decl.span.end,
-                    children,
-                });
-                for helper in &decl.helpers {
-                    collect_block(&helper.body, out);
-                }
-                for test in &decl.tests {
-                    collect_block(&test.body, out);
-                }
+                    children: decl.variants.iter().map(|variant| variant.span.start).collect(),
+                }),
+                PackageItem::Fn(decl) => collect_block(&decl.body, out),
+                PackageItem::Binding(decl) => collect_expr(&decl.value, out),
+                PackageItem::Test(decl) => collect_block(&decl.body, out),
             }
         }
     }
@@ -409,18 +384,18 @@ impl Formatter {
             out.push_str(&self.import_text(import));
             out.push('\n');
         }
-        if !file.imports.is_empty() && !file.items.is_empty() {
+        if !file.imports.is_empty() && !file.packages.is_empty() {
             out.push('\n');
         }
-        for (index, item) in file.items.iter().enumerate() {
+        for (index, package) in file.packages.iter().enumerate() {
             if index > 0 {
                 let already_blank = out.ends_with("\n\n");
                 if !already_blank {
                     out.push('\n');
                 }
             }
-            self.comments(&mut out, item.span().start, 0);
-            out.push_str(&self.item_text(item));
+            self.comments(&mut out, package.span.start, 0);
+            out.push_str(&self.package_text(package));
             out.push('\n');
         }
         self.trailing(&mut out, file.span.end, 0);
@@ -428,127 +403,152 @@ impl Formatter {
     }
 
     fn import_text(&self, import: &ImportDecl) -> String {
-        format!(
-            "import {} from \"{}\"",
-            import.name,
-            escape_string(&import.path)
-        )
+        let mut out = String::from("import ");
+        out.push_str(&import.package);
+        if let Some(alias) = &import.alias {
+            out.push_str(" as ");
+            out.push_str(alias);
+        }
+        if !import.items.is_empty() {
+            let items: Vec<String> = import
+                .items
+                .iter()
+                .map(|item| match &item.alias {
+                    Some(alias) => format!("{} as {}", item.name, alias),
+                    None => item.name.clone(),
+                })
+                .collect();
+            out.push_str(" { ");
+            out.push_str(&items.join(", "));
+            out.push_str(" }");
+        }
+        out.push_str(" from \"");
+        out.push_str(&escape_string(&import.path));
+        out.push('"');
+        out
     }
 
-    fn item_text(&self, item: &Item) -> String {
-        match item {
-            Item::Class(class) => self.class_text(class),
-            Item::Enum(decl) => self.enum_text(decl),
-            Item::TestClass(decl) => self.test_class_text(decl),
-        }
-    }
-
-    fn class_text(&self, class: &ClassDecl) -> String {
-        let mut head = String::new();
-        if class.is_pub {
-            head.push_str("pub ");
-        }
-        head.push_str("class ");
-        head.push_str(&class.name);
-        head.push_str(&generics_text(&class.generics));
-
-        if class.fields.is_empty() && class.methods.is_empty() {
-            let mut body = String::new();
-            self.comments(&mut body, class.span.start, 1);
-            self.trailing(&mut body, class.span.end, 1);
-            if body.is_empty() {
-                return format!("{head} {{}}");
-            }
-            return format!("{head} {{\n{body}}}");
-        }
+    fn package_text(&self, package: &PackageDecl) -> String {
+        let head = format!("package {}", package.name);
 
         let mut body = String::new();
-        for field in &class.fields {
-            self.comments(&mut body, field.span.start, 1);
+        for (index, item) in package.items.iter().enumerate() {
+            if index > 0 {
+                body.push('\n');
+            }
+            self.comments(&mut body, item.span().start, 1);
             body.push_str(&pad(1));
+            body.push_str(&self.package_item_text(item, 1));
+            body.push('\n');
+        }
+        self.trailing(&mut body, package.span.end, 1);
+
+        if body.is_empty() {
+            return format!("{head} {{}}");
+        }
+        format!("{head} {{\n{body}}}")
+    }
+
+    fn package_item_text(&self, item: &PackageItem, indent: usize) -> String {
+        match item {
+            PackageItem::Struct(decl) => self.struct_text(decl, indent),
+            PackageItem::Enum(decl) => self.enum_text(decl, indent),
+            PackageItem::Fn(decl) => self.fn_text(decl, indent),
+            PackageItem::Binding(decl) => self.binding_text(decl, indent),
+            PackageItem::Test(decl) => self.test_text(decl, indent),
+        }
+    }
+
+    fn struct_text(&self, decl: &StructDecl, indent: usize) -> String {
+        let mut head = String::new();
+        if decl.is_export {
+            head.push_str("export ");
+        }
+        head.push_str("struct ");
+        head.push_str(&decl.name);
+        head.push_str(&generics_text(&decl.generics));
+
+        let inner = indent + 1;
+        let mut body = String::new();
+        for field in &decl.fields {
+            self.comments(&mut body, field.span.start, inner);
+            body.push_str(&pad(inner));
             body.push_str(&format!("{}: {}", field.name, type_text(&field.ty)));
             body.push('\n');
         }
-        if !class.fields.is_empty() && !class.methods.is_empty() {
-            body.push('\n');
-        }
-        for (index, method) in class.methods.iter().enumerate() {
-            if index > 0 {
-                body.push('\n');
-            }
-            self.comments(&mut body, method.span.start, 1);
-            body.push_str(&pad(1));
-            body.push_str(&self.method_text(method, 1));
-            body.push('\n');
-        }
-        self.trailing(&mut body, class.span.end, 1);
+        self.trailing(&mut body, decl.span.end, inner);
 
-        format!("{head} {{\n{body}}}")
+        if body.is_empty() {
+            return format!("{head} {{}}");
+        }
+        format!("{head} {{\n{body}{}}}", pad(indent))
     }
 
-    fn test_class_text(&self, decl: &TestClassDecl) -> String {
-        let head = format!("test class {}", decl.name);
-        if decl.tests.is_empty() && decl.helpers.is_empty() {
-            let mut body = String::new();
-            self.comments(&mut body, decl.span.start, 1);
-            self.trailing(&mut body, decl.span.end, 1);
-            if body.is_empty() {
-                return format!("{head} {{}}");
-            }
-            return format!("{head} {{\n{body}}}");
+    fn fn_text(&self, decl: &FnDecl, indent: usize) -> String {
+        let mut out = String::new();
+        if decl.is_export {
+            out.push_str("export ");
         }
+        out.push_str("fn ");
+        out.push_str(&decl.name);
+        out.push_str(&generics_text(&decl.generics));
+        out.push('(');
 
-        let mut body = String::new();
-        for (index, helper) in decl.helpers.iter().enumerate() {
-            if index > 0 {
-                body.push('\n');
-            }
-            self.comments(&mut body, helper.span.start, 1);
-            body.push_str(&pad(1));
-            body.push_str(&self.method_text(helper, 1));
-            body.push('\n');
-        }
-        for (index, test) in decl.tests.iter().enumerate() {
-            if index > 0 || !decl.helpers.is_empty() {
-                body.push('\n');
-            }
-            self.comments(&mut body, test.span.start, 1);
-            body.push_str(&pad(1));
-            body.push_str(&format!(
-                "test fn {}() {}",
-                test.name,
-                self.block(&test.body, 1)
-            ));
-            body.push('\n');
-        }
-        self.trailing(&mut body, decl.span.end, 1);
+        let params: Vec<String> = decl
+            .params
+            .iter()
+            .map(|param| format!("{}: {}", param.name, type_text(&param.ty)))
+            .collect();
+        out.push_str(&params.join(", "));
+        out.push(')');
 
-        format!("{head} {{\n{body}}}")
+        if let Some(ret) = &decl.ret {
+            out.push_str(" -> ");
+            out.push_str(&type_text(ret));
+        }
+        out.push(' ');
+        out.push_str(&self.block(&decl.body, indent));
+        out
     }
 
-    fn enum_text(&self, decl: &EnumDecl) -> String {
+    fn binding_text(&self, decl: &BindingDecl, indent: usize) -> String {
+        let mut out = String::new();
+        if decl.is_export {
+            out.push_str("export ");
+        }
+        out.push_str("let ");
+        out.push_str(&decl.name);
+        if let Some(ty) = &decl.ty {
+            out.push_str(": ");
+            out.push_str(&type_text(ty));
+        }
+        out.push_str(" = ");
+        out.push_str(&self.expr(&decl.value, indent));
+        out
+    }
+
+    fn test_text(&self, decl: &TestDecl, indent: usize) -> String {
+        format!(
+            "test \"{}\" {}",
+            escape_string(&decl.title),
+            self.block(&decl.body, indent)
+        )
+    }
+
+    fn enum_text(&self, decl: &EnumDecl, indent: usize) -> String {
         let mut head = String::new();
-        if decl.is_pub {
-            head.push_str("pub ");
+        if decl.is_export {
+            head.push_str("export ");
         }
         head.push_str("enum ");
         head.push_str(&decl.name);
         head.push_str(&generics_text(&decl.generics));
 
-        if decl.variants.is_empty() {
-            let mut body = String::new();
-            self.comments(&mut body, decl.span.start, 1);
-            self.trailing(&mut body, decl.span.end, 1);
-            if body.is_empty() {
-                return format!("{head} {{}}");
-            }
-            return format!("{head} {{\n{body}}}");
-        }
-
+        let inner = indent + 1;
         let mut body = String::new();
         for variant in &decl.variants {
-            self.comments(&mut body, variant.span.start, 1);
-            body.push_str(&pad(1));
+            self.comments(&mut body, variant.span.start, inner);
+            body.push_str(&pad(inner));
             body.push_str(&variant.name);
             if !variant.payload.is_empty() {
                 let payload: Vec<String> = variant.payload.iter().map(type_text).collect();
@@ -558,40 +558,12 @@ impl Formatter {
             }
             body.push('\n');
         }
-        self.trailing(&mut body, decl.span.end, 1);
+        self.trailing(&mut body, decl.span.end, inner);
 
-        format!("{head} {{\n{body}}}")
-    }
-
-    fn method_text(&self, method: &Method, indent: usize) -> String {
-        let mut out = String::new();
-        if method.is_pub {
-            out.push_str("pub ");
+        if body.is_empty() {
+            return format!("{head} {{}}");
         }
-        if method.is_static {
-            out.push_str("static ");
-        }
-        out.push_str("fn ");
-        out.push_str(&method.name);
-        out.push('(');
-
-        let mut params: Vec<String> = Vec::new();
-        if method.has_self {
-            params.push("self".to_string());
-        }
-        for param in &method.params {
-            params.push(format!("{}: {}", param.name, type_text(&param.ty)));
-        }
-        out.push_str(&params.join(", "));
-        out.push(')');
-
-        if let Some(ret) = &method.ret {
-            out.push_str(" -> ");
-            out.push_str(&type_text(ret));
-        }
-        out.push(' ');
-        out.push_str(&self.block(&method.body, indent));
-        out
+        format!("{head} {{\n{body}{}}}", pad(indent))
     }
 
     fn block(&self, block: &Block, indent: usize) -> String {

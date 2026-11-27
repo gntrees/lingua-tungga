@@ -11,6 +11,13 @@ pub enum TokenKind {
     Ident(String),
 
     // Keywords
+    Package,
+    Export,
+    Struct,
+    As,
+    // Reserved: removed in v2 (`package` + `struct`, `export`, receiver params).
+    // The lexer still produces these so the parser can reject them with a
+    // message that names the replacement.
     Pub,
     Class,
     Test,
@@ -107,6 +114,10 @@ impl TokenKind {
     /// Fixed spelling for punctuation/keywords; empty for value-carrying tokens.
     pub fn spelling(&self) -> &'static str {
         match self {
+            TokenKind::Package => "package",
+            TokenKind::Export => "export",
+            TokenKind::Struct => "struct",
+            TokenKind::As => "as",
             TokenKind::Pub => "pub",
             TokenKind::Class => "class",
             TokenKind::Test => "test",
