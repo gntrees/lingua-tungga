@@ -1850,6 +1850,24 @@ impl<'a> Checker<'a> {
             }
         }
 
+        if name == "to_string" {
+            let Some(items) = self.positional(args, span, name) else {
+                return Ty::Error;
+            };
+            if !items.is_empty() {
+                self.diag(
+                    span,
+                    format!("`to_string` expects 0 argument(s), found {}", items.len()),
+                );
+                return Ty::Error;
+            }
+            if matches!(&receiver_ty, Ty::Unit) {
+                self.diag(span, "`Unit` has no value to convert to `Str`");
+                return Ty::Error;
+            }
+            return Ty::Str;
+        }
+
         self.builtin_method(&receiver_ty, name, args, span)
     }
 

@@ -31,4 +31,9 @@ test class TaggedTest {
     let query = Sql.compose`x ${SqlArg.I(1)}`
     Expect.equal(query.text, "x |::i1")
   }
+
+  test fn to_string_is_available_for_migration() {
+    let id = 7
+    Expect.equal(id.to_string(), "7")
+  }
 }

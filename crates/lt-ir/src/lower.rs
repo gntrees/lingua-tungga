@@ -774,6 +774,25 @@ impl<'a> Lowerer<'a> {
                     };
                 }
 
+                let user_to_string = match &receiver_ty {
+                    Ty::Named(type_name, _) => self
+                        .program
+                        .class_of(type_name)
+                        .is_some_and(|class| {
+                            class
+                                .methods
+                                .iter()
+                                .any(|method| method.name == "to_string" && method.has_self)
+                        }),
+                    _ => false,
+                };
+                if !user_to_string && name == "to_string" && items.is_empty() {
+                    return IrExpr::ToStr {
+                        value: Box::new(receiver),
+                        ty: receiver_ty,
+                    };
+                }
+
                 IrExpr::InstanceCall {
                     receiver: Box::new(receiver),
                     method: name.clone(),
