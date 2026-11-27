@@ -1,11 +1,11 @@
-pub enum Grade {
-  Low
-  Mid
-  High
-}
+package order {
+  export enum Grade {
+    Low
+    Mid
+    High
+  }
 
-test class GradeTest {
-  test fn sorts_by_declaration() {
-    Expect.equal([Grade.High, Grade.Low, Grade.Mid].sort(), [Grade.Low, Grade.Mid, Grade.High])
+  test "sorts by declaration" {
+    expect.eq([Grade.High, Grade.Low, Grade.Mid].sort(), [Grade.Low, Grade.Mid, Grade.High])
   }
 }

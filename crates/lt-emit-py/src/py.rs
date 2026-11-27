@@ -34,6 +34,19 @@ fn snake(name: &str) -> String {
     out
 }
 
+/// Turn a free-form test title into a valid Python function name.
+fn test_name(title: &str) -> String {
+    let mut out = String::new();
+    for ch in title.chars() {
+        if ch.is_ascii_alphanumeric() {
+            out.push(ch.to_ascii_lowercase());
+        } else if !out.ends_with('_') {
+            out.push('_');
+        }
+    }
+    format!("test_{}", out.trim_matches('_'))
+}
+
 fn member(name: &str) -> String {
     let mut out = snake(name);
     if RESERVED.contains(&out.as_str()) {
@@ -77,6 +90,7 @@ struct Frag {
 
 pub fn emit_module(program: &IrProgram, module: &IrModule) -> String {
     let mut emitter = Emitter {
+        program,
         module,
         temps: 0,
         used: BTreeSet::new(),
@@ -114,6 +128,7 @@ pub fn emit_tests(program: &IrProgram, module: &IrModule) -> Option<String> {
     }
 
     let mut emitter = Emitter {
+        program,
         module,
         temps: 0,
         used: BTreeSet::new(),
@@ -126,7 +141,7 @@ pub fn emit_tests(program: &IrProgram, module: &IrModule) -> Option<String> {
 
     let mut body = String::new();
     for test in &module.tests {
-        let test_name = format!("test_{}", snake(&test.title));
+        let test_name = test_name(&test.title);
         body.push_str(&format!("def {test_name}() -> None:\n"));
         emitter.declared.clear();
         let lines = emitter.block_lines(&test.body, 1, &Tail::Plain);
@@ -163,6 +178,7 @@ pub fn emit_tests(program: &IrProgram, module: &IrModule) -> Option<String> {
 }
 
 struct Emitter<'a> {
+    program: &'a IrProgram,
     module: &'a IrModule,
     temps: usize,
     used: BTreeSet<ModuleId>,
@@ -503,7 +519,6 @@ impl<'a> Emitter<'a> {
         out
     }
 
-
     // ------------------------------------------------------------ statements
 
     fn block_lines(&mut self, block: &IrBlock, level: usize, tail: &Tail) -> Vec<String> {
@@ -763,20 +778,34 @@ impl<'a> Emitter<'a> {
             },
             IrExpr::BindingRef { module, name, .. } => {
                 let code = if *module == self.module.id && !self.tests_mode {
-                    if self.module.bindings.iter().any(|b| b.name == *name && b.is_export) {
+                    if self
+                        .module
+                        .bindings
+                        .iter()
+                        .any(|b| b.name == *name && b.is_export)
+                    {
                         snake(name)
                     } else {
                         format!("_{}", snake(name))
                     }
                 } else {
                     self.use_module(*module);
-                    format!("m{}.{}", module, snake(name))
+                    let exported = self.program.modules[*module]
+                        .bindings
+                        .iter()
+                        .any(|b| b.name == *name && b.is_export);
+                    let name = if exported {
+                        snake(name)
+                    } else {
+                        format!("_{}", snake(name))
+                    };
+                    format!("m{}.{}", module, name)
                 };
                 Frag {
                     prelude: Vec::new(),
                     code,
                 }
-            },
+            }
             IrExpr::List { items, .. } => {
                 let mut prelude = Vec::new();
                 let rendered: Vec<String> = items
@@ -878,10 +907,7 @@ impl<'a> Emitter<'a> {
                 Frag { prelude, code }
             }
             IrExpr::FnCall {
-                module,
-                name,
-                args,
-                ..
+                module, name, args, ..
             } => {
                 let mut prelude = Vec::new();
                 let rendered: Vec<String> = args
@@ -893,8 +919,7 @@ impl<'a> Emitter<'a> {
                     })
                     .collect();
                 let local = *module == self.module.id && !self.tests_mode;
-                let exported = self
-                    .module
+                let exported = self.program.modules[*module]
                     .functions
                     .iter()
                     .any(|f| f.name == *name && f.is_export);
@@ -906,7 +931,12 @@ impl<'a> Emitter<'a> {
                     }
                 } else {
                     self.use_module(*module);
-                    format!("m{}.{}", module, snake(name))
+                    let name = if exported {
+                        snake(name)
+                    } else {
+                        format!("_{}", snake(name))
+                    };
+                    format!("m{}.{}", module, name)
                 };
                 Frag {
                     prelude,
@@ -964,7 +994,7 @@ impl<'a> Emitter<'a> {
                     })
                     .collect();
                 let function = match name.as_str() {
-                    "equal" => "expect_equal",
+                    "eq" | "equal" => "expect_equal",
                     "not_equal" => "expect_not_equal",
                     "true" => "expect_true",
                     "false" => "expect_false",

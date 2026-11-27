@@ -1,12 +1,12 @@
-pub class Point {
-  x: Int
-  y: Int
-}
+package ord_field_order {
+  export struct Point {
+    x: Int
+    y: Int
+  }
 
-test class OrdTest {
-  test fn sorts_by_declared_fields() {
+  test "sorts by declared fields" {
     let a = Point(x: 2, y: 0)
     let b = Point(x: 10, y: 0)
-    Expect.equal([b, a].sort(), [a, b])
+    expect.eq([b, a].sort(), [a, b])
   }
 }

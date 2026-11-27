@@ -65,7 +65,8 @@ package b {
 
 #[test]
 fn imports_then_blank_line() {
-    let src = "import b from \"./b.lt\"\nimport a { A } from \"./a.lt\"\npackage c { let x: Int = 1 }\n";
+    let src =
+        "import b from \"./b.lt\"\nimport a { A } from \"./a.lt\"\npackage c { let x: Int = 1 }\n";
     let expected = "\
 import b from \"./b.lt\"
 import a { A } from \"./a.lt\"

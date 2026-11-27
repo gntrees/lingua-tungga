@@ -1,11 +1,9 @@
-pub class Mathy {
-  static fn double(x: Int) -> Int {
+package static_method {
+  export fn double(x: Int) -> Int {
     x * 2
   }
-}
 
-test class MathyTest {
-  test fn calls_static() {
-    Expect.equal(Mathy.double(21), 42)
+  test "calls package function" {
+    expect.eq(double(21), 42)
   }
 }

@@ -1,9 +1,9 @@
-test class PrecedenceTest {
-  test fn multiplication_first() {
-    Expect.equal(1 + 2 * 3, 7)
+package precedence {
+  test "multiplication first" {
+    expect.eq(1 + 2 * 3, 7)
   }
 
-  test fn parentheses() {
-    Expect.equal((1 + 2) * 3, 9)
+  test "parentheses" {
+    expect.eq((1 + 2) * 3, 9)
   }
 }

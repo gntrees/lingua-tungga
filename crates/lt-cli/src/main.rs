@@ -262,7 +262,9 @@ fn prepare(
                 }
             }
         };
-        let directory = base.parent().filter(|parent| !parent.as_os_str().is_empty());
+        let directory = base
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty());
         let name = match directory {
             Some(directory) => format!(
                 "{}/{}",

@@ -1,15 +1,15 @@
-test class SetTest {
-  test fn deduplicates() {
-    let empty: Set<Int> = Set.empty()
-    Expect.equal(empty.insert(1).insert(1).len(), 1)
+package set {
+  test "deduplicates" {
+    let empty: Set<Int> = set.empty()
+    expect.eq(empty.insert(1).insert(1).len(), 1)
   }
 
-  test fn combines() {
-    let empty: Set<Int> = Set.empty()
+  test "combines" {
+    let empty: Set<Int> = set.empty()
     let left = empty.insert(1).insert(2)
     let right = empty.insert(2).insert(3)
-    Expect.equal(left.union(right).len(), 3)
-    Expect.equal(left.intersect(right).len(), 1)
-    Expect.true(left.difference(right).contains(1))
+    expect.eq(left.union(right).len(), 3)
+    expect.eq(left.intersect(right).len(), 1)
+    expect.true(left.difference(right).contains(1))
   }
 }

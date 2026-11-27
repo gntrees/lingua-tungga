@@ -202,10 +202,7 @@ fn value_names_are_snake_case() {
 #[test]
 fn destructured_import_requires_export() {
     let files = [
-        (
-            "models.lt",
-            pkg("models", "struct User {\n  name: Str\n}"),
-        ),
+        ("models.lt", pkg("models", "struct User {\n  name: Str\n}")),
         (
             "app.lt",
             file(

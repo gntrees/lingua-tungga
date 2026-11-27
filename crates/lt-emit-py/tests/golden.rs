@@ -5,27 +5,29 @@ use lt_hir::{check_entries, MapLoader};
 use lt_ir::lower_program;
 
 const PROGRAM: &str = r#"
-pub enum Role {
+package user {
+
+export enum Role {
   Admin
   Member(Int)
 }
 
-pub class User {
+export struct User {
   name: Str
   role: Role
+}
 
-  pub fn label(self) -> Str {
-    match self.role {
-      Role.Admin => "admin"
-      Role.Member(level) => `member-${level}`
-    }
+export fn label(u: User) -> Str {
+  match u.role {
+    Role.Admin => "admin"
+    Role.Member(level) => `member-${level}`
   }
 }
 
-test class UserTest {
-  test fn label_of_admin() {
-    Expect.equal(User(name: "a", role: Role.Admin).label(), "admin")
-  }
+test "label of admin" {
+  expect.eq(label(User(name: "a", role: Role.Admin)), "admin")
+}
+
 }
 "#;
 
@@ -39,14 +41,7 @@ fn emit() -> Vec<(PathBuf, String)> {
         .program
         .modules
         .iter()
-        .map(|module| {
-            module
-                .path
-                .file_stem()
-                .unwrap()
-                .to_string_lossy()
-                .to_string()
-        })
+        .map(|module| module.name.clone())
         .collect();
 
     let (ir, diagnostics) = lower_program(&checked.program, &checked.types, names);

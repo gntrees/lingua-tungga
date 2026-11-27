@@ -1,5 +1,5 @@
-pub class Loops {
-  static fn sum(xs: List<Int>) -> Int {
+package loops {
+  export fn sum(xs: List<Int>) -> Int {
     let mut total = 0
     for x in xs {
       total = total + x
@@ -7,7 +7,7 @@ pub class Loops {
     total
   }
 
-  static fn count_down(start: Int) -> Int {
+  export fn count_down(start: Int) -> Int {
     let mut left = start
     let mut steps = 0
     while left > 0 {
@@ -17,7 +17,7 @@ pub class Loops {
     steps
   }
 
-  static fn first_negative(xs: List<Int>) -> Int {
+  export fn first_negative(xs: List<Int>) -> Int {
     for x in xs {
       if x < 0 {
         return x
@@ -25,21 +25,19 @@ pub class Loops {
     }
     0
   }
-}
 
-test class LoopsTest {
-  test fn for_loop_accumulates() {
-    Expect.equal(Loops.sum([1, 2, 3]), 6)
-    Expect.equal(Loops.sum([]), 0)
+  test "for loop accumulates" {
+    expect.eq(sum([1, 2, 3]), 6)
+    expect.eq(sum([]), 0)
   }
 
-  test fn while_loop_counts() {
-    Expect.equal(Loops.count_down(3), 3)
-    Expect.equal(Loops.count_down(0), 0)
+  test "while loop counts" {
+    expect.eq(count_down(3), 3)
+    expect.eq(count_down(0), 0)
   }
 
-  test fn early_return_inside_loop() {
-    Expect.equal(Loops.first_negative([1, -2, 3]), -2)
-    Expect.equal(Loops.first_negative([1, 2]), 0)
+  test "early return inside loop" {
+    expect.eq(first_negative([1, -2, 3]), -2)
+    expect.eq(first_negative([1, 2]), 0)
   }
 }

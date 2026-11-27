@@ -178,8 +178,7 @@ impl<'a> Loader<'a> {
             Some(resolved.canonical_url.clone()),
             parent,
         );
-        self.by_url
-            .insert(resolved.canonical_url, packages.clone());
+        self.by_url.insert(resolved.canonical_url, packages.clone());
         Some(packages)
     }
 

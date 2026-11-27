@@ -1,43 +1,41 @@
-pub enum SqlArg {
-  I(Int)
-  S(Str)
-}
+package tagged {
+  export enum SqlArg {
+    I(Int)
+    S(Str)
+  }
 
-pub class Query {
-  text: Str
-}
+  export struct Query {
+    text: Str
+  }
 
-pub class Sql {
-  pub fn compose(parts: List<Str>, values: List<SqlArg>) -> Query {
-    let rendered = values.map(fn(value) =>
-      match value {
+  export fn compose(parts: List<Str>, values: List<SqlArg>) -> Query {
+    let rendered = values.map(
+      fn(value) => (match value {
         SqlArg.I(n) => `i${n}`
         SqlArg.S(s) => `s${s}`
-      }
+      }),
     )
     Query(text: `${parts.join("|")}::${rendered.join("|")}`)
   }
-}
 
-test class TaggedTest {
-  test fn keeps_parts_and_typed_values_apart() {
+  test "keeps parts and typed values apart" {
     let id = 7
     let name = "bo"
-    let query = Sql.compose`SELECT * FROM t WHERE id = ${SqlArg.I(id)} AND name = ${SqlArg.S(name)}`
-    Expect.equal(query.text, "SELECT * FROM t WHERE id = | AND name = |::i7|sbo")
+    let query = compose`SELECT * FROM t WHERE id = ${SqlArg.I(id)} AND name = ${SqlArg.S(name)}`
+    expect.eq(query.text, "SELECT * FROM t WHERE id = | AND name = |::i7|sbo")
   }
 
-  test fn handles_empty_tail() {
-    let query = Sql.compose`x ${SqlArg.I(1)}`
-    Expect.equal(query.text, "x |::i1")
+  test "handles empty tail" {
+    let query = compose`x ${SqlArg.I(1)}`
+    expect.eq(query.text, "x |::i1")
   }
 
-  test fn to_string_is_available_for_migration() {
+  test "to_string is available for migration" {
     let id = 7
-    Expect.equal(id.to_string(), "7")
+    expect.eq(id.to_string(), "7")
   }
 
-  test fn to_string_works_on_nominal_values() {
-    Expect.equal(SqlArg.I(7).to_string(), "SqlArg.I(7)")
+  test "to_string works on nominal values" {
+    expect.eq(SqlArg.I(7).to_string(), "SqlArg.I(7)")
   }
 }

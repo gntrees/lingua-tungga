@@ -1,27 +1,29 @@
-import Book from "./book.lt"
+import book { Book } from "./book.lt"
 
-pub class Catalog {
-  books: List<Book>
+package catalog {
+  export struct Catalog {
+    books: List<Book>
+  }
 
-  static fn empty() -> Catalog {
+  export fn empty() -> Catalog {
     Catalog(books: [])
   }
 
-  pub fn add(self, book: Book) -> Catalog {
-    Catalog(books: self.books.push(book))
+  export fn add(c: Catalog, book: Book) -> Catalog {
+    Catalog(books: c.books.push(book))
   }
 
-  pub fn size(self) -> Int {
-    self.books.len()
+  export fn size(c: Catalog) -> Int {
+    c.books.len()
   }
 
-  pub fn find_by_author(self, author: Str) -> List<Book> {
-    self.books.filter(fn(book) => book.author == author)
+  export fn find_by_author(c: Catalog, author: Str) -> List<Book> {
+    c.books.filter(fn(book) => book.author == author)
   }
 
-  pub fn newest(self) -> Option<Book> {
+  export fn newest(c: Catalog) -> Option<Book> {
     let mut best: Option<Book> = None
-    for book in self.books {
+    for book in c.books {
       best = match best {
         None => Some(book)
         Some(current) => if book.year > current.year {

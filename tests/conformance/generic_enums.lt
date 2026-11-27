@@ -1,9 +1,9 @@
-pub enum MaybeBox<T> {
-  Empty
-  Value(T)
-}
+package generic_enums {
+  export enum MaybeBox<T> {
+    Empty
+    Value(T)
+  }
 
-test class GenericEnumTest {
   fn describe_int(value: MaybeBox<Int>) -> Str {
     match value {
       MaybeBox.Empty => "empty"
@@ -18,15 +18,15 @@ test class GenericEnumTest {
     }
   }
 
-  test fn nullary_variant_works_for_any_type_argument() {
+  test "nullary variant works for any type argument" {
     let empty_int: MaybeBox<Int> = MaybeBox.Empty
     let empty_str: MaybeBox<Str> = MaybeBox.Empty
-    Expect.equal(describe_int(empty_int), "empty")
-    Expect.equal(describe_str(empty_str), "empty")
+    expect.eq(describe_int(empty_int), "empty")
+    expect.eq(describe_str(empty_str), "empty")
   }
 
-  test fn payload_variant_infers_the_type_argument() {
-    Expect.equal(describe_int(MaybeBox.Value(7)), "value:7")
-    Expect.equal(describe_str(MaybeBox.Value("bo")), "value:bo")
+  test "payload variant infers the type argument" {
+    expect.eq(describe_int(MaybeBox.Value(7)), "value:7")
+    expect.eq(describe_str(MaybeBox.Value("bo")), "value:bo")
   }
 }

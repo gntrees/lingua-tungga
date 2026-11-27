@@ -1,5 +1,5 @@
-pub class A {
-  fn f() {
+package immutable_assign {
+  export fn f() {
     let x = 1
     x = 2
   }

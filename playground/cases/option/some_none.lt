@@ -1,17 +1,17 @@
-test class OptionTest {
-  test fn some_equals_some() {
-    Expect.equal(Some(1), Some(1))
+package some_none {
+  test "some equals some" {
+    expect.eq(Some(1), Some(1))
   }
 
-  test fn none_equals_none() {
-    Expect.equal(None, None)
+  test "none equals none" {
+    expect.eq(None, None)
   }
 
-  test fn is_some() {
-    Expect.true(Some(2).is_some())
+  test "is some" {
+    expect.true(Some(2).is_some())
   }
 
-  test fn is_none() {
-    Expect.true(None.is_none())
+  test "is none" {
+    expect.true(None.is_none())
   }
 }

@@ -1,12 +1,12 @@
-pub class Point {
-  x: Int
-  y: Int
-}
+package named_arguments {
+  export struct Point {
+    x: Int
+    y: Int
+  }
 
-test class PointTest {
-  test fn constructs() {
+  test "constructs" {
     let p = Point(y: 2, x: 1)
-    Expect.equal(p.x, 1)
-    Expect.equal(p.y, 2)
+    expect.eq(p.x, 1)
+    expect.eq(p.y, 2)
   }
 }

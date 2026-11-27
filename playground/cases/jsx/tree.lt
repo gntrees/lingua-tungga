@@ -1,12 +1,12 @@
-pub class Label {
-  value: Str
-  children: List<Str>
-}
+package tree {
+  export struct Label {
+    value: Str
+    children: List<Str>
+  }
 
-test class JsxTest {
-  test fn builds_tree() {
+  test "builds tree" {
     let node = <Label value="greeting">{"hi"}</Label>
-    Expect.equal(node.value, "greeting")
-    Expect.equal(node.children, ["hi"])
+    expect.eq(node.value, "greeting")
+    expect.eq(node.children, ["hi"])
   }
 }

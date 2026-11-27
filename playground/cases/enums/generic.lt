@@ -1,9 +1,9 @@
-pub enum MaybeBox<T> {
-  Empty
-  Value(T)
-}
+package generic {
+  export enum MaybeBox<T> {
+    Empty
+    Value(T)
+  }
 
-test class GenericEnumTest {
   fn label(value: MaybeBox<Int>) -> Str {
     match value {
       MaybeBox.Empty => "empty"
@@ -11,9 +11,9 @@ test class GenericEnumTest {
     }
   }
 
-  test fn generic_enum_keeps_type_arguments() {
+  test "generic enum keeps type arguments" {
     let empty: MaybeBox<Int> = MaybeBox.Empty
-    Expect.equal(label(empty), "empty")
-    Expect.equal(label(MaybeBox.Value(7)), "value:7")
+    expect.eq(label(empty), "empty")
+    expect.eq(label(MaybeBox.Value(7)), "value:7")
   }
 }

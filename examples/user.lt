@@ -1,27 +1,29 @@
-pub enum Role {
-  Admin
-  Member(Int)
-  Guest
-}
-
-pub class User {
-  name: Str
-  age: Int
-  role: Role
-
-  pub fn greet(self) -> Str {
-    `Hi ${self.name}, you are ${self.age}`
+package user {
+  export enum Role {
+    Admin
+    Member(Int)
+    Guest
   }
 
-  pub fn label(self) -> Str {
-    match self.role {
+  export struct User {
+    name: Str
+    age: Int
+    role: Role
+  }
+
+  export fn greet(u: User) -> Str {
+    `Hi ${u.name}, you are ${u.age}`
+  }
+
+  export fn label(u: User) -> Str {
+    match u.role {
       Role.Admin => "admin"
       Role.Member(n) => `member-${n}`
       Role.Guest => "guest"
     }
   }
 
-  static fn anonymous() -> User {
+  export fn anonymous() -> User {
     User(name: "?", age: 0, role: Role.Guest)
   }
 }

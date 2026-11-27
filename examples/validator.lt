@@ -1,7 +1,7 @@
-import User from "./user.lt"
+import user { User } from "./user.lt"
 
-pub class Validator {
-  pub fn check(u: User) -> Result<User, Str> {
+package validator {
+  export fn check(u: User) -> Result<User, Str> {
     if u.age < 0 {
       return Err("age must be >= 0")
     }
@@ -11,12 +11,12 @@ pub class Validator {
     Ok(u)
   }
 
-  pub fn check_all(users: List<User>) -> List<Result<User, Str>> {
-    users.map(fn(u) => Validator.check(u))
+  export fn check_all(users: List<User>) -> List<Result<User, Str>> {
+    users.map(fn(u) => check(u))
   }
 
-  pub fn describe(u: User) -> Str {
-    match Validator.check(u) {
+  export fn describe(u: User) -> Str {
+    match check(u) {
       Ok(valid) => valid.greet()
       Err(message) => `invalid: ${message}`
     }

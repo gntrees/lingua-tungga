@@ -119,7 +119,11 @@ fn collect_file(file: &File, out: &mut Vec<Container>) {
                 PackageItem::Enum(decl) => out.push(Container {
                     start: decl.span.start,
                     end: decl.span.end,
-                    children: decl.variants.iter().map(|variant| variant.span.start).collect(),
+                    children: decl
+                        .variants
+                        .iter()
+                        .map(|variant| variant.span.start)
+                        .collect(),
                 }),
                 PackageItem::Fn(decl) => collect_block(&decl.body, out),
                 PackageItem::Binding(decl) => collect_expr(&decl.value, out),

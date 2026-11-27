@@ -1,6 +1,6 @@
-test class IndentTest {
-  test fn removes_common_indent() {
-    Expect.equal(
+package indent {
+  test "removes common indent" {
+    expect.eq(
       `
       a
       b

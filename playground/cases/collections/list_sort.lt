@@ -1,9 +1,9 @@
-test class SortTest {
-  test fn sorts_ints() {
-    Expect.equal([3, 1, 2].sort(), [1, 2, 3])
+package list_sort {
+  test "sorts ints" {
+    expect.eq([3, 1, 2].sort(), [1, 2, 3])
   }
 
-  test fn reverses() {
-    Expect.equal([1, 2, 3].reverse(), [3, 2, 1])
+  test "reverses" {
+    expect.eq([1, 2, 3].reverse(), [3, 2, 1])
   }
 }

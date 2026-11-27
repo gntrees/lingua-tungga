@@ -1,24 +1,26 @@
-pub enum Genre {
-  Fiction
-  NonFiction
-  Reference
-}
+package book {
+  export enum Genre {
+    Fiction
+    NonFiction
+    Reference
+  }
 
-pub class Book {
-  title: Str
-  author: Str
-  genre: Genre
-  year: Int
+  export struct Book {
+    title: Str
+    author: Str
+    genre: Genre
+    year: Int
+  }
 
-  pub fn genre_label(self) -> Str {
-    match self.genre {
+  export fn genre_label(b: Book) -> Str {
+    match b.genre {
       Genre.Fiction => "fiction"
       Genre.NonFiction => "non-fiction"
       Genre.Reference => "reference"
     }
   }
 
-  pub fn describe(self) -> Str {
-    `"${self.title}" by ${self.author} (${self.year}, ${self.genre_label()})`
+  export fn describe(b: Book) -> Str {
+    `"${b.title}" by ${b.author} (${b.year}, ${b.genre_label()})`
   }
 }

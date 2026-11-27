@@ -1,11 +1,11 @@
-pub class User {
-  name: Str
-  age: Int
-}
+package basic {
+  export struct User {
+    name: Str
+    age: Int
+  }
 
-test class TemplateTest {
-  test fn interpolates() {
+  test "interpolates" {
     let user = User(name: "Ada", age: 36)
-    Expect.equal(`Hi ${user.name}, age ${user.age}`, "Hi Ada, age 36")
+    expect.eq(`Hi ${user.name}, age ${user.age}`, "Hi Ada, age 36")
   }
 }

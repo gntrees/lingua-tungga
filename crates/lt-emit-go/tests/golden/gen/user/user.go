@@ -33,19 +33,6 @@ func NewUser(name string, role lt.Variant) User {
 	}
 }
 
-func (self User) Label() string {
-	__match1 := self.Role
-	switch __match1.Tag {
-	case "Admin":
-		return "admin"
-	case "Member":
-		level := __match1.Values[0].(int64)
-		return "member-" + lt.Disp(level)
-	default:
-		panic("unreachable")
-	}
-}
-
 func (self User) LtEq(other any) bool {
 	peer, ok := other.(User)
 	if !ok {
@@ -71,4 +58,17 @@ func (self User) LtCmp(other any) int {
 
 func (self User) LtDisplay() string {
 	return "User(" + "name: " + lt.Disp(self.Name) + ", " + "role: " + lt.Disp(self.Role) + ")"
+}
+
+func Label(u User) string {
+	__match1 := u.Role
+	switch __match1.Tag {
+	case "Admin":
+		return "admin"
+	case "Member":
+		level := __match1.Values[0].(int64)
+		return "member-" + lt.Disp(level)
+	default:
+		panic("unreachable")
+	}
 }

@@ -196,8 +196,6 @@ impl Program {
 
     /// Package with this name anywhere in the build, if any.
     pub fn package_named(&self, name: &str) -> Option<ModuleId> {
-        self.modules
-            .iter()
-            .position(|module| module.name == name)
+        self.modules.iter().position(|module| module.name == name)
     }
 }

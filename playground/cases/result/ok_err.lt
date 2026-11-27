@@ -1,24 +1,22 @@
-pub class Divider {
-  static fn divide(a: Int, b: Int) -> Result<Int, Str> {
+package ok_err {
+  export fn divide(a: Int, b: Int) -> Result<Int, Str> {
     if b == 0 {
       Err("division by zero")
     } else {
       Ok(a / b)
     }
   }
-}
 
-test class ResultTest {
-  test fn ok() {
-    Expect.equal(Divider.divide(8, 2), Ok(4))
+  test "ok" {
+    expect.eq(divide(8, 2), Ok(4))
   }
 
-  test fn err() {
-    Expect.equal(Divider.divide(1, 0), Err("division by zero"))
+  test "err" {
+    expect.eq(divide(1, 0), Err("division by zero"))
   }
 
-  test fn predicates() {
-    Expect.true(Divider.divide(8, 2).is_ok())
-    Expect.true(Divider.divide(1, 0).is_err())
+  test "predicates" {
+    expect.true(divide(8, 2).is_ok())
+    expect.true(divide(1, 0).is_err())
   }
 }

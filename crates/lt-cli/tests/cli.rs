@@ -23,13 +23,16 @@ fn temp_dir(tag: &str) -> PathBuf {
 fn fmt_rewrites_file_in_place() {
     let dir = temp_dir("fmt");
     let file = dir.join("a.lt");
-    std::fs::write(&file, "pub class A{name:Str}\n").unwrap();
+    std::fs::write(&file, "package a{struct A{name:Str}}\n").unwrap();
 
     let status = Command::new(bin()).arg("fmt").arg(&file).status().unwrap();
     assert!(status.success());
 
     let formatted = std::fs::read_to_string(&file).unwrap();
-    assert_eq!(formatted, "pub class A {\n  name: Str\n}\n");
+    assert_eq!(
+        formatted,
+        "package a {\n  struct A {\n    name: Str\n  }\n}\n"
+    );
 
     // Idempotent: a second run leaves the file untouched.
     let status = Command::new(bin())
@@ -45,7 +48,7 @@ fn fmt_rewrites_file_in_place() {
 fn fmt_check_reports_unformatted_file_without_touching_it() {
     let dir = temp_dir("check");
     let file = dir.join("a.lt");
-    let original = "pub class A{name:Str}\n";
+    let original = "package a{struct A{name:Str}}\n";
     std::fs::write(&file, original).unwrap();
 
     let output = Command::new(bin())
@@ -62,14 +65,14 @@ fn fmt_check_reports_unformatted_file_without_touching_it() {
 fn fmt_preserves_comments() {
     let dir = temp_dir("comments");
     let file = dir.join("a.lt");
-    let original = "// keep me\npub class A{name:Str}\n";
+    let original = "// keep me\npackage a{struct A{name:Str}}\n";
     std::fs::write(&file, original).unwrap();
 
     let output = Command::new(bin()).arg("fmt").arg(&file).output().unwrap();
     assert_eq!(output.status.code(), Some(0));
     let formatted = std::fs::read_to_string(&file).unwrap();
     assert!(formatted.starts_with("// keep me\n"), "{formatted}");
-    assert!(formatted.contains("pub class A {"), "{formatted}");
+    assert!(formatted.contains("package a {"), "{formatted}");
 
     // Idempotent with comments.
     let output = Command::new(bin())
@@ -85,7 +88,7 @@ fn fmt_preserves_comments() {
 fn fmt_rejects_inline_comments() {
     let dir = temp_dir("inline-comment");
     let file = dir.join("a.lt");
-    let original = "pub class A { x: Int } // trailing\n";
+    let original = "package a { struct A { x: Int } } // trailing\n";
     std::fs::write(&file, original).unwrap();
 
     let output = Command::new(bin()).arg("fmt").arg(&file).output().unwrap();
@@ -99,7 +102,7 @@ fn fmt_rejects_inline_comments() {
 fn check_reports_diagnostics() {
     let dir = temp_dir("broken");
     let file = dir.join("bad.lt");
-    std::fs::write(&file, "pub class A { name Str }\n").unwrap();
+    std::fs::write(&file, "package a {\n  struct A { name Str }\n}\n").unwrap();
 
     let output = Command::new(bin())
         .arg("check")
@@ -117,8 +120,16 @@ fn check_walks_directories_recursively() {
     let dir = temp_dir("walk");
     let nested = dir.join("src/models");
     std::fs::create_dir_all(&nested).unwrap();
-    std::fs::write(dir.join("root.lt"), "pub class A { x: Int }\n").unwrap();
-    std::fs::write(nested.join("user.lt"), "pub class User { name: Str }\n").unwrap();
+    std::fs::write(
+        dir.join("root.lt"),
+        "package root {\n  struct A { x: Int }\n}\n",
+    )
+    .unwrap();
+    std::fs::write(
+        nested.join("user.lt"),
+        "package user {\n  struct User { name: Str }\n}\n",
+    )
+    .unwrap();
 
     let output = Command::new(bin()).arg("check").arg(&dir).output().unwrap();
     assert_eq!(output.status.code(), Some(0));
@@ -130,12 +141,13 @@ fn check_walks_directories_recursively() {
 fn ast_dumps_without_error() {
     let dir = temp_dir("ast");
     let file = dir.join("a.lt");
-    std::fs::write(&file, "pub class A { x: Int }\n").unwrap();
+    std::fs::write(&file, "package a {\n  struct A { x: Int }\n}\n").unwrap();
 
     let output = Command::new(bin()).arg("ast").arg(&file).output().unwrap();
     assert_eq!(output.status.code(), Some(0));
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("ClassDecl"), "{stdout}");
+    assert!(stdout.contains("PackageDecl"), "{stdout}");
+    assert!(stdout.contains("StructDecl"), "{stdout}");
 }
 
 #[test]
@@ -160,7 +172,7 @@ fn build_emits_a_typescript_package() {
     let entry = dir.join("user.lt");
     std::fs::write(
         &entry,
-        "pub class User {\n  name: Str\n  pub fn greet(self) -> Str { `hi ${self.name}` }\n}\n",
+        "package user {\n  export struct User {\n    name: Str\n  }\n\n  export fn greet(u: User) -> Str {\n    `hi ${u.name}`\n  }\n}\n",
     )
     .unwrap();
 
@@ -209,7 +221,11 @@ fn build_emits_a_typescript_package() {
 fn build_refuses_type_errors() {
     let dir = temp_dir("build-bad");
     let entry = dir.join("bad.lt");
-    std::fs::write(&entry, "pub class A { x: Missing }\n").unwrap();
+    std::fs::write(
+        &entry,
+        "package bad {\n  export struct A { x: Missing }\n}\n",
+    )
+    .unwrap();
 
     let output = Command::new(bin())
         .arg("build")
@@ -230,13 +246,13 @@ fn build_refuses_type_errors() {
 fn ir_command_dumps_lowering() {
     let dir = temp_dir("ir");
     let entry = dir.join("a.lt");
-    std::fs::write(&entry, "pub class A { x: Int }\n").unwrap();
+    std::fs::write(&entry, "package a {\n  struct A { x: Int }\n}\n").unwrap();
 
     let output = Command::new(bin()).arg("ir").arg(&entry).output().unwrap();
     assert_eq!(output.status.code(), Some(0));
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("IrProgram"), "{stdout}");
-    assert!(stdout.contains("IrClass"), "{stdout}");
+    assert!(stdout.contains("IrStruct"), "{stdout}");
 }
 
 #[test]
@@ -245,15 +261,14 @@ fn test_command_emits_vitest_files() {
     let entry = dir.join("suite.lt");
     std::fs::write(
         &entry,
-        r#"
-pub class Adder {
-  static fn add(a: Int, b: Int) -> Int { a + b }
+        r#"package suite {
+
+export fn add(a: Int, b: Int) -> Int { a + b }
+
+test "adds" {
+  expect.eq(add(1, 2), 3)
 }
 
-test class AdderTest {
-  test fn adds() {
-    Expect.equal(Adder.add(1, 2), 3)
-  }
 }
 "#,
     )
@@ -282,7 +297,6 @@ test class AdderTest {
         contents.contains("import { describe, it } from \"vitest\";"),
         "{contents}"
     );
-    assert!(contents.contains("describe(\"AdderTest\""), "{contents}");
     assert!(contents.contains("it(\"adds\""), "{contents}");
 
     let package = std::fs::read_to_string(out.join("ts/package.json")).unwrap();
@@ -296,7 +310,7 @@ fn build_does_not_emit_tests() {
     let entry = dir.join("suite.lt");
     std::fs::write(
         &entry,
-        "pub class A { x: Int }\n\ntest class T {\n  test fn ok() {\n    Expect.equal(1, 1)\n  }\n}\n",
+        "package suite {\n  export struct A { x: Int }\n\n  test \"ok\" {\n    expect.eq(1, 1)\n  }\n}\n",
     )
     .unwrap();
 
@@ -320,7 +334,7 @@ fn build_python_package() {
     let entry = dir.join("user.lt");
     std::fs::write(
         &entry,
-        "pub class User {\n  name: Str\n  pub fn greet(self) -> Str { `hi ${self.name}` }\n}\n",
+        "package user {\n  export struct User {\n    name: Str\n  }\n\n  export fn greet(u: User) -> Str {\n    `hi ${u.name}`\n  }\n}\n",
     )
     .unwrap();
 
@@ -355,7 +369,7 @@ fn test_command_emits_pytest_files_for_python() {
     let entry = dir.join("suite.lt");
     std::fs::write(
         &entry,
-        "pub class Adder {\n  static fn add(a: Int, b: Int) -> Int { a + b }\n}\n\ntest class AdderTest {\n  test fn adds() {\n    Expect.equal(Adder.add(1, 2), 3)\n  }\n}\n",
+        "package suite {\n  export fn add(a: Int, b: Int) -> Int { a + b }\n\n  test \"adds\" {\n    expect.eq(add(1, 2), 3)\n  }\n}\n",
     )
     .unwrap();
 
@@ -382,7 +396,7 @@ fn build_go_package() {
     let entry = dir.join("user.lt");
     std::fs::write(
         &entry,
-        "pub class User {\n  name: Str\n  pub fn greet(self) -> Str { `hi ${self.name}` }\n}\n",
+        "package user {\n  export struct User {\n    name: Str\n  }\n\n  export fn greet(u: User) -> Str {\n    `hi ${u.name}`\n  }\n}\n",
     )
     .unwrap();
 
@@ -421,7 +435,7 @@ fn test_command_emits_go_test_files() {
     let entry = dir.join("suite.lt");
     std::fs::write(
         &entry,
-        "pub class Adder {\n  static fn add(a: Int, b: Int) -> Int { a + b }\n}\n\ntest class AdderTest {\n  test fn adds() {\n    Expect.equal(Adder.add(1, 2), 3)\n  }\n}\n",
+        "package suite {\n  export fn add(a: Int, b: Int) -> Int { a + b }\n\n  test \"adds\" {\n    expect.eq(add(1, 2), 3)\n  }\n}\n",
     )
     .unwrap();
 
@@ -438,7 +452,7 @@ fn test_command_emits_go_test_files() {
     assert_eq!(output.status.code(), Some(0));
 
     let tests = std::fs::read_to_string(out.join("go/gen/suite/suite_test.go")).unwrap();
-    assert!(tests.contains("package suite_test"), "{tests}");
+    assert!(tests.contains("package suite"), "{tests}");
     assert!(tests.contains("func TestAdds(t *testing.T)"), "{tests}");
 }
 
@@ -446,7 +460,7 @@ fn test_command_emits_go_test_files() {
 fn local_projects_do_not_get_a_lockfile() {
     let dir = temp_dir("no-lock");
     let entry = dir.join("a.lt");
-    std::fs::write(&entry, "pub class A { x: Int }\n").unwrap();
+    std::fs::write(&entry, "package a {\n  struct A { x: Int }\n}\n").unwrap();
 
     let output = Command::new(bin())
         .arg("build")
@@ -468,7 +482,7 @@ fn local_projects_do_not_get_a_lockfile() {
 fn vendor_without_remotes_is_a_noop() {
     let dir = temp_dir("vendor-empty");
     let entry = dir.join("a.lt");
-    std::fs::write(&entry, "pub class A { x: Int }\n").unwrap();
+    std::fs::write(&entry, "package a {\n  struct A { x: Int }\n}\n").unwrap();
 
     let output = Command::new(bin())
         .arg("vendor")

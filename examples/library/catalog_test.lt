@@ -1,33 +1,32 @@
-import Book from "./book.lt"
-import Genre from "./book.lt"
-import Catalog from "./catalog.lt"
+import book { Book, Genre, describe } from "./book.lt"
+import catalog { Catalog, add, empty, find_by_author, newest, size } from "./catalog.lt"
 
-test class CatalogTest {
+package catalog_test {
   fn sample() -> Catalog {
     let first = Book(title: "Dune", author: "Frank", genre: Genre.Fiction, year: 1965)
     let second = Book(title: "Code", author: "Ada", genre: Genre.Reference, year: 2020)
-    Catalog.empty().add(first).add(second)
+    add(add(empty(), first), second)
   }
 
-  test fn describes_a_book() {
+  test "describes a book" {
     let book = Book(title: "Dune", author: "Frank", genre: Genre.Fiction, year: 1965)
-    Expect.equal(book.describe(), "\"Dune\" by Frank (1965, fiction)")
+    expect.eq(describe(book), "\"Dune\" by Frank (1965, fiction)")
   }
 
-  test fn adds_books() {
-    Expect.equal(sample().size(), 2)
+  test "adds books" {
+    expect.eq(size(sample()), 2)
   }
 
-  test fn filters_by_author() {
-    Expect.equal(sample().find_by_author("Ada").len(), 1)
-    Expect.equal(sample().find_by_author("Nobody").len(), 0)
+  test "filters by author" {
+    expect.eq(find_by_author(sample(), "Ada").len(), 1)
+    expect.eq(find_by_author(sample(), "Nobody").len(), 0)
   }
 
-  test fn newest_uses_year() {
-    Expect.equal(sample().newest().map(fn(book) => book.title), Some("Code"))
+  test "newest uses year" {
+    expect.eq(newest(sample()).map(fn(book) => book.title), Some("Code"))
   }
 
-  test fn empty_catalog_has_no_newest() {
-    Expect.equal(Catalog.empty().newest(), None)
+  test "empty catalog has no newest" {
+    expect.eq(newest(empty()), None)
   }
 }

@@ -399,7 +399,9 @@ impl<'a> Parser<'a> {
             return self.parse_fn(start, is_export).map(PackageItem::Fn);
         }
         if self.at(&TokenKind::Let) {
-            return self.parse_binding(start, is_export).map(PackageItem::Binding);
+            return self
+                .parse_binding(start, is_export)
+                .map(PackageItem::Binding);
         }
         if !is_export && self.at(&TokenKind::Test) {
             return self.parse_test(start).map(PackageItem::Test);

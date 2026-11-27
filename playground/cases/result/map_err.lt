@@ -1,10 +1,10 @@
-test class MapErrTest {
-  test fn maps_ok() {
-    Expect.equal(Ok(2).map(fn(x) => x + 1), Ok(3))
+package map_err {
+  test "maps ok" {
+    expect.eq(Ok(2).map(fn(x) => x + 1), Ok(3))
   }
 
-  test fn maps_err() {
+  test "maps err" {
     let failed: Result<Int, Str> = Err("bad")
-    Expect.equal(failed.map_err(fn(message) => `oops: ${message}`), Err("oops: bad"))
+    expect.eq(failed.map_err(fn(message) => `oops: ${message}`), Err("oops: bad"))
   }
 }

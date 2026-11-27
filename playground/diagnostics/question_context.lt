@@ -1,5 +1,5 @@
-pub class A {
-  fn f(value: Option<Int>) -> Result<Int, Str> {
+package question_context {
+  export fn f(value: Option<Int>) -> Result<Int, Str> {
     value?
   }
 }

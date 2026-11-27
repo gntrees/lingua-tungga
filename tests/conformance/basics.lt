@@ -1,41 +1,39 @@
-pub class Basics {
-  static fn max_int() -> Int {
+package basics {
+  export fn max_int() -> Int {
     9223372036854775807
   }
 
-  static fn min_int() -> Int {
+  export fn min_int() -> Int {
     -9223372036854775807 - 1
   }
-}
 
-test class BasicsTest {
-  test fn int_wraps_at_i64() {
-    Expect.equal(Basics.max_int() + 1, Basics.min_int())
+  test "int wraps at i64" {
+    expect.eq(max_int() + 1, min_int())
   }
 
-  test fn division_truncates_toward_zero() {
-    Expect.equal(-7 / 2, -3)
-    Expect.equal(-7 % 2, -1)
-    Expect.equal(7 / 2, 3)
+  test "division truncates toward zero" {
+    expect.eq(-7 / 2, -3)
+    expect.eq(-7 % 2, -1)
+    expect.eq(7 / 2, 3)
   }
 
-  test fn floats_follow_ieee() {
-    Expect.true(1.0 / 0.0 > 0.0)
-    Expect.false(0.0 / 0.0 == 0.0 / 0.0)
+  test "floats follow ieee" {
+    expect.true(1.0 / 0.0 > 0.0)
+    expect.false(0.0 / 0.0 == 0.0 / 0.0)
   }
 
-  test fn strings_count_code_points() {
-    Expect.equal("héllo".len(), 5)
-    Expect.equal("👍".len(), 1)
-    Expect.equal("héllo".slice(1, 3), "él")
+  test "strings count code points" {
+    expect.eq("héllo".len(), 5)
+    expect.eq("👍".len(), 1)
+    expect.eq("héllo".slice(1, 3), "él")
   }
 
-  test fn template_uses_display() {
-    Expect.equal(`a${1 + 1}b`, "a2b")
+  test "template uses display" {
+    expect.eq(`a${1 + 1}b`, "a2b")
   }
 
-  test fn equality_is_structural() {
-    Expect.equal(Basics.max_int(), 9223372036854775807)
-    Expect.not_equal(1, 2)
+  test "equality is structural" {
+    expect.eq(max_int(), 9223372036854775807)
+    expect.not_equal(1, 2)
   }
 }

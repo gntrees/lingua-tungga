@@ -1,28 +1,26 @@
-pub enum SqlArg {
-  I(Int)
-  S(Str)
-}
+package tagged {
+  export enum SqlArg {
+    I(Int)
+    S(Str)
+  }
 
-pub class Query {
-  text: Str
-}
+  export struct Query {
+    text: Str
+  }
 
-pub class Sql {
-  pub fn compose(parts: List<Str>, values: List<SqlArg>) -> Query {
-    let rendered = values.map(fn(value) =>
-      match value {
+  export fn compose(parts: List<Str>, values: List<SqlArg>) -> Query {
+    let rendered = values.map(
+      fn(value) => (match value {
         SqlArg.I(n) => `i${n}`
         SqlArg.S(s) => `s${s}`
-      }
+      }),
     )
     Query(text: `${parts.join("|")}::${rendered.join("|")}`)
   }
-}
 
-test class TaggedTest {
-  test fn splits_parts_and_typed_values() {
+  test "splits parts and typed values" {
     let id = 7
-    let query = Sql.compose`id = ${SqlArg.I(id)} and name = ${SqlArg.S("bo")}`
-    Expect.equal(query.text, "id = | and name = |::i7|sbo")
+    let query = compose`id = ${SqlArg.I(id)} and name = ${SqlArg.S("bo")}`
+    expect.eq(query.text, "id = | and name = |::i7|sbo")
   }
 }

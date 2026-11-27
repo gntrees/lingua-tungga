@@ -31,16 +31,6 @@ class User:
     name: str
     role: Role
 
-    def label(self) -> str:
-        __match1 = self.role
-        if __match1.tag == "Admin":
-            return "admin"
-        elif __match1.tag == "Member":
-            level: int = __match1.values[0]
-            return "member-" + _lt.disp(level)
-        else:
-            raise AssertionError("unreachable")
-
     def lt_cmp(self, other: "User") -> int:
         step = _lt.cmp(self.name, other.name)
         if step != 0:
@@ -52,4 +42,14 @@ class User:
 
     def to_display(self) -> str:
         return "User(" + "name: " + _lt.disp(self.name) + ", " + "role: " + _lt.disp(self.role) + ")"
+
+def label(u: User) -> str:
+    __match1 = u.role
+    if __match1.tag == "Admin":
+        return "admin"
+    elif __match1.tag == "Member":
+        level: int = __match1.values[0]
+        return "member-" + _lt.disp(level)
+    else:
+        raise AssertionError("unreachable")
 

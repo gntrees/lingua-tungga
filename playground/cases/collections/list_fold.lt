@@ -1,9 +1,9 @@
-test class FoldTest {
-  test fn sums() {
-    Expect.equal([1, 2, 3].fold(0, fn(total, x) => total + x), 6)
+package list_fold {
+  test "sums" {
+    expect.eq([1, 2, 3].fold(0, fn(total, x) => total + x), 6)
   }
 
-  test fn builds_string() {
-    Expect.equal(["a", "b"].fold("", fn(acc, x) => `${acc}${x}`), "ab")
+  test "builds string" {
+    expect.eq(["a", "b"].fold("", fn(acc, x) => `${acc}${x}`), "ab")
   }
 }

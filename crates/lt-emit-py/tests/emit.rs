@@ -21,13 +21,15 @@ fn emit(files: &[(&str, &str)], entry: &str, with_tests: bool) -> Vec<EmittedFil
         .modules
         .iter()
         .map(|module| {
-            module
-                .path
-                .strip_prefix(&root)
-                .unwrap()
-                .with_extension("")
-                .to_string_lossy()
-                .replace('\\', "/")
+            let base = module.path.strip_prefix(&root).unwrap();
+            match base.parent().filter(|dir| !dir.as_os_str().is_empty()) {
+                Some(dir) => format!(
+                    "{}/{}",
+                    dir.to_string_lossy().replace('\\', "/"),
+                    module.name
+                ),
+                None => module.name.clone(),
+            }
         })
         .collect();
 
@@ -50,34 +52,39 @@ fn find<'a>(files: &'a [EmittedFile], path: &str) -> &'a str {
 }
 
 const USER: &str = r#"
-pub enum Role {
+package user {
+
+export enum Role {
   Admin
   Member(Int)
+  Guest
 }
 
-pub class User {
+export struct User {
   name: Str
   age: Int
   role: Role
+}
 
-  pub fn greet(self) -> Str {
-    `Hi ${self.name}`
-  }
+export fn greet(u: User) -> Str {
+  `Hi ${u.name}`
+}
 
-  pub fn older(self) -> Int {
-    self.age + 1
-  }
+export fn older(u: User) -> Int {
+  u.age + 1
+}
 
-  pub fn label(self) -> Str {
-    match self.role {
-      Role.Admin => "admin"
-      Role.Member(level) => `member-${level}`
-    }
+export fn label(u: User) -> Str {
+  match u.role {
+    Role.Admin => "admin"
+    Role.Member(level) => `member-${level}`
   }
+}
 
-  static fn anonymous() -> User {
-    User(name: "?", age: 0, role: Role.Admin)
-  }
+export fn anonymous() -> User {
+  User(name: "?", age: 0, role: Role.Admin)
+}
+
 }
 "#;
 
@@ -103,9 +110,8 @@ fn emits_a_python_package() {
     assert!(module.contains("def role_member(_0: int) -> Role:"));
     assert!(module.contains("@dataclass(frozen=True)\nclass User:"));
     assert!(module.contains("    name: str\n"));
-    assert!(module.contains("    def greet(self) -> str:"));
-    assert!(module.contains("lt.iadd(self.age, 1)"));
-    assert!(module.contains("@staticmethod"));
+    assert!(module.contains("def greet(u: User) -> str:"));
+    assert!(module.contains("lt.iadd(u.age, 1)"));
     assert!(module.contains("def to_display(self) -> str:"));
     assert!(module.contains("if __match1.tag == \"Member\":"));
 }
@@ -126,49 +132,53 @@ fn imports_between_modules_are_absolute() {
 }
 
 const VALIDATOR: &str = r#"
-import User from "./user.lt"
+import user { User } from "./user.lt"
 
-pub class Validator {
-  pub fn check(u: User) -> Result<User, Str> {
-    if u.age < 0 {
-      return Err("age must be >= 0")
-    }
-    Ok(u)
-  }
+package validator {
 
-  pub fn describe(u: User) -> Str {
-    match Validator.check(u) {
-      Ok(valid) => valid.greet()
-      Err(message) => `invalid: ${message}`
-    }
+export fn check(u: User) -> Result<User, Str> {
+  if u.age < 0 {
+    return Err("age must be >= 0")
   }
+  Ok(u)
+}
 
-  pub fn all(users: List<User>) -> List<Result<User, Str>> {
-    users.map(fn(u) => Validator.check(u))
+export fn describe(u: User) -> Str {
+  match check(u) {
+    Ok(valid) => valid.greet()
+    Err(message) => `invalid: ${message}`
   }
+}
+
+export fn all(users: List<User>) -> List<Result<User, Str>> {
+  users.map(fn(u) => check(u))
+}
+
 }
 "#;
 
 #[test]
 fn try_option_and_result_use_tags() {
     let src = r#"
-pub class A {
-  fn go(value: Option<Int>) -> Option<Int> {
-    let inner = value?
-    Some(inner + 1)
-  }
+package main {
 
-  fn parse(text: Str) -> Result<Int, Str> {
-    match text.parse_int() {
-      Some(value) => Ok(value)
-      None => Err("bad number")
-    }
-  }
+fn go(value: Option<Int>) -> Option<Int> {
+  let inner = value?
+  Some(inner + 1)
+}
 
-  fn run() -> Result<Int, Str> {
-    let number = A.parse("42")?
-    Ok(number)
+fn parse(text: Str) -> Result<Int, Str> {
+  match text.parse_int() {
+    Some(value) => Ok(value)
+    None => Err("bad number")
   }
+}
+
+fn run() -> Result<Int, Str> {
+  let number = parse("42")?
+  Ok(number)
+}
+
 }
 "#;
     let files = emit(&[("main.lt", src)], "main.lt", false);
@@ -182,14 +192,14 @@ pub class A {
 #[test]
 fn tests_are_emitted_to_pytest_files() {
     let src = r#"
-pub class Adder {
-  static fn add(a: Int, b: Int) -> Int { a + b }
+package suite {
+
+export fn add(a: Int, b: Int) -> Int { a + b }
+
+test "adds" {
+  expect.eq(add(1, 2), 3)
 }
 
-test class AdderTest {
-  test fn adds() {
-    Expect.equal(Adder.add(1, 2), 3)
-  }
 }
 "#;
     let files = emit(&[("suite.lt", src)], "suite.lt", true);
@@ -198,7 +208,7 @@ test class AdderTest {
     assert!(tests.contains("import gen.suite as m0"), "{tests}");
     assert!(tests.contains("def test_adds() -> None:"), "{tests}");
     assert!(
-        tests.contains("lt.expect_equal(m0.Adder.add(1, 2), 3)"),
+        tests.contains("_lt.expect_equal(m0.add(1, 2), 3)"),
         "{tests}"
     );
 
@@ -214,7 +224,7 @@ fn nested_modules_get_init_files() {
             ("models/user.lt", USER),
             (
                 "app.lt",
-                "import User from \"./models/user.lt\"\n\npub class App {\n  user: User\n}\n",
+                "import user { User } from \"./models/user.lt\"\n\npackage app {\n\nexport struct App {\n  user: User\n}\n}\n",
             ),
         ],
         "app.lt",
@@ -254,10 +264,12 @@ fn emission_is_deterministic() {
 #[test]
 fn to_string_uses_the_display_runtime() {
     let src = r#"
-pub class A {
-  pub fn f(x: Int) -> Str {
-    x.to_string()
-  }
+package a {
+
+fn f(x: Int) -> Str {
+  x.to_string()
+}
+
 }
 "#;
     let files = emit(&[("a.lt", src)], "a.lt", false);

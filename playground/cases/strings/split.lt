@@ -1,9 +1,9 @@
-test class SplitTest {
-  test fn splits() {
-    Expect.equal("a,b,c".split(","), ["a", "b", "c"])
+package split {
+  test "splits" {
+    expect.eq("a,b,c".split(","), ["a", "b", "c"])
   }
 
-  test fn joins() {
-    Expect.equal(["a", "b"].join("-"), "a-b")
+  test "joins" {
+    expect.eq(["a", "b"].join("-"), "a-b")
   }
 }

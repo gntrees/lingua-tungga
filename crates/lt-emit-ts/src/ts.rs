@@ -826,7 +826,7 @@ impl<'a> Emitter<'a> {
                     prelude: Vec::new(),
                     code,
                 }
-            },
+            }
             IrExpr::List { items, ty } => {
                 let element = match ty {
                     Ty::List(inner) => self.type_ref(inner),
@@ -931,10 +931,7 @@ impl<'a> Emitter<'a> {
                 Frag { prelude, code }
             }
             IrExpr::FnCall {
-                module,
-                name,
-                args,
-                ..
+                module, name, args, ..
             } => {
                 let mut prelude = Vec::new();
                 let rendered: Vec<String> = args
@@ -1004,7 +1001,7 @@ impl<'a> Emitter<'a> {
                     })
                     .collect();
                 let function = match name.as_str() {
-                    "equal" => "expectEqual",
+                    "eq" | "equal" => "expectEqual",
                     "not_equal" => "expectNotEqual",
                     "true" => "expectTrue",
                     "false" => "expectFalse",

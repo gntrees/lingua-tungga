@@ -203,16 +203,25 @@ fn resolve_declarations(program: &mut Program, diagnostics: &mut Vec<(ModuleId, 
         {
             let module = &program.modules[module_id];
             for struct_info in &module.structs {
-                let ast::PackageItem::Struct(decl) = &module.ast.items[struct_info.ast_index] else {
+                let ast::PackageItem::Struct(decl) = &module.ast.items[struct_info.ast_index]
+                else {
                     continue;
                 };
-                structs.push(resolve_struct(program, module_id, struct_info, decl, &mut local));
+                structs.push(resolve_struct(
+                    program,
+                    module_id,
+                    struct_info,
+                    decl,
+                    &mut local,
+                ));
             }
             for enum_info in &module.enums {
                 let ast::PackageItem::Enum(decl) = &module.ast.items[enum_info.ast_index] else {
                     continue;
                 };
-                enums.push(resolve_enum(program, module_id, enum_info, decl, &mut local));
+                enums.push(resolve_enum(
+                    program, module_id, enum_info, decl, &mut local,
+                ));
             }
             for fn_info in &module.functions {
                 let ast::PackageItem::Fn(decl) = &module.ast.items[fn_info.ast_index] else {
@@ -291,7 +300,13 @@ fn resolve_enum(
     let mut seen: HashSet<String> = HashSet::new();
 
     for variant in &decl.variants {
-        check_type_name(diagnostics, source, variant.span, &variant.name, "enum variant");
+        check_type_name(
+            diagnostics,
+            source,
+            variant.span,
+            &variant.name,
+            "enum variant",
+        );
         if !seen.insert(variant.name.to_lowercase()) {
             diag(
                 diagnostics,
@@ -371,7 +386,9 @@ fn resolve_fn(
         // Generics need not be used, but a generic that appears only in the
         // return type cannot be inferred, so report it at the declaration.
         for generic in &decl.generics {
-            if !params.iter().any(|(_, ty, _)| mentions_any_generic(ty, std::slice::from_ref(generic)))
+            if !params
+                .iter()
+                .any(|(_, ty, _)| mentions_any_generic(ty, std::slice::from_ref(generic)))
                 && mentions_any_generic(&ret, std::slice::from_ref(generic))
             {
                 diag(
@@ -644,7 +661,8 @@ fn check_bodies(
 
         // Functions.
         for fn_info in program.modules[module_id].functions.clone() {
-            let ast::PackageItem::Fn(decl) = &program.modules[module_id].ast.items[fn_info.ast_index]
+            let ast::PackageItem::Fn(decl) =
+                &program.modules[module_id].ast.items[fn_info.ast_index]
             else {
                 continue;
             };
@@ -658,7 +676,12 @@ fn check_bodies(
                     checker.declare(&param.name, ty.clone(), false, param.span);
                 }
                 let body_ty = checker.check_block(&decl.body, Some(&fn_info.ret));
-                checker.expect(decl.body.span, &fn_info.ret, &body_ty, " as the function result");
+                checker.expect(
+                    decl.body.span,
+                    &fn_info.ret,
+                    &body_ty,
+                    " as the function result",
+                );
                 checker.scopes.pop();
                 (checker.diags, checker.types)
             };
@@ -670,7 +693,8 @@ fn check_bodies(
 
         // Tests.
         for test in program.modules[module_id].tests.clone() {
-            let ast::PackageItem::Test(decl) = &program.modules[module_id].ast.items[test.ast_index]
+            let ast::PackageItem::Test(decl) =
+                &program.modules[module_id].ast.items[test.ast_index]
             else {
                 continue;
             };
@@ -1490,6 +1514,19 @@ impl<'a> Checker<'a> {
                     }
                     let mut wildcard = false;
                     for (pattern, payload_ty) in args.iter().zip(payload.iter()) {
+                        if let Pattern::Variant {
+                            args: inner_args,
+                            span: inner_span,
+                            ..
+                        } = pattern
+                        {
+                            if !inner_args.is_empty() {
+                                self.diag(
+                                    *inner_span,
+                                    "nested patterns are not supported by the v1 backend yet",
+                                );
+                            }
+                        }
                         if self.bind_pattern(pattern, payload_ty, bindings, covered) {
                             wildcard = true;
                         }
@@ -1517,13 +1554,18 @@ impl<'a> Checker<'a> {
                 let decl = decl.clone();
                 return self.enum_value(&decl, type_name, name, span);
             }
-            if let Some(module) = self.package_ref(owner) {
-                return self.package_member(module, name, span);
+            // A local binding wins over a package qualifier of the same name.
+            if self.lookup_var(owner).is_none() {
+                if let Some(module) = self.package_ref(owner) {
+                    return self.package_member(module, name, span);
+                }
             }
             if self.struct_ref(owner).is_some() {
                 self.diag(
                     *owner_span,
-                    format!("`{owner}.{name}` is not a value; construct `{owner}` with named arguments"),
+                    format!(
+                        "`{owner}.{name}` is not a value; construct `{owner}` with named arguments"
+                    ),
                 );
                 return Ty::Error;
             }
@@ -1698,8 +1740,10 @@ impl<'a> Checker<'a> {
                     span: owner_span,
                 } = &**base
                 {
-                    if let Some(module) = self.package_ref(owner) {
-                        return self.call_package_member(module, name, args, span);
+                    if self.lookup_var(owner).is_none() {
+                        if let Some(module) = self.package_ref(owner) {
+                            return self.call_package_member(module, name, args, span);
+                        }
                     }
                     if let Some((decl, type_name)) = self.enum_ref(owner) {
                         let decl = decl.clone();
@@ -2151,7 +2195,9 @@ impl<'a> Checker<'a> {
                     Some(_) => {
                         self.diag(
                             span,
-                            format!("`{owner}.{name}` is private to package `{owner}`; add `export`"),
+                            format!(
+                                "`{owner}.{name}` is private to package `{owner}`; add `export`"
+                            ),
                         );
                         return Ty::Error;
                     }
@@ -2191,9 +2237,7 @@ impl<'a> Checker<'a> {
             let shown = self.display_ty(&func.params[1].1);
             self.diag(
                 span,
-                format!(
-                    "the second parameter of `{display}` must be `List<T>`, found `{shown}`"
-                ),
+                format!("the second parameter of `{display}` must be `List<T>`, found `{shown}`"),
             );
             return Ty::Error;
         };

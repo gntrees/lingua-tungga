@@ -31,21 +31,6 @@ export class User {
     this.role = fields.role;
   }
 
-  label(): string {
-    const __match1 = this.role;
-    switch (__match1.tag) {
-      case "Admin": {
-        return "admin";
-      }
-      case "Member": {
-        const level: bigint = __match1.values[0];
-        return "member-" + lt.disp(level);
-      }
-      default:
-        throw new Error("unreachable");
-    }
-  }
-
   __lt_eq(other: unknown): boolean {
     if (!(other instanceof User)) return false;
     return lt.eq(this.name, (other as User).name) && lt.eq(this.role, (other as User).role);
@@ -63,6 +48,21 @@ export class User {
 
   __lt_to_string(): string {
     return `User(name: ${lt.disp(this.name)}, role: ${lt.disp(this.role)})`;
+  }
+}
+
+export function label(u: User): string {
+  const __match1 = u.role;
+  switch (__match1.tag) {
+    case "Admin": {
+      return "admin";
+    }
+    case "Member": {
+      const level: bigint = __match1.values[0];
+      return "member-" + lt.disp(level);
+    }
+    default:
+      throw new Error("unreachable");
   }
 }
 

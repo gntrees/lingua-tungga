@@ -1,35 +1,33 @@
-pub enum Shape {
-  Circle(Float)
-  Rect(Float, Float)
-  Point
-}
+package enums {
+  export enum Shape {
+    Circle(Float)
+    Rect(Float, Float)
+    Point
+  }
 
-pub class Geometry {
-  pub fn area(shape: Shape) -> Float {
+  export fn area(shape: Shape) -> Float {
     match shape {
-      Shape.Circle(radius) => Math.pi() * radius * radius
+      Shape.Circle(radius) => math.pi() * radius * radius
       Shape.Rect(width, height) => width * height
       Shape.Point => 0.0
     }
   }
-}
 
-pub class Box<T> {
-  value: T
-
-  pub fn get(self) -> T {
-    self.value
-  }
-}
-
-test class EnumTest {
-  test fn payloads_are_bound() {
-    Expect.true(Geometry.area(Shape.Rect(2.0, 3.0)) > 5.9)
-    Expect.equal(Geometry.area(Shape.Point), 0.0)
+  export struct Box<T> {
+    value: T
   }
 
-  test fn generic_class_infers() {
+  export fn get<T>(b: Box<T>) -> T {
+    b.value
+  }
+
+  test "payloads are bound" {
+    expect.true(area(Shape.Rect(2.0, 3.0)) > 5.9)
+    expect.eq(area(Shape.Point), 0.0)
+  }
+
+  test "generic struct infers" {
     let box = Box(value: 7)
-    Expect.equal(box.get(), 7)
+    expect.eq(box.get(), 7)
   }
 }

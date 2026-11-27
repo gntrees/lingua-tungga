@@ -193,8 +193,6 @@ impl<'a> Lowerer<'a> {
         ))
     }
 
-
-
     fn fn_ref(&self, name: &str) -> Option<(ModuleId, &'a FnInfo)> {
         let program = self.program;
         if let Some(decl) = program.find_fn(self.module, name) {
@@ -228,7 +226,6 @@ impl<'a> Lowerer<'a> {
             .find(|import| import.binding == name)
             .map(|import| import.module)
     }
-
 
     fn enum_ref(&self, name: &str) -> Option<(&'a EnumInfo, TypeName)> {
         let program = self.program;
@@ -337,10 +334,9 @@ impl<'a> Lowerer<'a> {
         let body = self.block(&decl.body);
         self.scopes.clear();
 
-        let is_receiver = info
-            .params
-            .first()
-            .is_some_and(|(_, ty, _)| matches!(ty, Ty::Named(name, _) if name.module == self.module));
+        let is_receiver = info.params.first().is_some_and(
+            |(_, ty, _)| matches!(ty, Ty::Named(name, _) if name.module == self.module),
+        );
 
         IrFn {
             name: decl.name.clone(),
@@ -365,7 +361,6 @@ impl<'a> Lowerer<'a> {
         }
     }
 
-
     fn lower_enum(&mut self, decl: &ast::EnumDecl, info: &EnumInfo) -> IrEnum {
         IrEnum {
             name: decl.name.clone(),
@@ -381,11 +376,6 @@ impl<'a> Lowerer<'a> {
                 .collect(),
         }
     }
-
-
-
-
-
 
     // -------------------------------------------------------------- blocks
 
@@ -500,6 +490,18 @@ impl<'a> Lowerer<'a> {
             ast::Expr::Call { callee, args, span } => self.call(callee, args, *span, expr),
             ast::Expr::Field { base, name, .. } => {
                 if let ast::Expr::Ident { name: owner, .. } = base.as_ref() {
+                    let is_local = self.scopes.iter().any(|scope| scope.contains_key(owner));
+                    if !is_local {
+                        if let Some(module) = self.package_ref(owner) {
+                            if let Some(binding) = self.program.find_binding(module, name) {
+                                return IrExpr::BindingRef {
+                                    module,
+                                    name: binding.name.clone(),
+                                    ty: binding.ty.clone(),
+                                };
+                            }
+                        }
+                    }
                     if let Some((decl, type_name)) = self.enum_ref(owner) {
                         return IrExpr::NewVariant {
                             target: VariantRef::Enum {
@@ -638,7 +640,14 @@ impl<'a> Lowerer<'a> {
         }
     }
 
-    fn package_call(&mut self, module: ModuleId, name: &str, args: &ast::Args, span: Span, ty: Ty) -> IrExpr {
+    fn package_call(
+        &mut self,
+        module: ModuleId,
+        name: &str,
+        args: &ast::Args,
+        span: Span,
+        ty: Ty,
+    ) -> IrExpr {
         let program = self.program;
         if let Some(decl) = program.find_fn(module, name) {
             let fn_name = decl.name.clone();
@@ -697,8 +706,11 @@ impl<'a> Lowerer<'a> {
             }
             ast::Expr::Field { base, name, .. } => {
                 if let ast::Expr::Ident { name: owner, .. } = base.as_ref() {
-                    if let Some(module) = self.package_ref(owner) {
-                        return self.package_call(module, name, args, span, ty);
+                    let is_local = self.scopes.iter().any(|scope| scope.contains_key(owner));
+                    if !is_local {
+                        if let Some(module) = self.package_ref(owner) {
+                            return self.package_call(module, name, args, span, ty);
+                        }
                     }
                     if let Some((decl, type_name)) = self.enum_ref(owner) {
                         let decl = decl.clone();
@@ -805,7 +817,6 @@ impl<'a> Lowerer<'a> {
             _ => self.unsupported(span, "this expression is not callable"),
         }
     }
-
 
     fn lambda(&mut self, expr: &ast::Expr, param_types: Vec<Ty>) -> IrExpr {
         let ast::Expr::Lambda {
@@ -951,7 +962,8 @@ impl<'a> Lowerer<'a> {
                 match self.program.find_fn(module, name) {
                     Some(decl) => (module, decl.clone()),
                     None => {
-                        return self.unsupported(tag.span(), format!("`{owner}.{name}` is not a function"))
+                        return self
+                            .unsupported(tag.span(), format!("`{owner}.{name}` is not a function"))
                     }
                 }
             }
@@ -980,7 +992,6 @@ impl<'a> Lowerer<'a> {
             ty,
         }
     }
-
 
     fn jsx(&mut self, element: &ast::JsxElement, ty: Ty) -> IrExpr {
         let Some((class, type_name)) = self.struct_ref(&element.name) else {
