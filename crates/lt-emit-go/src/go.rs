@@ -759,11 +759,16 @@ impl<'a> Emitter<'a> {
                     lines.push(format!("{pad}case {}:", quote(variant)));
                     let body_level = level + 1;
                     let mut body = Vec::new();
+                    // A pattern binding is only visible inside its own arm, so
+                    // the unused check must look at that arm, not the whole
+                    // function: another arm using the same name must not keep
+                    // this one from being marked used.
+                    let arm_vars = collect_used(&arm.body);
                     for (index, (name, ty)) in bindings.iter().enumerate() {
                         let cast = self.cast(ty, &format!("{binding}.Values[{index}]"));
                         let local = local_name(name);
                         body.push(format!("{}{} := {}", indent(body_level), local, cast));
-                        if !self.used_vars.contains(name) {
+                        if !arm_vars.contains(name) {
                             body.push(format!("{}_ = {}", indent(body_level), local));
                         }
                     }
@@ -776,8 +781,9 @@ impl<'a> Emitter<'a> {
                     lines.push(format!("{pad}default:"));
                     let body_level = level + 1;
                     let local = local_name(name);
+                    let arm_vars = collect_used(&arm.body);
                     let mut body = vec![format!("{}{} := {}", indent(body_level), local, cast)];
-                    if !self.used_vars.contains(name) {
+                    if !arm_vars.contains(name) {
                         body.push(format!("{}_ = {}", indent(body_level), local));
                     }
                     body.extend(self.block_lines(&arm.body, body_level, tail));
@@ -1480,14 +1486,6 @@ fn collect_expr(expr: &IrExpr, used: &mut HashSet<String>) {
         } => {
             collect_expr(scrutinee, used);
             for arm in arms {
-                if let IrPattern::Variant { bindings, .. } = &arm.pattern {
-                    for (name, _) in bindings {
-                        used.insert(name.clone());
-                    }
-                }
-                if let IrPattern::Binding { name, .. } = &arm.pattern {
-                    used.insert(name.clone());
-                }
                 for name in collect_used(&arm.body) {
                     used.insert(name);
                 }

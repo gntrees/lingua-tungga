@@ -1,0 +1,75 @@
+// Regression: shapes that broke the Python/Go emitters on a real port.
+// - two `match` arms binding the same name
+// - `let` inside sibling `match` arms
+// - `if` expression producing `Str`
+// - methods named after Python builtins (`int`, `str`) and after the runtime
+//   alias (`lt`)
+// - a `match` binding that is never used (Go rejects unused locals)
+
+pub enum Shape {
+  Circle(Int)
+  Square(Int)
+  Named(Str, Int)
+}
+
+pub class Geometry {
+  pub static fn area(shape: Shape) -> Int {
+    match shape {
+      Shape.Circle(r) => r * r * 3
+      Shape.Square(side) => side * side
+      Shape.Named(label, size) => size
+    }
+  }
+
+  pub static fn describe(shape: Shape) -> Str {
+    match shape {
+      Shape.Circle(r) => {
+        let text = if r > 10 { "big" } else { "small" }
+        `circle ${text}`
+      }
+      Shape.Square(side) => {
+        let text = if side > 10 { "big" } else { "small" }
+        `square ${text}`
+      }
+      Shape.Named(label, _) => label
+    }
+  }
+
+  pub static fn int() -> Int {
+    1
+  }
+
+  pub static fn str() -> Str {
+    "s"
+  }
+
+  pub static fn lt() -> Bool {
+    true
+  }
+}
+
+test class GeometryTest {
+  fn unused_binding(shape: Shape) -> Str {
+    match shape {
+      Shape.Circle(_) => "circle"
+      Shape.Named(label, _) => label
+    }
+  }
+
+  test fn same_binding_names() {
+    Expect.equal(Geometry.area(Shape.Circle(2)), 12)
+    Expect.equal(Geometry.area(Shape.Square(3)), 9)
+    Expect.equal(Geometry.describe(Shape.Circle(2)), "circle small")
+    Expect.equal(Geometry.describe(Shape.Square(20)), "square big")
+  }
+
+  test fn builtin_named_methods() {
+    Expect.equal(Geometry.int(), 1)
+    Expect.equal(Geometry.str(), "s")
+    Expect.true(Geometry.lt())
+  }
+
+  test fn unused_match_binding() {
+    Expect.equal(unused_binding(Shape.Circle(1)), "circle")
+  }
+}

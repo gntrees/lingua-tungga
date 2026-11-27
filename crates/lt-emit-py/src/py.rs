@@ -82,6 +82,9 @@ pub fn emit_module(program: &IrProgram, module: &IrModule) -> String {
         used: BTreeSet::new(),
         tests_mode: false,
         uses_math: false,
+        aliases: Vec::new(),
+        declared: std::collections::BTreeSet::new(),
+        shadowed: BTreeSet::new(),
     };
 
     let mut body = String::new();
@@ -108,6 +111,9 @@ pub fn emit_tests(program: &IrProgram, module: &IrModule) -> Option<String> {
         used: BTreeSet::new(),
         tests_mode: true,
         uses_math: false,
+        aliases: Vec::new(),
+        declared: std::collections::BTreeSet::new(),
+        shadowed: BTreeSet::new(),
     };
 
     let mut body = String::new();
@@ -118,6 +124,7 @@ pub fn emit_tests(program: &IrProgram, module: &IrModule) -> Option<String> {
         }
         for test in &test_class.tests {
             body.push_str(&format!("def test_{}() -> None:\n", snake(&test.name)));
+            emitter.declared.clear();
             let lines = emitter.block_lines(&test.body, 1, &Tail::Plain);
             if lines.is_empty() {
                 body.push_str("    pass\n");
@@ -136,7 +143,10 @@ pub fn emit_tests(program: &IrProgram, module: &IrModule) -> Option<String> {
     if emitter.uses_math {
         header.push_str("import math\n");
     }
-    header.push_str("import lt_runtime as lt\n");
+    if body.contains("builtins.") {
+        header.push_str("import builtins\n");
+    }
+    header.push_str("import lt_runtime as _lt\n");
     header.push_str("from typing import Any\n");
     for id in &emitter.used {
         header.push_str(&format!(
@@ -155,6 +165,19 @@ struct Emitter<'a> {
     used: BTreeSet<ModuleId>,
     tests_mode: bool,
     uses_math: bool,
+    /// Renames for `match` pattern bindings. Python has no block scope, so two
+    /// arms binding the same name would collide (`mypy --strict` rejects the
+    /// redefinition). Each arm gets its own map, pushed while its body is
+    /// emitted.
+    aliases: Vec<std::collections::HashMap<String, String>>,
+    /// Every local name bound so far in the function being emitted. Python has
+    /// function scope only, so a `let` in one branch and another `let` with the
+    /// same name in a sibling branch would be a redefinition.
+    declared: std::collections::BTreeSet<String>,
+    /// Builtin type names shadowed by method names in the class being emitted.
+    /// Inside that class body `int` would resolve to the method, so primitive
+    /// annotations have to be written `builtins.int`.
+    shadowed: BTreeSet<String>,
 }
 
 impl<'a> Emitter<'a> {
@@ -165,7 +188,10 @@ impl<'a> Emitter<'a> {
         if self.uses_math {
             out.push_str("import math\n");
         }
-        out.push_str("import lt_runtime as lt\n");
+        if body.contains("builtins.") {
+            out.push_str("import builtins\n");
+        }
+        out.push_str("import lt_runtime as _lt\n");
         out.push_str("from dataclasses import dataclass\n");
         for id in &self.used {
             out.push_str(&format!(
@@ -185,6 +211,42 @@ impl<'a> Emitter<'a> {
         format!("__{prefix}{}", self.temps)
     }
 
+    /// Resolve a source name through the active `match` arm maps, innermost
+    /// first.
+    /// Reserve a unique local name for `name` in the current function.
+    fn declare(&mut self, name: &str) -> String {
+        let base = member(name);
+        if self.declared.insert(base.clone()) {
+            return base;
+        }
+        let mut suffix = 2;
+        loop {
+            let candidate = format!("{base}_{suffix}");
+            if self.declared.insert(candidate.clone()) {
+                return candidate;
+            }
+            suffix += 1;
+        }
+    }
+
+    /// Bind `name` in the innermost block scope to a fresh unique local.
+    fn bind_local(&mut self, name: &str) -> String {
+        let local = self.declare(name);
+        if let Some(scope) = self.aliases.last_mut() {
+            scope.insert(name.to_string(), local.clone());
+        }
+        local
+    }
+
+    fn alias(&self, name: &str) -> String {
+        for scope in self.aliases.iter().rev() {
+            if let Some(renamed) = scope.get(name) {
+                return renamed.clone();
+            }
+        }
+        member(name)
+    }
+
     fn use_module(&mut self, module: ModuleId) {
         if module != self.module.id || self.tests_mode {
             self.used.insert(module);
@@ -195,23 +257,31 @@ impl<'a> Emitter<'a> {
         module == self.module.id && !self.tests_mode
     }
 
+    fn primitive(&self, name: &str) -> String {
+        if self.shadowed.contains(name) {
+            format!("builtins.{name}")
+        } else {
+            name.to_string()
+        }
+    }
+
     fn type_ref(&mut self, ty: &Ty) -> String {
         match ty {
-            Ty::Int => "int".to_string(),
-            Ty::Float => "float".to_string(),
-            Ty::Bool => "bool".to_string(),
-            Ty::Str => "str".to_string(),
+            Ty::Int => self.primitive("int"),
+            Ty::Float => self.primitive("float"),
+            Ty::Bool => self.primitive("bool"),
+            Ty::Str => self.primitive("str"),
             Ty::Unit => "None".to_string(),
-            Ty::List(inner) => format!("lt.LList[{}]", self.type_ref(inner)),
-            Ty::Set(inner) => format!("lt.LSet[{}]", self.type_ref(inner)),
+            Ty::List(inner) => format!("_lt.LList[{}]", self.type_ref(inner)),
+            Ty::Set(inner) => format!("_lt.LSet[{}]", self.type_ref(inner)),
             Ty::Map(key, value) => format!(
-                "lt.LMap[{}, {}]",
+                "_lt.LMap[{}, {}]",
                 self.type_ref(key),
                 self.type_ref(value)
             ),
-            Ty::Option(inner) => format!("lt.Opt[{}]", self.type_ref(inner)),
+            Ty::Option(inner) => format!("_lt.Opt[{}]", self.type_ref(inner)),
             Ty::Result(ok, err) => {
-                format!("lt.Res[{}, {}]", self.type_ref(ok), self.type_ref(err))
+                format!("_lt.Res[{}, {}]", self.type_ref(ok), self.type_ref(err))
             }
             Ty::Named(name, _) => {
                 self.use_module(name.module);
@@ -251,7 +321,8 @@ impl<'a> Emitter<'a> {
         out.push_str("@dataclass(frozen=True)\n");
         out.push_str(&format!("class {}:\n", decl.name));
         out.push_str("    tag: str\n    values: tuple[Any, ...]\n    order: int\n\n");
-        out.push_str("    def to_display(self) -> str:\n");
+        let display_ret = self.primitive("str");
+        out.push_str(&format!("    def to_display(self) -> {display_ret}:\n"));
         out.push_str(&format!("        return _{}_display(self)\n\n", snake(&decl.name)));
 
         for (order, variant) in decl.variants.iter().enumerate() {
@@ -303,7 +374,7 @@ impl<'a> Emitter<'a> {
                         expression.push_str(" + \", \"");
                     }
                     expression.push_str(&format!(
-                        " + lt.disp(value.values[{index}])"
+                        " + _lt.disp(value.values[{index}])"
                     ));
                 }
                 expression.push_str(" + \")\"");
@@ -318,6 +389,16 @@ impl<'a> Emitter<'a> {
         let mut out = String::new();
         out.push_str("@dataclass(frozen=True)\n");
         out.push_str(&format!("class {}:\n", class.name));
+
+        // A method named `int`/`str`/... would shadow the type name inside the
+        // class body, so primitive annotations there must be qualified.
+        let primitives = ["int", "float", "bool", "str", "list", "dict", "set", "object"];
+        self.shadowed = class
+            .methods
+            .iter()
+            .map(|method| member(&method.name))
+            .filter(|name| primitives.contains(&name.as_str()))
+            .collect();
 
         if !class.fields.is_empty() {
             for field in &class.fields {
@@ -334,16 +415,21 @@ impl<'a> Emitter<'a> {
             out.push('\n');
         }
 
-        out.push_str(&format!("    def lt_cmp(self, other: \"{}\") -> int:\n", class.name));
+        let cmp_ret = self.primitive("int");
+        out.push_str(&format!(
+            "    def lt_cmp(self, other: \"{}\") -> {}:\n",
+            class.name, cmp_ret
+        ));
         for field in &class.fields {
             let name = member(&field.name);
             out.push_str(&format!(
-                "        step = lt.cmp(self.{name}, other.{name})\n        if step != 0:\n            return step\n"
+                "        step = _lt.cmp(self.{name}, other.{name})\n        if step != 0:\n            return step\n"
             ));
         }
         out.push_str("        return 0\n\n");
 
-        out.push_str("    def to_display(self) -> str:\n");
+        let display_ret = self.primitive("str");
+        out.push_str(&format!("    def to_display(self) -> {display_ret}:\n"));
         if class.fields.is_empty() {
             out.push_str(&format!("        return {}\n", quote(&class.name)));
         } else {
@@ -353,7 +439,7 @@ impl<'a> Emitter<'a> {
                     expression.push_str(" + \", \"");
                 }
                 expression.push_str(&format!(
-                    " + {} + lt.disp(self.{})",
+                    " + {} + _lt.disp(self.{})",
                     quote(&format!("{}: ", field.name)),
                     member(&field.name)
                 ));
@@ -390,6 +476,10 @@ impl<'a> Emitter<'a> {
         } else {
             Tail::Return
         };
+        self.declared.clear();
+        for param in &method.params {
+            self.declared.insert(member(&param.name));
+        }
         let lines = self.block_lines(&method.body, 2, &tail);
         if lines.is_empty() {
             out.push_str("        pass\n");
@@ -424,6 +514,10 @@ impl<'a> Emitter<'a> {
         } else {
             Tail::Return
         };
+        self.declared.clear();
+        for param in &method.params {
+            self.declared.insert(member(&param.name));
+        }
         let lines = self.block_lines(&method.body, 1, &tail);
         if lines.is_empty() {
             out.push_str("    pass\n");
@@ -438,6 +532,7 @@ impl<'a> Emitter<'a> {
     // ------------------------------------------------------------ statements
 
     fn block_lines(&mut self, block: &IrBlock, level: usize, tail: &Tail) -> Vec<String> {
+        self.aliases.push(std::collections::HashMap::new());
         let mut lines = Vec::new();
         let count = block.stmts.len();
         for (index, stmt) in block.stmts.iter().enumerate() {
@@ -449,6 +544,7 @@ impl<'a> Emitter<'a> {
             };
             lines.extend(self.stmt(stmt, level, &stmt_tail));
         }
+        self.aliases.pop();
         lines
     }
 
@@ -458,19 +554,16 @@ impl<'a> Emitter<'a> {
             IrStmt::Let { name, ty, value, .. } => {
                 let frag = self.expr(value, level);
                 let declared = self.type_ref(ty);
+                let local = self.bind_local(name);
                 let mut lines = frag.prelude;
-                lines.push(format!(
-                    "{pad}{}: {} = {}",
-                    member(name),
-                    declared,
-                    frag.code
-                ));
+                lines.push(format!("{pad}{local}: {declared} = {}", frag.code));
                 lines
             }
             IrStmt::Assign { name, value } => {
                 let frag = self.expr(value, level);
+                let local = self.alias(name);
                 let mut lines = frag.prelude;
-                lines.push(format!("{pad}{} = {}", member(name), frag.code));
+                lines.push(format!("{pad}{local} = {}", frag.code));
                 lines
             }
             IrStmt::Return(value) => {
@@ -490,8 +583,14 @@ impl<'a> Emitter<'a> {
             } => {
                 let frag = self.expr(iter, level);
                 let mut lines = frag.prelude;
-                lines.push(format!("{pad}for {} in {}.items:", member(var), frag.code));
+                let local = self.declare(var);
+                self.aliases.push(std::collections::HashMap::new());
+                if let Some(scope) = self.aliases.last_mut() {
+                    scope.insert(var.clone(), local.clone());
+                }
+                lines.push(format!("{pad}for {local} in {}.items:", frag.code));
                 lines.extend(self.indented_block(body, level + 1, &Tail::Plain));
+                self.aliases.pop();
                 lines
             }
             IrStmt::While { cond, body } => {
@@ -601,16 +700,21 @@ impl<'a> Emitter<'a> {
                     ));
                     let body_level = level + 1;
                     let mut body = Vec::new();
+                    let mut scope = std::collections::HashMap::new();
                     for (index, (name, ty)) in bindings.iter().enumerate() {
                         let declared = self.type_ref(ty);
+                        let local = self.declare(name);
+                        scope.insert(name.clone(), local.clone());
                         body.push(format!(
                             "{}{}: {} = {binding}.values[{index}]",
                             indent(body_level),
-                            member(name),
+                            local,
                             declared
                         ));
                     }
+                    self.aliases.push(scope);
                     body.extend(self.block_lines(&arm.body, body_level, tail));
+                    self.aliases.pop();
                     if body.is_empty() {
                         body.push(format!("{}pass", indent(body_level)));
                     }
@@ -621,13 +725,18 @@ impl<'a> Emitter<'a> {
                     let declared = self.type_ref(ty);
                     lines.push(format!("{pad}else:"));
                     let body_level = level + 1;
+                    let local = self.declare(name);
+                    let mut scope = std::collections::HashMap::new();
+                    scope.insert(name.clone(), local.clone());
                     let mut body = vec![format!(
                         "{}{}: {} = {binding}",
                         indent(body_level),
-                        member(name),
+                        local,
                         declared
                     )];
+                    self.aliases.push(scope);
                     body.extend(self.block_lines(&arm.body, body_level, tail));
+                    self.aliases.pop();
                     lines.extend(body);
                     first = false;
                 }
@@ -671,7 +780,7 @@ impl<'a> Emitter<'a> {
             },
             IrExpr::Var(name) => Frag {
                 prelude: Vec::new(),
-                code: member(name),
+                code: self.alias(name),
             },
             IrExpr::SelfRef => Frag {
                 prelude: Vec::new(),
@@ -694,14 +803,14 @@ impl<'a> Emitter<'a> {
                 };
                 Frag {
                     prelude,
-                    code: format!("lt.LList({tuple})"),
+                    code: format!("_lt.LList({tuple})"),
                 }
             }
             IrExpr::EmptyCollection { ty } => {
                 let code = match ty {
-                    Ty::Map(_, _) => "lt.LMap.empty()".to_string(),
-                    Ty::Set(_) => "lt.LSet.empty()".to_string(),
-                    _ => "lt.LList(())".to_string(),
+                    Ty::Map(_, _) => "_lt.LMap.empty()".to_string(),
+                    Ty::Set(_) => "_lt.LSet.empty()".to_string(),
+                    _ => "_lt.LList(())".to_string(),
                 };
                 Frag {
                     prelude: Vec::new(),
@@ -751,16 +860,16 @@ impl<'a> Emitter<'a> {
                 let code = match target {
                     VariantRef::Option => {
                         if variant == "Some" {
-                            format!("lt.Some({})", rendered.join(", "))
+                            format!("_lt.Some({})", rendered.join(", "))
                         } else {
-                            "lt.None_()".to_string()
+                            "_lt.None_()".to_string()
                         }
                     }
                     VariantRef::Result => {
                         if variant == "Ok" {
-                            format!("lt.Ok({})", rendered.join(", "))
+                            format!("_lt.Ok({})", rendered.join(", "))
                         } else {
-                            format!("lt.Err({})", rendered.join(", "))
+                            format!("_lt.Err({})", rendered.join(", "))
                         }
                     }
                     VariantRef::Enum { module, name } => {
@@ -891,14 +1000,14 @@ impl<'a> Emitter<'a> {
                 };
                 Frag {
                     prelude,
-                    code: format!("lt.{function}({})", rendered.join(", ")),
+                    code: format!("_lt.{function}({})", rendered.join(", ")),
                 }
             }
             IrExpr::ToStr { value, .. } => {
                 let frag = self.expr(value, level);
                 Frag {
                     prelude: frag.prelude,
-                    code: format!("lt.disp({})", frag.code),
+                    code: format!("_lt.disp({})", frag.code),
                 }
             }
             IrExpr::Template { parts, exprs } => {
@@ -907,7 +1016,7 @@ impl<'a> Emitter<'a> {
                 for (index, inner) in exprs.iter().enumerate() {
                     let frag = self.expr(inner, level);
                     prelude.extend(frag.prelude);
-                    code.push_str(&format!(" + lt.disp({})", frag.code));
+                    code.push_str(&format!(" + _lt.disp({})", frag.code));
                     if let Some(part) = parts.get(index + 1) {
                         if !part.is_empty() {
                             code.push_str(&format!(" + {}", quote(part)));
@@ -940,7 +1049,7 @@ impl<'a> Emitter<'a> {
                 let target = self.temp("if");
                 let pad = indent(level);
                 let declared = self.type_ref(ty);
-                let mut prelude = vec![format!("{pad}{target}: {declared} = None")];
+                let mut prelude = vec![format!("{pad}{target}: {declared}")];
                 prelude.extend(self.if_stmt(expr, level, &Tail::Assign(target.clone())));
                 Frag {
                     prelude,
@@ -951,7 +1060,7 @@ impl<'a> Emitter<'a> {
                 let target = self.temp("match");
                 let pad = indent(level);
                 let declared = self.type_ref(ty);
-                let mut prelude = vec![format!("{pad}{target}: {declared} = None")];
+                let mut prelude = vec![format!("{pad}{target}: {declared}")];
                 prelude.extend(self.match_stmt(expr, level, &Tail::Assign(target.clone())));
                 Frag {
                     prelude,
@@ -970,7 +1079,7 @@ impl<'a> Emitter<'a> {
                 let frag = self.expr(value, level);
                 let code = match (op, ty) {
                     (UnOp::Not, _) => format!("(not ({}))", frag.code),
-                    (UnOp::Neg, Ty::Int) => format!("lt.ineg({})", frag.code),
+                    (UnOp::Neg, Ty::Int) => format!("_lt.ineg({})", frag.code),
                     (UnOp::Neg, _) => format!("(-{})", frag.code),
                 };
                 Frag {
@@ -1052,15 +1161,15 @@ impl<'a> Emitter<'a> {
                         BinOp::Div => "idiv",
                         _ => "irem",
                     };
-                    format!("lt.{function}({left}, {right})")
+                    format!("_lt.{function}({left}, {right})")
                 } else if matches!(op, BinOp::Div) {
-                    format!("lt.fdiv({left}, {right})")
+                    format!("_lt.fdiv({left}, {right})")
                 } else {
                     format!("({left} {symbol} {right})")
                 }
             }
-            BinOp::Eq => format!("lt.eq({left}, {right})"),
-            BinOp::Ne => format!("(not lt.eq({left}, {right}))"),
+            BinOp::Eq => format!("_lt.eq({left}, {right})"),
+            BinOp::Ne => format!("(not _lt.eq({left}, {right}))"),
             BinOp::Lt => format!("({left} < {right})"),
             BinOp::Le => format!("({left} <= {right})"),
             BinOp::Gt => format!("({left} > {right})"),
@@ -1073,20 +1182,20 @@ impl<'a> Emitter<'a> {
     fn builtin(&mut self, kind: Builtin, recv: &str, args: &[String]) -> String {
         let call = |name: &str| format!("{recv}.{name}({})", args.join(", "));
         match kind {
-            Builtin::StrLen => format!("lt.str_len({recv})"),
+            Builtin::StrLen => format!("_lt.str_len({recv})"),
             Builtin::StrTrim => format!("{recv}.strip()"),
-            Builtin::StrTrimIndent => format!("lt.str_trim_indent({recv})"),
+            Builtin::StrTrimIndent => format!("_lt.str_trim_indent({recv})"),
             Builtin::StrLower => format!("{recv}.lower()"),
             Builtin::StrUpper => format!("{recv}.upper()"),
-            Builtin::StrSplit => format!("lt.str_split({recv}, {})", args.join(", ")),
+            Builtin::StrSplit => format!("_lt.str_split({recv}, {})", args.join(", ")),
             Builtin::StrStartsWith => format!("{recv}.startswith({})", args.join(", ")),
             Builtin::StrEndsWith => format!("{recv}.endswith({})", args.join(", ")),
             Builtin::StrContains => format!("({} in {recv})", args.join(", ")),
-            Builtin::StrReplace => format!("lt.str_replace({recv}, {})", args.join(", ")),
-            Builtin::StrSlice => format!("lt.str_slice({recv}, {})", args.join(", ")),
-            Builtin::StrChars => format!("lt.str_chars({recv})"),
-            Builtin::StrParseInt => format!("lt.str_parse_int({recv})"),
-            Builtin::StrParseFloat => format!("lt.str_parse_float({recv})"),
+            Builtin::StrReplace => format!("_lt.str_replace({recv}, {})", args.join(", ")),
+            Builtin::StrSlice => format!("_lt.str_slice({recv}, {})", args.join(", ")),
+            Builtin::StrChars => format!("_lt.str_chars({recv})"),
+            Builtin::StrParseInt => format!("_lt.str_parse_int({recv})"),
+            Builtin::StrParseFloat => format!("_lt.str_parse_float({recv})"),
             Builtin::ListLen => format!("{recv}.len()"),
             Builtin::ListGet => call("get"),
             Builtin::ListPush => call("push"),
@@ -1116,19 +1225,19 @@ impl<'a> Emitter<'a> {
             Builtin::MapKeys => format!("{recv}.keys()"),
             Builtin::MapValues => format!("{recv}.values()"),
             Builtin::MapContainsKey => format!("{recv}.contains_key({})", args.join(", ")),
-            Builtin::OptionIsSome => format!("lt.opt_is_some({recv})"),
-            Builtin::OptionIsNone => format!("lt.opt_is_none({recv})"),
-            Builtin::OptionUnwrap => format!("lt.opt_unwrap({recv})"),
-            Builtin::OptionUnwrapOr => format!("lt.opt_unwrap_or({recv}, {})", args.join(", ")),
-            Builtin::OptionMap => format!("lt.opt_map({recv}, {})", args.join(", ")),
-            Builtin::OptionAndThen => format!("lt.opt_and_then({recv}, {})", args.join(", ")),
-            Builtin::ResultIsOk => format!("lt.res_is_ok({recv})"),
-            Builtin::ResultIsErr => format!("lt.res_is_err({recv})"),
-            Builtin::ResultUnwrap => format!("lt.res_unwrap({recv})"),
-            Builtin::ResultUnwrapOr => format!("lt.res_unwrap_or({recv}, {})", args.join(", ")),
-            Builtin::ResultMap => format!("lt.res_map({recv}, {})", args.join(", ")),
-            Builtin::ResultMapErr => format!("lt.res_map_err({recv}, {})", args.join(", ")),
-            Builtin::ResultAndThen => format!("lt.res_and_then({recv}, {})", args.join(", ")),
+            Builtin::OptionIsSome => format!("_lt.opt_is_some({recv})"),
+            Builtin::OptionIsNone => format!("_lt.opt_is_none({recv})"),
+            Builtin::OptionUnwrap => format!("_lt.opt_unwrap({recv})"),
+            Builtin::OptionUnwrapOr => format!("_lt.opt_unwrap_or({recv}, {})", args.join(", ")),
+            Builtin::OptionMap => format!("_lt.opt_map({recv}, {})", args.join(", ")),
+            Builtin::OptionAndThen => format!("_lt.opt_and_then({recv}, {})", args.join(", ")),
+            Builtin::ResultIsOk => format!("_lt.res_is_ok({recv})"),
+            Builtin::ResultIsErr => format!("_lt.res_is_err({recv})"),
+            Builtin::ResultUnwrap => format!("_lt.res_unwrap({recv})"),
+            Builtin::ResultUnwrapOr => format!("_lt.res_unwrap_or({recv}, {})", args.join(", ")),
+            Builtin::ResultMap => format!("_lt.res_map({recv}, {})", args.join(", ")),
+            Builtin::ResultMapErr => format!("_lt.res_map_err({recv}, {})", args.join(", ")),
+            Builtin::ResultAndThen => format!("_lt.res_and_then({recv}, {})", args.join(", ")),
         }
     }
 }

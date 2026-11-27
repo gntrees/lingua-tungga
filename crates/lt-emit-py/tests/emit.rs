@@ -96,7 +96,7 @@ fn emits_a_python_package() {
 
     let module = find(&files, "gen/user.py");
     assert!(module.contains("from __future__ import annotations"));
-    assert!(module.contains("import lt_runtime as lt"));
+    assert!(module.contains("import lt_runtime as _lt"));
     assert!(module.contains("from dataclasses import dataclass"));
     assert!(module.contains("@dataclass(frozen=True)\nclass Role:"));
     assert!(module.contains("role_admin = Role(\"Admin\", (), 0)"));
@@ -119,7 +119,7 @@ fn imports_between_modules_are_absolute() {
     );
     let validator = find(&files, "gen/validator.py");
     assert!(validator.contains("import gen.user as m1"), "{validator}");
-    assert!(validator.contains("def check(u: m1.User) -> lt.Res"), "{validator}");
+    assert!(validator.contains("def check(u: m1.User) -> _lt.Res"), "{validator}");
 }
 
 const VALIDATOR: &str = r#"
@@ -191,7 +191,7 @@ test class AdderTest {
 "#;
     let files = emit(&[("suite.lt", src)], "suite.lt", true);
     let tests = find(&files, "tests/test_suite.py");
-    assert!(tests.contains("import lt_runtime as lt"), "{tests}");
+    assert!(tests.contains("import lt_runtime as _lt"), "{tests}");
     assert!(tests.contains("import gen.suite as m0"), "{tests}");
     assert!(tests.contains("def test_adds() -> None:"), "{tests}");
     assert!(tests.contains("lt.expect_equal(m0.Adder.add(1, 2), 3)"), "{tests}");

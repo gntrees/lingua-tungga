@@ -7,22 +7,22 @@ TypeScript; bila keduanya lulus, semantik inti terbukti portabel.
 
 | LT | Python |
 |---|---|
-| `Int` (i64) | `int` + `lt.iadd/isub/imul/idiv/irem/ineg` (mask 64-bit) |
-| `Float` | `float`; pembagian memakai `lt.fdiv` agar `x / 0.0` = ±inf/NaN |
+| `Int` (i64) | `int` + `_lt.iadd/isub/imul/idiv/irem/ineg` (mask 64-bit) |
+| `Float` | `float`; pembagian memakai `_lt.fdiv` agar `x / 0.0` = ±inf/NaN |
 | `Str` | `str` (index per code point) |
 | `Bool` | `bool` |
-| `List<T>` | `lt.LList` (tuple immutable) |
-| `Map<K,V>` | `lt.LMap` (entry terurut `cmp`) |
-| `Set<T>` | `lt.LSet` |
-| `Option<T>` | `lt.Opt` (`tag` = `"some"`/`"none"`, `values` tuple) |
-| `Result<T,E>` | `lt.Res` (`tag` = `"ok"`/`"err"`) |
+| `List<T>` | `_lt.LList` (tuple immutable) |
+| `Map<K,V>` | `_lt.LMap` (entry terurut `cmp`) |
+| `Set<T>` | `_lt.LSet` |
+| `Option<T>` | `_lt.Opt` (`tag` = `"some"`/`"none"`, `values` tuple) |
+| `Result<T,E>` | `_lt.Res` (`tag` = `"ok"`/`"err"`) |
 | `enum` | `@dataclass(frozen=True)` dengan `tag`/`values`/`order` + konstruktor `enum_variant(...)` |
 | `class` | `@dataclass(frozen=True)`; field jadi parameter konstruktor bernama |
-| `Display` | `lt.disp(value)` (memakai `to_display`) |
-| `Eq` | `lt.eq`, dataclass `__eq__` |
-| `Ord` | `lt.cmp` |
+| `Display` | `__lt.disp(value)` (memakai `to_display`) |
+| `Eq` | `_lt.eq`, dataclass `__eq__` |
+| `Ord` | `_lt.cmp` |
 | `?` | `if t.tag == "err"/"none": return t` |
-| template | konkatenasi `+ lt.disp(...)` |
+| template | konkatenasi `+ _lt.disp(...)` |
 | `match` | rantai `if/elif` pada `value.tag` |
 | JSX | pemanggilan konstruktor dengan keyword argument |
 

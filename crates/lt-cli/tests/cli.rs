@@ -342,7 +342,7 @@ fn build_python_package() {
     assert!(out.join("py/gen/__init__.py").is_file());
     let module = std::fs::read_to_string(out.join("py/gen/user.py")).unwrap();
     assert!(module.contains("class User:"), "{module}");
-    assert!(module.contains("import lt_runtime as lt"), "{module}");
+    assert!(module.contains("import lt_runtime as _lt"), "{module}");
     assert!(!out.join("py/tests/test_user.py").exists());
 }
 
