@@ -1,10 +1,9 @@
 name: ci
 
-# The heavy, slow checks live outside the per-push path:
-#   - playground: .github/workflows/nightly.yml (all 42 cases x 3 targets)
-#   - full conformance matrix: only on pushes to main
-#   - macOS/Windows: only on pushes to main
-# Run everything locally with ./scripts/check.sh --full.
+# Per-push work stays small. The heavy checks live elsewhere:
+#   - playground: .github/workflows/nightly.yml
+#   - macOS/Windows and the full target matrix: pushes to main only
+#   - everything at once, locally: ./scripts/check.sh --full
 on:
   push:
     branches: [main]
@@ -23,11 +22,27 @@ env:
 
 defaults:
   run:
-    # `tee` keeps a readable log for the annotation step without hiding the
-    # exit status.
     shell: bash
 
 jobs:
+  # One compiler build shared by every conformance target, instead of three
+  # independent `cargo run` compilations.
+  build-lt:
+    name: build lt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.96.0"
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release --bin lt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lt-bin
+          path: target/release/lt
+          retention-days: 3
+
   rust:
     name: rust (ubuntu)
     runs-on: ubuntu-latest
@@ -79,6 +94,7 @@ jobs:
 
   conformance:
     name: conformance (${{ matrix.target }})
+    needs: build-lt
     # PRs get the TypeScript target only; the full matrix runs on main.
     if: matrix.target == 'ts' || github.event_name == 'push'
     runs-on: ubuntu-latest
@@ -88,12 +104,11 @@ jobs:
         target: [ts, py, go]
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/download-artifact@v4
         with:
-          toolchain: "1.96.0"
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: conformance-${{ matrix.target }}
+          name: lt-bin
+          path: lt-bin
+      - run: chmod +x lt-bin/lt
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -104,6 +119,8 @@ jobs:
         with:
           go-version: "1.22"
       - name: run conformance suite
+        env:
+          LT_BIN: ${{ github.workspace }}/lt-bin/lt
         run: |
           set -o pipefail
           script="scripts/conformance-${{ matrix.target }}.sh"
@@ -112,7 +129,7 @@ jobs:
       - name: annotate failure
         if: failure()
         run: |
-          lines="$(grep -ahE 'error(\\[E[0-9]+\\])?:|panicked at|FAILED|test result: FAILED|No such file' conformance.log 2>/dev/null | tail -10)"
+          lines="$(grep -ahE 'error(\[E[0-9]+\])?:|panicked at|FAILED|test result: FAILED|No such file' conformance.log 2>/dev/null | tail -10)"
           if [ -z "$lines" ]; then lines="$(tail -10 conformance.log 2>/dev/null)"; fi
-          printf '%s\\n' "$lines" | sed 's/^/::error::/' || true
+          printf '%s\n' "$lines" | sed 's/^/::error::/' || true
           exit 0
