@@ -191,6 +191,11 @@ title = "Immutable ordered Map"
 spec = "#5.2"
 
 [[feature]]
+id = "collections/dict"
+title = "Dict keeps string keys in insertion order"
+spec = "#5.2"
+
+[[feature]]
 id = "collections/set"
 title = "Set without duplicates"
 spec = "#5.2"

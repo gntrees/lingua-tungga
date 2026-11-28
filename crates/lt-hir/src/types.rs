@@ -39,6 +39,8 @@ pub enum Ty {
     Str,
     Unit,
     List(Box<Ty>),
+    /// String-keyed, insertion-ordered map built from `["a": 1]` literals.
+    Dict(Box<Ty>),
     Map(Box<Ty>, Box<Ty>),
     Set(Box<Ty>),
     Option(Box<Ty>),
@@ -60,6 +62,10 @@ impl Ty {
 
     pub fn set(inner: Ty) -> Ty {
         Ty::Set(Box::new(inner))
+    }
+
+    pub fn dict(value: Ty) -> Ty {
+        Ty::Dict(Box::new(value))
     }
 
     pub fn option(inner: Ty) -> Ty {
@@ -94,6 +100,7 @@ impl fmt::Display for Ty {
             Ty::List(inner) => write!(f, "List<{inner}>"),
             Ty::Map(key, value) => write!(f, "Map<{key}, {value}>"),
             Ty::Set(inner) => write!(f, "Set<{inner}>"),
+            Ty::Dict(value) => write!(f, "Dict<{value}>"),
             Ty::Option(inner) => write!(f, "Option<{inner}>"),
             Ty::Result(ok, err) => write!(f, "Result<{ok}, {err}>"),
             Ty::Named(name, args) => {
@@ -157,7 +164,7 @@ pub fn substitute(ty: &Ty, subst: &Subst) -> Ty {
 pub fn mentions_any_generic(ty: &Ty, generics: &[String]) -> bool {
     match ty {
         Ty::Generic(name) => generics.iter().any(|g| g == name),
-        Ty::List(inner) | Ty::Set(inner) | Ty::Option(inner) => {
+        Ty::List(inner) | Ty::Set(inner) | Ty::Option(inner) | Ty::Dict(inner) => {
             mentions_any_generic(inner, generics)
         }
         Ty::Map(key, value) | Ty::Result(key, value) => {

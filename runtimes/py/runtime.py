@@ -16,6 +16,28 @@ V = TypeVar("V")
 E = TypeVar("E")
 F = TypeVar("F")
 
+def _compare_items(left: tuple[Any, ...], right: tuple[Any, ...]) -> int:
+    """Lexicographic order, so collections do not fall back to display strings."""
+    for left_item, right_item in zip(left, right):
+        step = cmp(left_item, right_item)
+        if step != 0:
+            return step
+    return len(left) - len(right)
+
+
+def _compare_entries(
+    left: tuple[tuple[Any, Any], ...], right: tuple[tuple[Any, Any], ...]
+) -> int:
+    for (left_key, left_value), (right_key, right_value) in zip(left, right):
+        step = cmp(left_key, right_key)
+        if step != 0:
+            return step
+        step = cmp(left_value, right_value)
+        if step != 0:
+            return step
+    return len(left) - len(right)
+
+
 # --- Int: i64 with wrapping overflow ---------------------------------------
 
 _MASK = (1 << 64) - 1
@@ -296,6 +318,9 @@ class LList(Generic[T]):
     def join(self, separator: str) -> str:
         return separator.join(disp(item) for item in self.items)
 
+    def lt_cmp(self, other: "LList[T]") -> int:
+        return _compare_items(self.items, other.items)
+
     def to_display(self) -> str:
         return "List(" + ", ".join(disp(item) for item in self.items) + ")"
 
@@ -341,6 +366,9 @@ class LSet(Generic[T]):
     def difference(self, other: "LSet[T]") -> "LSet[T]":
         return self._from(item for item in self.items if not other.contains(item))
 
+    def lt_cmp(self, other: "LSet[T]") -> int:
+        return _compare_items(self.items, other.items)
+
     def to_display(self) -> str:
         return "Set(" + ", ".join(disp(item) for item in self.items) + ")"
 
@@ -358,15 +386,13 @@ class LMap(Generic[K, V]):
             return cmp(left[0], right[0])
 
         sorted_entries = sorted(entries, key=cmp_to_key(compare_entries))
+        # Sorted keys make equal keys adjacent, so one pass replaces the old
+        # O(n^2) scan. The later entry wins, which keeps `insert` last-wins.
         unique: list[tuple[K, V]] = []
         for entry in sorted_entries:
-            replaced = False
-            for index, existing in enumerate(unique):
-                if eq(existing[0], entry[0]):
-                    unique[index] = entry
-                    replaced = True
-                    break
-            if not replaced:
+            if unique and eq(unique[-1][0], entry[0]):
+                unique[-1] = entry
+            else:
                 unique.append(entry)
         return LMap(tuple(unique))
 
@@ -377,7 +403,24 @@ class LMap(Generic[K, V]):
     def len(self) -> int:
         return len(self.entries)
 
+    def _slot(self, key: K) -> int:
+        low, high = 0, len(self.entries) - 1
+        while low <= high:
+            middle = (low + high) // 2
+            step = cmp(self.entries[middle][0], key)
+            if step == 0:
+                return middle
+            if step < 0:
+                low = middle + 1
+            else:
+                high = middle - 1
+        return -1
+
     def get(self, key: K) -> Opt[V]:
+        slot = self._slot(key)
+        if slot >= 0 and eq(self.entries[slot][0], key):
+            return Some(self.entries[slot][1])
+        # Pathological keys (NaN) break the order, so fall back to a scan.
         for entry_key, entry_value in self.entries:
             if eq(entry_key, key):
                 return Some(entry_value)
@@ -396,12 +439,90 @@ class LMap(Generic[K, V]):
         return LList(tuple(entry[1] for entry in self.entries))
 
     def contains_key(self, key: K) -> bool:
+        slot = self._slot(key)
+        if slot >= 0 and eq(self.entries[slot][0], key):
+            return True
         return any(eq(entry[0], key) for entry in self.entries)
+
+    def lt_cmp(self, other: "LMap[K, V]") -> int:
+        return _compare_entries(self.entries, other.entries)
 
     def to_display(self) -> str:
         return (
             "Map("
             + ", ".join(f"{disp(key)}: {disp(value)}" for key, value in self.entries)
+            + ")"
+        )
+
+
+@dataclass(frozen=True)
+class LDict(Generic[V]):
+    """String-keyed, insertion-ordered map. `eq` ignores order; `lt_cmp` is
+    canonical (entries compared by key) so equal dicts compare equal."""
+
+    entries: tuple[tuple[str, V], ...]
+
+    @staticmethod
+    def empty() -> "LDict[Any]":
+        return LDict(())
+
+    @staticmethod
+    def of(entries: Iterable[tuple[str, V]]) -> "LDict[V]":
+        ordered: list[tuple[str, V]] = []
+        positions: dict[str, int] = {}
+        for key, value in entries:
+            position = positions.get(key)
+            if position is None:
+                positions[key] = len(ordered)
+                ordered.append((key, value))
+            else:
+                # Updating a key keeps its original position, like a dict.
+                ordered[position] = (key, value)
+        return LDict(tuple(ordered))
+
+    def _index(self) -> dict[str, V]:
+        return dict(self.entries)
+
+    def len(self) -> int:
+        return len(self.entries)
+
+    def get(self, key: str) -> Opt[V]:
+        for entry_key, entry_value in self.entries:
+            if entry_key == key:
+                return Some(entry_value)
+        return None_()
+
+    def insert(self, key: str, value: V) -> "LDict[V]":
+        return LDict.of((*self.entries, (key, value)))
+
+    def remove(self, key: str) -> "LDict[V]":
+        return LDict.of(entry for entry in self.entries if entry[0] != key)
+
+    def keys(self) -> LList[str]:
+        return LList(tuple(entry[0] for entry in self.entries))
+
+    def values(self) -> LList[V]:
+        return LList(tuple(entry[1] for entry in self.entries))
+
+    def contains_key(self, key: str) -> bool:
+        return any(entry[0] == key for entry in self.entries)
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, LDict) or len(other.entries) != len(self.entries):
+            return False
+        other_index = other._index()
+        return all(key in other_index and eq(value, other_index[key]) for key, value in self.entries)
+
+    def lt_cmp(self, other: "LDict[V]") -> int:
+        return _compare_entries(
+            tuple(sorted(self.entries, key=lambda entry: entry[0])),
+            tuple(sorted(other.entries, key=lambda entry: entry[0])),
+        )
+
+    def to_display(self) -> str:
+        return (
+            "Dict("
+            + ", ".join(f"{key}: {disp(value)}" for key, value in self.entries)
             + ")"
         )
 

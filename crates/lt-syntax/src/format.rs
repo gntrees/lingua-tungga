@@ -172,6 +172,12 @@ fn collect_expr(expr: &Expr, out: &mut Vec<Container>) {
                 collect_expr(item, out);
             }
         }
+        Expr::Dict { entries, .. } => {
+            for (key, value) in entries {
+                collect_expr(key, out);
+                collect_expr(value, out);
+            }
+        }
         Expr::Call { callee, args, .. } => {
             collect_expr(callee, out);
             match args {
@@ -737,6 +743,7 @@ impl Formatter {
             Expr::NoneLit { .. } => "None".to_string(),
             Expr::Ident { name, .. } => name.clone(),
             Expr::List { items, .. } => self.list_text(items, indent),
+            Expr::Dict { entries, .. } => self.dict_text(entries, indent),
             Expr::Call { callee, args, .. } => self.call_text(callee, args, indent),
             Expr::Field { base, name, .. } => {
                 format!("{}.{}", self.expr_with_min(base, indent, 8), name)
@@ -843,6 +850,35 @@ impl Formatter {
         for item in &rendered {
             out.push_str(&pad(indent + 1));
             out.push_str(item);
+            out.push_str(",\n");
+        }
+        out.push_str(&pad(indent));
+        out.push(']');
+        out
+    }
+
+    fn dict_text(&self, entries: &[(Expr, Expr)], indent: usize) -> String {
+        if entries.is_empty() {
+            return "[:]".to_string();
+        }
+        let rendered: Vec<String> = entries
+            .iter()
+            .map(|(key, value)| {
+                format!(
+                    "{}: {}",
+                    self.expr(key, indent + 1),
+                    self.expr(value, indent + 1)
+                )
+            })
+            .collect();
+        let single = format!("[{}]", rendered.join(", "));
+        if fits_at(indent, &single) {
+            return single;
+        }
+        let mut out = String::from("[\n");
+        for entry in &rendered {
+            out.push_str(&pad(indent + 1));
+            out.push_str(entry);
             out.push_str(",\n");
         }
         out.push_str(&pad(indent));

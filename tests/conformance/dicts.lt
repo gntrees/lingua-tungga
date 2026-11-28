@@ -1,0 +1,49 @@
+package dicts {
+  export fn prices() -> Dict<Int> {
+    ["apple": 3, "pear": 5]
+  }
+
+  export fn label(price: Dict<Int>) -> Str {
+    `${price}`
+  }
+
+  test "dict literals keep insertion order and last write wins" {
+    let d: Dict<Int> = ["b": 2, "a": 1, "b": 9]
+    expect.eq(d.keys(), ["b", "a"])
+    expect.eq(d.values(), [9, 1])
+    expect.eq(d.len(), 2)
+    expect.eq(d.get("b"), Some(9))
+    expect.eq(d.get("zz"), None)
+    expect.true(d.contains_key("a"))
+    expect.false(d.contains_key("zz"))
+  }
+
+  test "insert and remove preserve order" {
+    let d: Dict<Int> = ["a": 1]
+    let grown = d.insert("b", 2).insert("c", 3)
+    expect.eq(grown.keys(), ["a", "b", "c"])
+    expect.eq(grown.remove("b").keys(), ["a", "c"])
+    expect.eq(d.len(), 1)
+  }
+
+  test "an empty dict needs an annotation" {
+    let nothing: Dict<Int> = [:]
+    expect.eq(nothing.len(), 0)
+    expect.eq(nothing.get("a"), None)
+  }
+
+  test "equality ignores order, display keeps it" {
+    let ordered: Dict<Int> = ["a": 1, "b": 2]
+    let reversed: Dict<Int> = ["b": 2, "a": 1]
+    expect.eq(ordered, reversed)
+    expect.eq(label(ordered), "Dict(a: 1, b: 2)")
+    expect.eq(label(reversed), "Dict(b: 2, a: 1)")
+  }
+
+  test "a dict can be a map key" {
+    let base: Map<Dict<Int>, Str> = map.empty()
+    let m = base.insert(["a": 1], "first")
+    expect.eq(m.get(["a": 1]), Some("first"))
+    expect.eq(prices().len(), 2)
+  }
+}

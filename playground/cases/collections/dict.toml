@@ -1,0 +1,3 @@
+title = "Dict: string keys in insertion order"
+feature = "collections/dict"
+why = "A literal keeps the written order; equality ignores it and cmp stays canonical."

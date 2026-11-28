@@ -517,7 +517,7 @@ fn primitive_type(name: &str) -> Option<Ty> {
 
 fn builtin_arity(name: &str) -> Option<usize> {
     match name {
-        "List" | "Set" | "Option" => Some(1),
+        "List" | "Set" | "Option" | "Dict" => Some(1),
         "Map" | "Result" => Some(2),
         _ => None,
     }
@@ -527,6 +527,7 @@ fn builtin_type(name: &str, args: &[Ty]) -> Ty {
     match name {
         "List" => Ty::list(args[0].clone()),
         "Set" => Ty::set(args[0].clone()),
+        "Dict" => Ty::dict(args[0].clone()),
         "Option" => Ty::option(args[0].clone()),
         "Map" => Ty::map(args[0].clone(), args[1].clone()),
         "Result" => Ty::result(args[0].clone(), args[1].clone()),
@@ -901,6 +902,7 @@ impl<'a> Checker<'a> {
             },
             Ty::List(inner) => Ty::list(self.resolve_deep(inner)),
             Ty::Set(inner) => Ty::set(self.resolve_deep(inner)),
+            Ty::Dict(value) => Ty::dict(self.resolve_deep(value)),
             Ty::Option(inner) => Ty::option(self.resolve_deep(inner)),
             Ty::Map(key, value) => Ty::map(self.resolve_deep(key), self.resolve_deep(value)),
             Ty::Result(ok, err) => Ty::result(self.resolve_deep(ok), self.resolve_deep(err)),
@@ -938,7 +940,8 @@ impl<'a> Checker<'a> {
             (Ty::Generic(a), Ty::Generic(b)) => a == b,
             (Ty::List(a), Ty::List(b))
             | (Ty::Set(a), Ty::Set(b))
-            | (Ty::Option(a), Ty::Option(b)) => self.unify(a, b),
+            | (Ty::Option(a), Ty::Option(b))
+            | (Ty::Dict(a), Ty::Dict(b)) => self.unify(a, b),
             (Ty::Map(a1, a2), Ty::Map(b1, b2)) | (Ty::Result(a1, a2), Ty::Result(b1, b2)) => {
                 self.unify(a1, b1) && self.unify(a2, b2)
             }
@@ -1297,6 +1300,7 @@ impl<'a> Checker<'a> {
                 }
             },
             ast::Expr::List { items, span } => self.check_list(items, *span, expected),
+            ast::Expr::Dict { entries, span } => self.check_dict(entries, *span, expected),
             ast::Expr::Call { callee, args, span } => self.check_call(callee, args, *span),
             ast::Expr::Field { base, name, span } => self.check_field(base, name, *span),
             ast::Expr::Try { value, span } => self.check_try(value, *span),
@@ -1360,6 +1364,39 @@ impl<'a> Checker<'a> {
             self.expect(item.span(), &element, &item_ty, " in this list element");
         }
         Ty::list(element)
+    }
+
+    fn check_dict(
+        &mut self,
+        entries: &[(ast::Expr, ast::Expr)],
+        span: Span,
+        expected: Option<&Ty>,
+    ) -> Ty {
+        if let Some(Ty::Dict(value)) = expected.map(|ty| self.resolve_deep(ty)) {
+            for (_, entry) in entries {
+                let entry_ty = self.check_expr(entry, Some(value.as_ref()));
+                self.expect(
+                    entry.span(),
+                    value.as_ref(),
+                    &entry_ty,
+                    " in this dict value",
+                );
+            }
+            return Ty::dict(*value);
+        }
+        if entries.is_empty() {
+            self.diag(
+                span,
+                "cannot infer the value type of an empty dict; annotate the binding".to_string(),
+            );
+            return Ty::Error;
+        }
+        let value = self.check_expr(&entries[0].1, None);
+        for (_, entry) in &entries[1..] {
+            let entry_ty = self.check_expr(entry, Some(&value));
+            self.expect(entry.span(), &value, &entry_ty, " in this dict value");
+        }
+        Ty::dict(value)
     }
 
     fn check_binary(&mut self, op: BinOp, lhs: &ast::Expr, rhs: &ast::Expr, span: Span) -> Ty {
@@ -2732,6 +2769,44 @@ impl<'a> Checker<'a> {
                     "get" => Ty::option(*value.clone()),
                     "insert" | "remove" => Ty::map(*key.clone(), *value.clone()),
                     "keys" => Ty::list(*key.clone()),
+                    "values" => Ty::list(*value.clone()),
+                    "contains_key" => Ty::Bool,
+                    _ => Ty::Error,
+                }
+            }
+            Ty::Dict(value) => {
+                let Some(items) = self.positional(args, span, name) else {
+                    return Ty::Error;
+                };
+                let expected: Vec<Ty> = match name {
+                    "len" | "keys" | "values" => vec![],
+                    "get" | "remove" | "contains_key" => vec![Ty::Str],
+                    "insert" => vec![Ty::Str, *value.clone()],
+                    _ => {
+                        self.diag(span, format!("`Dict` has no method `{name}`"));
+                        return Ty::Error;
+                    }
+                };
+                if items.len() != expected.len() {
+                    self.diag(
+                        span,
+                        format!(
+                            "`Dict.{name}` expects {} argument(s), found {}",
+                            expected.len(),
+                            items.len()
+                        ),
+                    );
+                    return Ty::Error;
+                }
+                for (item, expected) in items.iter().zip(expected.iter()) {
+                    let ty = self.check_expr(item, Some(expected));
+                    self.expect(item.span(), expected, &ty, &format!(" in `Dict.{name}`"));
+                }
+                match name {
+                    "len" => Ty::Int,
+                    "get" => Ty::option(*value.clone()),
+                    "insert" | "remove" => Ty::dict(*value.clone()),
+                    "keys" => Ty::list(Ty::Str),
                     "values" => Ty::list(*value.clone()),
                     "contains_key" => Ty::Bool,
                     _ => Ty::Error,

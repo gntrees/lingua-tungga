@@ -12,7 +12,8 @@ lulus di `go test`.
 | `Str` | `string`; operasi code point memakai `lt.StrLen/StrSlice/StrChars/...` |
 | `Bool` | `bool` |
 | `List<T>` | `lt.List[T]` |
-| `Map<K,V>` | `lt.Map[K,V]` (entry terurut) |
+| `Map<K,V>` | `lt.Map[K,V]` (entry terurut, lookup binary search) |
+| `Dict<V>` | `lt.Dict[V]` (key `Str`, urutan insertion, indeks `map[string]V`) |
 | `Set<T>` | `lt.Set[T]` |
 | `Option<T>` / `Result<T,E>` | `lt.Variant` (`Tag`, `Order`, `Type`, `Values`) |
 | `enum` | `lt.Variant` dengan `Type` = nama enum + konstruktor `EnumVariant(...)`; display struktural dari `Type`/`Tag`/`Values`, tanpa fungsi display per enum |

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generated_at": "2026-11-28T10:55:25Z",
+  "generated_at": "2026-11-28T12:15:10Z",
   "cases": {
     "bindings/export_let": {
       "ts": {
@@ -151,6 +151,59 @@
         "status": "pass",
         "lines": [
           "42"
+        ]
+      }
+    },
+    "collections/dict": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "List(b, a)",
+          "List(2, 1)",
+          "Some(1)",
+          "None",
+          "true",
+          "List(a, b)",
+          "List(9, 2)",
+          "Dict(a: 1, b: 2)",
+          "Dict(a: 1, b: 2)",
+          "Dict(b: 2, a: 1)",
+          "0",
+          "2"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "List(b, a)",
+          "List(2, 1)",
+          "Some(1)",
+          "None",
+          "true",
+          "List(a, b)",
+          "List(9, 2)",
+          "Dict(a: 1, b: 2)",
+          "Dict(a: 1, b: 2)",
+          "Dict(b: 2, a: 1)",
+          "0",
+          "2"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "List(b, a)",
+          "List(2, 1)",
+          "Some(1)",
+          "None",
+          "true",
+          "List(a, b)",
+          "List(9, 2)",
+          "Dict(a: 1, b: 2)",
+          "Dict(a: 1, b: 2)",
+          "Dict(b: 2, a: 1)",
+          "0",
+          "2"
         ]
       }
     },

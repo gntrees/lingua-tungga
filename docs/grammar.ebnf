@@ -131,6 +131,7 @@ Primary        = IntLit | FloatLit | StringLit | BoolLit
                | "None"
                | Identifier , [ Generics ]      (* referensi variabel / tipe *)
                | ListLit
+               | DictLit
                | Template
                | TaggedTemplate
                | Jsx
@@ -149,6 +150,9 @@ Pattern        = "_"
                | TypePath , [ "(" , [ Pattern , { "," , Pattern } ] , ")" ] ;
 
 ListLit        = "[" , [ Expr , { "," , Expr } ] , "]" ;
+
+(* Dict: key selalu string literal; kosong ditulis "[:]". *)
+DictLit        = "[" , ( ":" | StringLit , ":" , Expr , { "," , StringLit , ":" , Expr } ) , "]" ;
 
 (* ---------- Template ---------- *)
 

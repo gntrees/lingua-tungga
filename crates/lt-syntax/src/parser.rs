@@ -1215,16 +1215,50 @@ impl<'a> Parser<'a> {
             }
             TokenKind::LBracket => {
                 let start = self.bump().span.start;
-                let mut items = Vec::new();
-                while !self.at(&TokenKind::RBracket) {
-                    if self.at_eof() {
-                        self.error_here("unexpected end of file in a list literal");
+                // `[:]` is the empty dict; `[k: v, ...]` is a dict; everything
+                // else is a list. One expression of lookahead decides.
+                if self.eat(&TokenKind::Colon).is_some() {
+                    self.expect(TokenKind::RBracket, "to close the empty dict literal")?;
+                    return Some(Expr::Dict {
+                        entries: Vec::new(),
+                        span: Span::new(start, self.last_end),
+                    });
+                }
+                if self.at(&TokenKind::RBracket) {
+                    self.bump();
+                    return Some(Expr::List {
+                        items: Vec::new(),
+                        span: Span::new(start, self.last_end),
+                    });
+                }
+                let first = self.parse_expr()?;
+                if self.eat(&TokenKind::Colon).is_some() {
+                    let mut entries = Vec::new();
+                    let value = self.parse_expr()?;
+                    self.check_dict_key(&first);
+                    entries.push((first, value));
+                    while self.eat(&TokenKind::Comma).is_some() {
+                        if self.at(&TokenKind::RBracket) {
+                            break;
+                        }
+                        let key = self.parse_expr()?;
+                        self.expect(TokenKind::Colon, "after a dict key")?;
+                        let value = self.parse_expr()?;
+                        self.check_dict_key(&key);
+                        entries.push((key, value));
+                    }
+                    self.expect(TokenKind::RBracket, "to close the dict literal")?;
+                    return Some(Expr::Dict {
+                        entries,
+                        span: Span::new(start, self.last_end),
+                    });
+                }
+                let mut items = vec![first];
+                while self.eat(&TokenKind::Comma).is_some() {
+                    if self.at(&TokenKind::RBracket) {
                         break;
                     }
                     items.push(self.parse_expr()?);
-                    if self.eat(&TokenKind::Comma).is_none() {
-                        break;
-                    }
                 }
                 self.expect(TokenKind::RBracket, "to close the list literal")?;
                 Some(Expr::List {
@@ -1257,6 +1291,34 @@ impl<'a> Parser<'a> {
                 );
                 None
             }
+        }
+    }
+
+    /// Dict keys are string literals; `["a" + b: 1]` is rejected at the point
+    /// where the reader can see the offending expression.
+    fn check_dict_key(&mut self, key: &Expr) {
+        if !matches!(key, Expr::Str { .. }) {
+            let span = key.span();
+            let start = span.start;
+            let mut line = 1;
+            let mut col = 1;
+            for (index, ch) in self.src.char_indices() {
+                if index >= start {
+                    break;
+                }
+                if ch == '\n' {
+                    line += 1;
+                    col = 1;
+                } else {
+                    col += 1;
+                }
+            }
+            self.error(
+                "dict keys must be string literals, e.g. [\"name\": 1]".to_string(),
+                span,
+                line,
+                col,
+            );
         }
     }
 

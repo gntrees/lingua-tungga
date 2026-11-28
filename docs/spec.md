@@ -162,9 +162,14 @@ Tidak ada konversi implisit `Int` ↔ `Float`. `1 + 1.0` = compile error.
 
 | Tipe | Catatan |
 |---|---|
-| `List<T>` | Urut, immutable. Operasi mengembalikan list baru. |
-| `Map<K, V>` | Key wajib punya `Eq` + `Ord`. Urutan iterasi = urutan key terurut (`Ord`), **bukan** insertion/hash order — agar output deterministik dan sama di semua target. |
+| `List<T>` | Urut, immutable. Operasi mengembalikan list baru. Literal: `[1, 2]`. |
+| `Map<K, V>` | Key wajib punya `Eq` + `Ord`. Urutan iterasi = urutan key terurut (`Ord`), **bukan** insertion/hash order — agar output deterministik dan sama di semua target. Tidak punya literal; bangun dari `map.empty()`. Pencarian key memakai binary search dan duplikat dibuang dalam satu lintasan setelah sortir. |
+| `Dict<V>` | Key selalu `Str`, urutan iterasi = **urutan insertion** (`Dict` tidak punya `Ord` yang terlihat; `cmp`-nya kanonik agar `Eq ⇔ cmp == 0`). Literal: `["a": 1, "b": 2]`, kosong `[:]`. |
 | `Set<T>` | Sama seperti `Map`, elemen terurut. |
+
+`Dict` tidak peduli urutan saat dibandingkan (`["a": 1, "b": 2]` = `["b": 2, "a": 1]`), tetapi
+`Display`-nya mengikuti urutan penulisan. `keys()`/`values()` juga mengikuti urutan itu.
+Meng-`insert` key yang sudah ada mempertahankan posisinya dan menimpa nilainya.
 
 ### 5.3 Option & Result
 
@@ -327,7 +332,8 @@ test "formats with currency" {
 **Statement:** `let`, assignment (hanya untuk `mut`), `return`, `if`, `for`, `while`, ekspresi.
 
 **Ekspresi:** literal, identifier, konstruksi struct, pemanggilan fungsi, pemanggilan receiver,
-akses field, path berkualifikasi, `[]` list literal, `match`, `if` ekspresi, lambda, template,
+akses field, path berkualifikasi, `[]` list literal, `[:]`/`["k": v]` dict literal, `match`,
+`if` ekspresi, lambda, template,
 tagged template, JSX, `?`.
 
 **Blok:** hanya badan `fn`, cabang `if`, dan cabang `match` yang bernilai dari ekspresi
@@ -607,6 +613,7 @@ package. Semuanya tersedia tanpa `import`.
 | `str` | `len`, `trim`, `trim_indent`, `lower`, `upper`, `split`, `starts_with`, `ends_with`, `contains`, `replace`, `slice`, `chars`, `parse_int`, `parse_float` |
 | `list` | `len`, `get(Int) -> T?`, `push`, `pop`, `map`, `filter`, `fold`, `any`, `all`, `sort`, `reverse`, `concat`, `contains`, `index_of`, `join(Str) -> Str` (khusus `List<Str>`) |
 | `map` | `empty()`, `len`, `get(K) -> V?`, `insert`, `remove`, `keys`, `values`, `contains_key` |
+| `dict` | `len`, `get(Str) -> V?`, `insert(Str, V)`, `remove(Str)`, `keys() -> List<Str>`, `values() -> List<V>`, `contains_key(Str)`; dibangun dari literal `["k": v]` |
 | `set` | `empty()`, `len`, `insert`, `remove`, `contains`, `union`, `intersect`, `difference` |
 | `option` | `is_some`, `is_none`, `unwrap`, `unwrap_or`, `map`, `and_then` |
 | `result` | `is_ok`, `is_err`, `unwrap`, `unwrap_or`, `map`, `map_err`, `and_then` |

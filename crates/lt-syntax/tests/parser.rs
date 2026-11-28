@@ -748,6 +748,42 @@ fn reserved_keyword_as_a_name_suggests_an_underscore() {
 }
 
 #[test]
+fn dict_literals_keep_their_entries() {
+    let file =
+        parse_ok("package a {\n  export fn f() -> Dict<Int> {\n    [\"b\": 2, \"a\": 1]\n  }\n}\n");
+    let package = first_package(&file);
+    let function = package_fn(package, "f");
+    let Stmt::Expr(Expr::Dict { entries, .. }) = &function.body.stmts[0] else {
+        panic!("expected a dict literal");
+    };
+    assert_eq!(entries.len(), 2);
+    assert!(matches!(entries[0].0, Expr::Str { .. }));
+    assert!(matches!(entries[1].0, Expr::Str { .. }));
+}
+
+#[test]
+fn empty_dict_is_a_colon_in_brackets() {
+    let file = parse_ok("package a {\n  export fn f() -> Dict<Int> {\n    [:]\n  }\n}\n");
+    let function = package_fn(first_package(&file), "f");
+    let Stmt::Expr(Expr::Dict { entries, .. }) = &function.body.stmts[0] else {
+        panic!("expected an empty dict literal");
+    };
+    assert!(entries.is_empty());
+}
+
+#[test]
+fn dict_keys_must_be_string_literals() {
+    let out = parse("package a {\n  export fn f() -> Dict<Int> {\n    [name: 1]\n  }\n}\n");
+    assert!(
+        out.diagnostics
+            .iter()
+            .any(|d| d.message.contains("dict keys must be string literals")),
+        "{:#?}",
+        out.diagnostics
+    );
+}
+
+#[test]
 fn error_does_not_panic_on_garbage() {
     let out = parse("@@@@ class { fn } } }");
     assert!(!out.diagnostics.is_empty());

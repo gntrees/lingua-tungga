@@ -276,6 +276,53 @@ func ResAndThen[T any, U any, E any](value Variant, f func(T) Variant) Variant {
 	return Err(value.Values[0].(E))
 }
 
+// compareItems orders collections lexicographically, so they do not fall back
+// to display-string comparison inside Cmp.
+func compareItems[T any](left []T, right []T) int {
+	limit := len(left)
+	if len(right) < limit {
+		limit = len(right)
+	}
+	for index := 0; index < limit; index++ {
+		if step := Cmp(left[index], right[index]); step != 0 {
+			return step
+		}
+	}
+	return len(left) - len(right)
+}
+
+func compareDictEntries[V any](left []DictEntry[V], right []DictEntry[V]) int {
+	limit := len(left)
+	if len(right) < limit {
+		limit = len(right)
+	}
+	for index := 0; index < limit; index++ {
+		if step := strings.Compare(left[index].Key, right[index].Key); step != 0 {
+			return step
+		}
+		if step := Cmp(left[index].Value, right[index].Value); step != 0 {
+			return step
+		}
+	}
+	return len(left) - len(right)
+}
+
+func compareEntries[K any, V any](left []Entry[K, V], right []Entry[K, V]) int {
+	limit := len(left)
+	if len(right) < limit {
+		limit = len(right)
+	}
+	for index := 0; index < limit; index++ {
+		if step := Cmp(left[index].Key, right[index].Key); step != 0 {
+			return step
+		}
+		if step := Cmp(left[index].Value, right[index].Value); step != 0 {
+			return step
+		}
+	}
+	return len(left) - len(right)
+}
+
 // --- Immutable collections -------------------------------------------------
 
 type List[T any] struct {
@@ -385,6 +432,14 @@ func (l List[T]) LtEq(other any) bool {
 		}
 	}
 	return true
+}
+
+func (l List[T]) LtCmp(other any) int {
+	o, ok := other.(List[T])
+	if !ok {
+		return 0
+	}
+	return compareItems(l.Items, o.Items)
 }
 
 func (l List[T]) LtDisplay() string {
@@ -499,6 +554,14 @@ func (s Set[T]) LtEq(other any) bool {
 	return true
 }
 
+func (s Set[T]) LtCmp(other any) int {
+	o, ok := other.(Set[T])
+	if !ok {
+		return 0
+	}
+	return compareItems(s.Items, o.Items)
+}
+
 func (s Set[T]) LtDisplay() string {
 	parts := make([]string, len(s.Items))
 	for index, item := range s.Items {
@@ -523,17 +586,14 @@ func mapOf[K any, V any](entries []Entry[K, V]) Map[K, V] {
 	sort.SliceStable(sorted, func(i, j int) bool {
 		return Cmp(sorted[i].Key, sorted[j].Key) < 0
 	})
+	// Sorted keys make equal keys adjacent, so one pass replaces the old O(n^2)
+	// scan. The later entry wins, which keeps Insert last-wins.
 	unique := make([]Entry[K, V], 0, len(sorted))
 	for _, entry := range sorted {
-		replaced := false
-		for index := range unique {
-			if Eq(unique[index].Key, entry.Key) {
-				unique[index] = entry
-				replaced = true
-				break
-			}
-		}
-		if !replaced {
+		last := len(unique) - 1
+		if last >= 0 && Eq(unique[last].Key, entry.Key) {
+			unique[last] = entry
+		} else {
 			unique = append(unique, entry)
 		}
 	}
@@ -542,7 +602,29 @@ func mapOf[K any, V any](entries []Entry[K, V]) Map[K, V] {
 
 func (m Map[K, V]) Len() int64 { return int64(len(m.Entries)) }
 
+// slot binary-searches the sorted entries; the caller confirms with Eq so a
+// pathological key (NaN) still behaves like the old linear scan.
+func (m Map[K, V]) slot(key K) int {
+	low, high := 0, len(m.Entries)-1
+	for low <= high {
+		middle := (low + high) / 2
+		step := Cmp(m.Entries[middle].Key, key)
+		if step == 0 {
+			return middle
+		}
+		if step < 0 {
+			low = middle + 1
+		} else {
+			high = middle - 1
+		}
+	}
+	return -1
+}
+
 func (m Map[K, V]) Get(key K) Variant {
+	if slot := m.slot(key); slot >= 0 && Eq(m.Entries[slot].Key, key) {
+		return Some(m.Entries[slot].Value)
+	}
 	for _, entry := range m.Entries {
 		if Eq(entry.Key, key) {
 			return Some(entry.Value)
@@ -582,12 +664,23 @@ func (m Map[K, V]) Values() List[V] {
 }
 
 func (m Map[K, V]) ContainsKey(key K) bool {
+	if slot := m.slot(key); slot >= 0 && Eq(m.Entries[slot].Key, key) {
+		return true
+	}
 	for _, entry := range m.Entries {
 		if Eq(entry.Key, key) {
 			return true
 		}
 	}
 	return false
+}
+
+func (m Map[K, V]) LtCmp(other any) int {
+	o, ok := other.(Map[K, V])
+	if !ok {
+		return 0
+	}
+	return compareEntries(m.Entries, o.Entries)
 }
 
 func (m Map[K, V]) LtEq(other any) bool {
@@ -610,6 +703,116 @@ func (m Map[K, V]) LtDisplay() string {
 		parts[index] = Disp(entry.Key) + ": " + Disp(entry.Value)
 	}
 	return "Map(" + strings.Join(parts, ", ") + ")"
+}
+
+
+// Dict is a string-keyed, insertion-ordered map. LtEq ignores order; LtCmp is
+// canonical (entries compared by key) so equal dicts always compare equal.
+type DictEntry[V any] struct {
+	Key   string
+	Value V
+}
+
+type Dict[V any] struct {
+	Entries []DictEntry[V]
+	index   map[string]V
+}
+
+func NewDict[V any](entries []DictEntry[V]) Dict[V] {
+	ordered := make([]DictEntry[V], 0, len(entries))
+	positions := make(map[string]int, len(entries))
+	for _, entry := range entries {
+		if position, ok := positions[entry.Key]; ok {
+			// Updating a key keeps its original position, like a Python dict.
+			ordered[position] = entry
+		} else {
+			positions[entry.Key] = len(ordered)
+			ordered = append(ordered, entry)
+		}
+	}
+	index := make(map[string]V, len(ordered))
+	for _, entry := range ordered {
+		index[entry.Key] = entry.Value
+	}
+	return Dict[V]{Entries: ordered, index: index}
+}
+
+func (d Dict[V]) Len() int64 { return int64(len(d.Entries)) }
+
+func (d Dict[V]) Get(key string) Variant {
+	if value, ok := d.index[key]; ok {
+		return Some(value)
+	}
+	return None()
+}
+
+func (d Dict[V]) Insert(key string, value V) Dict[V] {
+	return NewDict(append(append([]DictEntry[V]{}, d.Entries...), DictEntry[V]{Key: key, Value: value}))
+}
+
+func (d Dict[V]) Remove(key string) Dict[V] {
+	kept := make([]DictEntry[V], 0, len(d.Entries))
+	for _, entry := range d.Entries {
+		if entry.Key != key {
+			kept = append(kept, entry)
+		}
+	}
+	return NewDict(kept)
+}
+
+func (d Dict[V]) Keys() List[string] {
+	keys := make([]string, len(d.Entries))
+	for index, entry := range d.Entries {
+		keys[index] = entry.Key
+	}
+	return NewList(keys)
+}
+
+func (d Dict[V]) Values() List[V] {
+	values := make([]V, len(d.Entries))
+	for index, entry := range d.Entries {
+		values[index] = entry.Value
+	}
+	return NewList(values)
+}
+
+func (d Dict[V]) ContainsKey(key string) bool {
+	_, ok := d.index[key]
+	return ok
+}
+
+func (d Dict[V]) LtEq(other any) bool {
+	o, ok := other.(Dict[V])
+	if !ok || len(o.Entries) != len(d.Entries) {
+		return false
+	}
+	for _, entry := range d.Entries {
+		value, found := o.index[entry.Key]
+		if !found || !Eq(entry.Value, value) {
+			return false
+		}
+	}
+	return true
+}
+
+func (d Dict[V]) LtCmp(other any) int {
+	o, ok := other.(Dict[V])
+	if !ok {
+		return 0
+	}
+	left := append([]DictEntry[V]{}, d.Entries...)
+	right := append([]DictEntry[V]{}, o.Entries...)
+	sort.SliceStable(left, func(i, j int) bool { return left[i].Key < left[j].Key })
+	sort.SliceStable(right, func(i, j int) bool { return right[i].Key < right[j].Key })
+	return compareDictEntries(left, right)
+}
+
+func (d Dict[V]) LtDisplay() string {
+	parts := make([]string, len(d.Entries))
+	for index, entry := range d.Entries {
+		parts[index] = entry.Key + ": " + Disp(entry.Value)
+	}
+	return "Dict(" + strings.Join(parts, ", ") + ")"
 }
 
 // --- Str helpers (indexing is by Unicode code point) -----------------------

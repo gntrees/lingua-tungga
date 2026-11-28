@@ -378,6 +378,7 @@ impl<'a> Emitter<'a> {
             Ty::Map(key, value) => {
                 format!("lt.Map[{}, {}]", self.type_ref(key), self.type_ref(value))
             }
+            Ty::Dict(value) => format!("lt.Dict[{}]", self.type_ref(value)),
             Ty::Option(_) | Ty::Result(_, _) => "lt.Variant".to_string(),
             Ty::Named(name, args) => {
                 if self.is_enum(name.module, &name.name) {
@@ -945,6 +946,30 @@ impl<'a> Emitter<'a> {
                     code: format!("lt.NewList([]{}{{{}}})", element, rendered.join(", ")),
                 }
             }
+            IrExpr::DictLit { entries, ty } => {
+                let value = match ty {
+                    Ty::Dict(value) => self.type_ref(value),
+                    _ => "any".to_string(),
+                };
+                let mut prelude = Vec::new();
+                let rendered: Vec<String> = entries
+                    .iter()
+                    .map(|(key, value)| {
+                        let key_frag = self.expr(key, level);
+                        prelude.extend(key_frag.prelude);
+                        let value_frag = self.expr(value, level);
+                        prelude.extend(value_frag.prelude);
+                        format!("{{Key: {}, Value: {}}}", key_frag.code, value_frag.code)
+                    })
+                    .collect();
+                Frag {
+                    prelude,
+                    code: format!(
+                        "lt.NewDict([]lt.DictEntry[{value}]{{{}}})",
+                        rendered.join(", ")
+                    ),
+                }
+            }
             IrExpr::EmptyCollection { ty } => {
                 let code = match ty {
                     Ty::Map(key, value) => format!(
@@ -1404,6 +1429,13 @@ impl<'a> Emitter<'a> {
             Builtin::MapKeys => format!("{recv}.Keys()"),
             Builtin::MapValues => format!("{recv}.Values()"),
             Builtin::MapContainsKey => method("ContainsKey"),
+            Builtin::DictLen => format!("{recv}.Len()"),
+            Builtin::DictGet => method("Get"),
+            Builtin::DictInsert => method("Insert"),
+            Builtin::DictRemove => method("Remove"),
+            Builtin::DictKeys => format!("{recv}.Keys()"),
+            Builtin::DictValues => format!("{recv}.Values()"),
+            Builtin::DictContainsKey => method("ContainsKey"),
             Builtin::OptionIsSome => format!("lt.OptIsSome({recv})"),
             Builtin::OptionIsNone => format!("lt.OptIsNone({recv})"),
             Builtin::OptionUnwrap => {
@@ -1513,6 +1545,12 @@ fn collect_expr(expr: &IrExpr, used: &mut HashSet<String>) {
         IrExpr::List { items, .. } => {
             for item in items {
                 collect_expr(item, used);
+            }
+        }
+        IrExpr::DictLit { entries, .. } => {
+            for (key, value) in entries {
+                collect_expr(key, used);
+                collect_expr(value, used);
             }
         }
         IrExpr::Field { base, .. } => collect_expr(base, used),

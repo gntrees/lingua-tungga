@@ -12,7 +12,8 @@ Target pertama, dipakai untuk memvalidasi IR dan semantik. Status: **v2 — terv
 | `Str` | `string`; index/len dihitung per code point (`[...s]`) |
 | `Bool` | `boolean` |
 | `List<T>` | `lt.LList<T>` (immutable, copy-on-write) |
-| `Map<K,V>` | `lt.LMap<K,V>` (entry terurut `Ord`, lookup O(n)) |
+| `Map<K,V>` | `lt.LMap<K,V>` (entry terurut `Ord`, lookup binary search O(log n)) |
+| `Dict<V>` | `lt.LDict<V>` (key `string`, urutan insertion, indeks `Map`) |
 | `Set<T>` | `lt.LSet<T>` |
 | `Option<T>` | `lt.Opt<T>` = union `{tag:"some"\|"none", values, __lt_meta}` |
 | `Result<T,E>` | `lt.Res<T,E>` = union `{tag:"ok"\|"err", …}` |

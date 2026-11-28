@@ -97,6 +97,31 @@ export function cmp(a: unknown, b: unknown): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
+/// Lexicographic comparison, so collections have a total order of their own
+/// instead of falling back to display strings in `cmp`.
+function compareItems(left: readonly unknown[], right: readonly unknown[]): number {
+  const limit = Math.min(left.length, right.length);
+  for (let index = 0; index < limit; index += 1) {
+    const step = cmp(left[index], right[index]);
+    if (step !== 0) return step;
+  }
+  return left.length - right.length;
+}
+
+function compareEntries(
+  left: readonly (readonly [unknown, unknown])[],
+  right: readonly (readonly [unknown, unknown])[],
+): number {
+  const limit = Math.min(left.length, right.length);
+  for (let index = 0; index < limit; index += 1) {
+    const key = cmp(left[index][0], right[index][0]);
+    if (key !== 0) return key;
+    const value = cmp(left[index][1], right[index][1]);
+    if (value !== 0) return value;
+  }
+  return left.length - right.length;
+}
+
 // --- Int: i64 with wrapping overflow ---------------------------------------
 export const iadd = (a: bigint, b: bigint): bigint => BigInt.asIntN(64, a + b);
 export const isub = (a: bigint, b: bigint): bigint => BigInt.asIntN(64, a - b);
@@ -302,6 +327,10 @@ export class LList<T> {
     return other instanceof LList && eq(this.items, other.items);
   }
 
+  __lt_cmp(other: unknown): number {
+    return other instanceof LList ? compareItems(this.items, other.items) : 0;
+  }
+
   __lt_to_string(): string {
     return `List(${this.items.map(disp).join(", ")})`;
   }
@@ -350,6 +379,10 @@ export class LSet<T> {
     return other instanceof LSet && eq(this.items, other.items);
   }
 
+  __lt_cmp(other: unknown): number {
+    return other instanceof LSet ? compareItems(this.items, other.items) : 0;
+  }
+
   __lt_to_string(): string {
     return `Set(${this.items.map(disp).join(", ")})`;
   }
@@ -360,10 +393,12 @@ export class LMap<K, V> {
 
   constructor(entries: readonly (readonly [K, V])[]) {
     const sorted = [...entries].sort((left, right) => cmp(left[0], right[0]));
+    // Sorted keys make equal keys adjacent, so one pass replaces the old O(n²)
+    // scan. The later entry wins, which keeps `insert` last-wins.
     const unique: (readonly [K, V])[] = [];
     for (const entry of sorted) {
-      const existing = unique.findIndex((candidate) => eq(candidate[0], entry[0]));
-      if (existing >= 0) unique[existing] = entry;
+      const last = unique[unique.length - 1];
+      if (last !== undefined && eq(last[0], entry[0])) unique[unique.length - 1] = entry;
       else unique.push(entry);
     }
     this.entries = unique;
@@ -377,7 +412,25 @@ export class LMap<K, V> {
     return BigInt(this.entries.length);
   }
 
+  /// Entries are sorted by key, so lookup is a binary search.
+  private slot(key: K): number {
+    let low = 0;
+    let high = this.entries.length - 1;
+    while (low <= high) {
+      const middle = (low + high) >> 1;
+      const step = cmp(this.entries[middle][0], key);
+      if (step === 0) return middle;
+      if (step < 0) low = middle + 1;
+      else high = middle - 1;
+    }
+    return -1;
+  }
+
   get(key: K): Opt<V> {
+    // `cmp` is total for ordinary keys; verify with `eq` so a pathological key
+    // (NaN) falls back to the old linear behaviour instead of guessing.
+    const slot = this.slot(key);
+    if (slot >= 0 && eq(this.entries[slot][0], key)) return Some(this.entries[slot][1]);
     const entry = this.entries.find((candidate) => eq(candidate[0], key));
     return entry === undefined ? None<V>() : Some(entry[1]);
   }
@@ -399,6 +452,8 @@ export class LMap<K, V> {
   }
 
   contains_key(key: K): boolean {
+    const slot = this.slot(key);
+    if (slot >= 0 && eq(this.entries[slot][0], key)) return true;
     return this.entries.some((entry) => eq(entry[0], key));
   }
 
@@ -406,8 +461,88 @@ export class LMap<K, V> {
     return other instanceof LMap && eq(this.entries, other.entries);
   }
 
+  __lt_cmp(other: unknown): number {
+    return other instanceof LMap ? compareEntries(this.entries, other.entries) : 0;
+  }
+
   __lt_to_string(): string {
     return `Map(${this.entries.map((entry) => `${disp(entry[0])}: ${disp(entry[1])}`).join(", ")})`;
+  }
+}
+
+
+/// String-keyed, insertion-ordered map. `Eq` ignores order; `cmp` is canonical
+/// (entries compared by key) so equal dicts always compare equal.
+export class LDict<V> {
+  readonly entries: readonly (readonly [string, V])[];
+  private readonly index: Map<string, V>;
+
+  constructor(entries: readonly (readonly [string, V])[]) {
+    const ordered: (readonly [string, V])[] = [];
+    const positions = new Map<string, number>();
+    for (const [key, value] of entries) {
+      const position = positions.get(key);
+      if (position === undefined) {
+        positions.set(key, ordered.length);
+        ordered.push([key, value]);
+      } else {
+        // Updating a key keeps its original position, like a Python dict.
+        ordered[position] = [key, value];
+      }
+    }
+    this.entries = ordered;
+    this.index = new Map(ordered.map(([key, value]) => [key, value] as const));
+  }
+
+  static empty<V>(): LDict<V> {
+    return new LDict<V>([]);
+  }
+
+  len(): bigint {
+    return BigInt(this.entries.length);
+  }
+
+  get(key: string): Opt<V> {
+    return this.index.has(key) ? Some(this.index.get(key) as V) : None<V>();
+  }
+
+  insert(key: string, value: V): LDict<V> {
+    return new LDict([...this.entries, [key, value] as const]);
+  }
+
+  remove(key: string): LDict<V> {
+    return new LDict(this.entries.filter(([candidate]) => candidate !== key));
+  }
+
+  keys(): LList<string> {
+    return new LList(this.entries.map(([key]) => key));
+  }
+
+  values(): LList<V> {
+    return new LList(this.entries.map(([, value]) => value));
+  }
+
+  contains_key(key: string): boolean {
+    return this.index.has(key);
+  }
+
+  __lt_eq(other: unknown): boolean {
+    if (!(other instanceof LDict) || other.entries.length !== this.entries.length) return false;
+    return this.entries.every(([key, value]) => {
+      if (!other.index.has(key)) return false;
+      return eq(value, other.index.get(key) as V);
+    });
+  }
+
+  __lt_cmp(other: unknown): number {
+    if (!(other instanceof LDict)) return 0;
+    const byKey = (left: readonly [string, V], right: readonly [string, V]): number =>
+      left[0] < right[0] ? -1 : left[0] > right[0] ? 1 : 0;
+    return compareEntries([...this.entries].sort(byKey), [...other.entries].sort(byKey));
+  }
+
+  __lt_to_string(): string {
+    return `Dict(${this.entries.map(([key, value]) => `${key}: ${disp(value)}`).join(", ")})`;
   }
 }
 

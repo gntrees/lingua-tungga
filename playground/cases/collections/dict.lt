@@ -1,0 +1,35 @@
+package dict_case {
+  export fn prices() -> Dict<Int> {
+    ["apple": 3, "pear": 5]
+  }
+
+  export fn reorder() -> Dict<Int> {
+    ["a": 1].insert("b", 2).insert("a", 9)
+  }
+
+  test "a dict literal takes string keys and keeps their order" {
+    let d: Dict<Int> = ["b": 2, "a": 1]
+    expect.eq(d.keys(), ["b", "a"])
+    expect.eq(d.values(), [2, 1])
+    expect.eq(d.get("a"), Some(1))
+    expect.eq(d.get("zz"), None)
+    expect.true(d.contains_key("b"))
+  }
+
+  test "duplicate keys keep their position and win" {
+    expect.eq(reorder().keys(), ["a", "b"])
+    expect.eq(reorder().values(), [9, 2])
+  }
+
+  test "equality ignores order, display keeps it" {
+    expect.eq(["a": 1, "b": 2], ["b": 2, "a": 1])
+    expect.eq(`${["a": 1, "b": 2]}`, "Dict(a: 1, b: 2)")
+    expect.eq(`${["b": 2, "a": 1]}`, "Dict(b: 2, a: 1)")
+  }
+
+  test "an empty dict needs an annotation" {
+    let nothing: Dict<Int> = [:]
+    expect.eq(nothing.len(), 0)
+    expect.eq(prices().len(), 2)
+  }
+}

@@ -487,6 +487,13 @@ impl<'a> Lowerer<'a> {
                 items: items.iter().map(|item| self.expr(item)).collect(),
                 ty: self.ty_of(expr),
             },
+            ast::Expr::Dict { entries, .. } => IrExpr::DictLit {
+                entries: entries
+                    .iter()
+                    .map(|(key, value)| (self.expr(key), self.expr(value)))
+                    .collect(),
+                ty: self.ty_of(expr),
+            },
             ast::Expr::Call { callee, args, span } => self.call(callee, args, *span, expr),
             ast::Expr::Field { base, name, .. } => {
                 if let ast::Expr::Ident { name: owner, .. } = base.as_ref() {

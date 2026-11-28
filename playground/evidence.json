@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "generated_at": "2026-11-28T10:55:25Z",
+  "generated_at": "2026-11-28T12:15:10Z",
   "git": {
-    "commit": "5ce9f6b",
+    "commit": "251387c",
     "dirty": true
   },
   "tools": {
@@ -14,24 +14,24 @@
   "targets": {
     "ts": {
       "suite": "vitest",
-      "cases": 53,
-      "passed": 53,
-      "conformance": 46,
-      "conformance_passed": 46
+      "cases": 54,
+      "passed": 54,
+      "conformance": 51,
+      "conformance_passed": 51
     },
     "py": {
       "suite": "pytest+mypy",
-      "cases": 53,
-      "passed": 53,
-      "conformance": 46,
-      "conformance_passed": 46
+      "cases": 54,
+      "passed": 54,
+      "conformance": 51,
+      "conformance_passed": 51
     },
     "go": {
       "suite": "go test+vet",
-      "cases": 53,
-      "passed": 53,
-      "conformance": 46,
-      "conformance_passed": 46
+      "cases": 54,
+      "passed": 54,
+      "conformance": 51,
+      "conformance_passed": 51
     }
   },
   "cases": {
@@ -66,6 +66,11 @@
       "go": true
     },
     "classes/static_method": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "collections/dict": {
       "ts": true,
       "py": true,
       "go": true

@@ -12,7 +12,8 @@ lulus di `pytest`.
 | `Str` | `str` (index per code point) |
 | `Bool` | `bool` |
 | `List<T>` | `_lt.LList` (tuple immutable) |
-| `Map<K,V>` | `_lt.LMap` (entry terurut `cmp`) |
+| `Map<K,V>` | `_lt.LMap` (entry terurut `cmp`, lookup binary search) |
+| `Dict<V>` | `_lt.LDict` (key `str`, urutan insertion) |
 | `Set<T>` | `_lt.LSet` |
 | `Option<T>` | `_lt.Opt` (`tag` = `"some"`/`"none"`, `values` tuple) |
 | `Result<T,E>` | `_lt.Res` (`tag` = `"ok"`/`"err"`) |

@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **`Dict<V>`**: map ber-key `Str` dengan literal `["a": 1, "b": 2]` (kosong `[:]`), urutan
+  insertion, duplikat key terakhir-menang tanpa menggeser posisi, dan tujuh method yang
+  bentuknya sama dengan `Map` (`len`, `get`, `insert`, `remove`, `keys`, `values`,
+  `contains_key`). `Eq`-nya tidak peduli urutan sementara `Display` mengikuti urutan penulisan;
+  `cmp`-nya kanonik sehingga `Dict` tetap bisa jadi key `Map`/`Set`.
+- Kasus playground `collections/dict` dan conformance `tests/conformance/dicts.lt`.
+
+### Changed
+
+- `List`/`Set`/`Map`/`Dict` kini punya perbandingan leksikografis, menggantikan fallback
+  perbandingan string display yang membuat `[10]` terurut sebelum `[2]`.
+- `Map` lebih cepat: dedup O(n²) menjadi satu lintasan O(n) (sortir adaptif pada array yang
+  hampir terurut membuat `insert`/`remove` praktis linear di TypeScript dan Python), dan
+  `get`/`contains_key` memakai binary search O(log n).
+
 ## 0.3.1 — 2026-11-28
 
 ### Added

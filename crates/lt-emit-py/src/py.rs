@@ -411,6 +411,7 @@ impl<'a> Emitter<'a> {
             Ty::Map(key, value) => {
                 format!("_lt.LMap[{}, {}]", self.type_ref(key), self.type_ref(value))
             }
+            Ty::Dict(value) => format!("_lt.LDict[{}]", self.type_ref(value)),
             Ty::Option(inner) => format!("_lt.Opt[{}]", self.type_ref(inner)),
             Ty::Result(ok, err) => {
                 format!("_lt.Res[{}, {}]", self.type_ref(ok), self.type_ref(err))
@@ -954,6 +955,28 @@ impl<'a> Emitter<'a> {
                     code: format!("_lt.LList({tuple})"),
                 }
             }
+            IrExpr::DictLit { entries, .. } => {
+                let mut prelude = Vec::new();
+                let rendered: Vec<String> = entries
+                    .iter()
+                    .map(|(key, value)| {
+                        let key_frag = self.expr(key, level);
+                        prelude.extend(key_frag.prelude);
+                        let value_frag = self.expr(value, level);
+                        prelude.extend(value_frag.prelude);
+                        format!("({}, {})", key_frag.code, value_frag.code)
+                    })
+                    .collect();
+                let tuple = if rendered.len() == 1 {
+                    format!("({},)", rendered[0])
+                } else {
+                    format!("({})", rendered.join(", "))
+                };
+                Frag {
+                    prelude,
+                    code: format!("_lt.LDict.of({tuple})"),
+                }
+            }
             IrExpr::EmptyCollection { ty } => {
                 let code = match ty {
                     Ty::Map(_, _) => "_lt.LMap.empty()".to_string(),
@@ -1352,6 +1375,13 @@ impl<'a> Emitter<'a> {
             Builtin::MapKeys => format!("{recv}.keys()"),
             Builtin::MapValues => format!("{recv}.values()"),
             Builtin::MapContainsKey => format!("{recv}.contains_key({})", args.join(", ")),
+            Builtin::DictLen => format!("{recv}.len()"),
+            Builtin::DictGet => call("get"),
+            Builtin::DictInsert => call("insert"),
+            Builtin::DictRemove => call("remove"),
+            Builtin::DictKeys => format!("{recv}.keys()"),
+            Builtin::DictValues => format!("{recv}.values()"),
+            Builtin::DictContainsKey => format!("{recv}.contains_key({})", args.join(", ")),
             Builtin::OptionIsSome => format!("_lt.opt_is_some({recv})"),
             Builtin::OptionIsNone => format!("_lt.opt_is_none({recv})"),
             Builtin::OptionUnwrap => format!("_lt.opt_unwrap({recv})"),

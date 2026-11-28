@@ -125,6 +125,16 @@ package keys {
 }
 
 #[test]
+fn dict_literals_round_trip() {
+    let src = "package a {\n  export fn f() -> Dict<Int> {\n    [\"b\": 2, \"a\": 1]\n  }\n}\n";
+    assert_eq!(fmt(src), src);
+    assert_stable(src);
+    let empty = "package a {\n  export fn f() -> Dict<Int> {\n    [:]\n  }\n}\n";
+    assert_eq!(fmt(empty), empty);
+    assert_stable(empty);
+}
+
+#[test]
 fn comments_above_an_import_group_stay_above_it() {
     let src = "\
 // header

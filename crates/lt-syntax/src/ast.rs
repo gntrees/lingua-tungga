@@ -269,6 +269,11 @@ pub enum Expr {
         items: Vec<Expr>,
         span: Span,
     },
+    /// `["a": 1]` — string keys, written in order. Empty is `[:]`.
+    Dict {
+        entries: Vec<(Expr, Expr)>,
+        span: Span,
+    },
     Call {
         callee: Box<Expr>,
         args: Args,
@@ -335,6 +340,7 @@ impl Expr {
             | Expr::NoneLit { span }
             | Expr::Ident { span, .. }
             | Expr::List { span, .. }
+            | Expr::Dict { span, .. }
             | Expr::Call { span, .. }
             | Expr::Field { span, .. }
             | Expr::Try { span, .. }
