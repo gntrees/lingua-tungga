@@ -1,0 +1,10 @@
+package shapes {
+  export enum Priority {
+    Low
+    High(Int)
+  }
+
+  export struct Badge {
+    label: Str
+  }
+}

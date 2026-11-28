@@ -1,0 +1,17 @@
+package index_case {
+  export fn first(xs: List<Int>) -> Option<Int> {
+    xs[0]
+  }
+
+  export fn price(prices: Dict<Int>, name: Str) -> Option<Int> {
+    prices[name]
+  }
+
+  test "indexing is partial, never a panic" {
+    expect.eq(first([4, 5]), Some(4))
+    expect.eq(first([]), None)
+    let prices: Dict<Int> = ["apple": 3]
+    expect.eq(price(prices, "apple"), Some(3))
+    expect.eq(price(prices, "pear"), None)
+  }
+}

@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **Indexing**: `xs[i]`, `m[k]`, dan `d["k"]` sebagai lookup parsial yang mengembalikan
+  `Option<T>`; index di luar batas atau key hilang menjadi `None`, dan `Set` tidak bisa
+  di-index. `[` hanya menempel pada ekspresi di baris yang sama.
+- **`pkg.Enum.Variant`** di ekspresi dan pattern, serta **`<pkg.Component />`** di JSX. Prefiks
+  pada pattern kini diverifikasi terhadap enum yang dicocokkan, bukan diabaikan.
+- **`Value` + `json`**: enum prelude `Value` (`Null`, `Bool`, `Int`, `Float`, `Str`,
+  `Array(List<Value>)`, `Object(Dict<Value>)`) yang terlihat tanpa import, plus
+  `json.parse(Str) -> Result<Value, Str>` dan `json.stringify(Value) -> Str`. Bilangan integral
+  tetap `Int`, objek memakai `Dict` sehingga urutan key bertahan, dan float integral dicetak
+  dengan `.0` agar `Int`/`Float` tidak hilang.
+- Statement kini wajib mulai di baris baru; `xs[0]` tidak lagi diam-diam diparse sebagai dua
+  statement.
+- Kasus playground `collections/index`, `types/json`, `modules/qualified` dan conformance
+  `indexing.lt`, `qualified.lt`, `json.lt`.
+
 ## 0.4.0 — 2026-11-28
 
 ### Added

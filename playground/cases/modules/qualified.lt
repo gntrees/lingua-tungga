@@ -1,0 +1,19 @@
+import shapes "./_shapes.lt"
+
+package qualified_case {
+  export fn bump(p: shapes.Priority) -> shapes.Priority {
+    match p {
+      shapes.Priority.Low => shapes.Priority.High(1)
+      shapes.Priority.High(level) => shapes.Priority.High(level + 1)
+    }
+  }
+
+  export fn badge() -> shapes.Badge {
+    <shapes.Badge label="new" />
+  }
+
+  test "a package qualifier reaches variants and JSX tags" {
+    expect.eq(bump(shapes.Priority.Low), shapes.Priority.High(1))
+    expect.eq(badge().label, "new")
+  }
+}

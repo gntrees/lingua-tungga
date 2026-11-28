@@ -866,7 +866,17 @@ impl<'a> Parser<'a> {
 
             let before = self.pos;
             match self.parse_stmt() {
-                Some(stmt) => stmts.push(stmt),
+                Some(stmt) => {
+                    stmts.push(stmt);
+                    // Statements are newline separated: `xs[0]` used to parse as
+                    // two statements on one line and quietly drop the first.
+                    if !self.at(&TokenKind::RBrace)
+                        && !self.at_eof()
+                        && self.peek().line == self.last_end_line
+                    {
+                        self.error_here("statements must start on a new line");
+                    }
+                }
                 None => self.sync_stmt(),
             }
             if self.pos == before {
@@ -1090,6 +1100,19 @@ impl<'a> Parser<'a> {
                     let span = Span::new(expr.span().start, self.last_end);
                     expr = Expr::Try {
                         value: Box::new(expr),
+                        span,
+                    };
+                }
+                // `xs[0]` only continues the line it starts on; a `[` on the
+                // next line begins a fresh statement.
+                TokenKind::LBracket if token.line == self.last_end_line => {
+                    self.bump();
+                    let index = self.parse_expr()?;
+                    self.expect(TokenKind::RBracket, "to close the index")?;
+                    let span = Span::new(expr.span().start, self.last_end);
+                    expr = Expr::Index {
+                        base: Box::new(expr),
+                        index: Box::new(index),
                         span,
                     };
                 }
@@ -1490,14 +1513,17 @@ impl<'a> Parser<'a> {
 
     fn parse_jsx(&mut self) -> Option<JsxElement> {
         let open = self.expect(TokenKind::JsxTagOpen, "to start a JSX element")?;
-        let (name, _) = self.expect_ident("as JSX tag name")?;
+        let mut path = vec![self.expect_ident("as JSX tag name")?.0];
+        while self.eat(&TokenKind::Dot).is_some() {
+            path.push(self.expect_ident("after `.` in a JSX tag")?.0);
+        }
 
         let mut attrs = Vec::new();
         loop {
             if self.at(&TokenKind::JsxTagSelfClose) {
                 self.bump();
                 return Some(JsxElement {
-                    name,
+                    path,
                     attrs,
                     children: Vec::new(),
                     self_closing: true,
@@ -1569,10 +1595,16 @@ impl<'a> Parser<'a> {
                 TokenKind::JsxTagCloseOpen => {
                     self.bump();
                     let (close_name, cspan) = self.expect_ident("in a JSX closing tag")?;
-                    if close_name != name {
+                    let mut close_path = vec![close_name];
+                    while self.eat(&TokenKind::Dot).is_some() {
+                        close_path.push(self.expect_ident("after `.` in a JSX closing tag")?.0);
+                    }
+                    if close_path != path {
                         self.error(
                             format!(
-                                "JSX closing tag `{close_name}` does not match opening tag `{name}`"
+                                "JSX closing tag `{}` does not match opening tag `{}`",
+                                close_path.join("."),
+                                path.join(".")
                             ),
                             cspan,
                             token.line,
@@ -1598,7 +1630,7 @@ impl<'a> Parser<'a> {
         }
 
         Some(JsxElement {
-            name,
+            path,
             attrs,
             children,
             self_closing: false,

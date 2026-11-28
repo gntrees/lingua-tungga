@@ -69,6 +69,7 @@ tanpa takut siklus.
 - Escape string: `\n`, `\t`, `\r`, `\\`, `\"`, `` \` ``, `\$`, `\u{...}`. Escape lain =
   compile error.
 - Indentasi tidak bermakna sintaksis.
+- Statement dipisahkan baris baru: dua statement pada baris yang sama adalah compile error.
 
 **Kata kunci v2:** `package`, `export`, `struct`, `enum`, `fn`, `test`, `let`, `mut`,
 `return`, `if`, `else`, `for`, `in`, `while`, `match`, `import`, `from`, `as`, `true`,
@@ -166,6 +167,11 @@ Tidak ada konversi implisit `Int` ↔ `Float`. `1 + 1.0` = compile error.
 | `Map<K, V>` | Key wajib punya `Eq` + `Ord`. Urutan iterasi = urutan key terurut (`Ord`), **bukan** insertion/hash order — agar output deterministik dan sama di semua target. Tidak punya literal; bangun dari `map.empty()`. Pencarian key memakai binary search dan duplikat dibuang dalam satu lintasan setelah sortir. |
 | `Dict<V>` | Key selalu `Str`, urutan iterasi = **urutan insertion** (`Dict` tidak punya `Ord` yang terlihat; `cmp`-nya kanonik agar `Eq ⇔ cmp == 0`). Literal: `["a": 1, "b": 2]`, kosong `[:]`. |
 | `Set<T>` | Sama seperti `Map`, elemen terurut. |
+
+Indexing: `xs[i]`, `m[k]`, dan `d["k"]` adalah lookup parsial dan selalu mengembalikan
+`Option<T>`; index di luar batas atau key yang hilang menjadi `None` (bukan panic). `Set` tidak
+bisa di-index. `[` hanya menempel pada ekspresi di baris yang sama — `xs` lalu `[0]` di baris
+berikutnya adalah dua statement.
 
 `Dict` tidak peduli urutan saat dibandingkan (`["a": 1, "b": 2]` = `["b": 2, "a": 1]`), tetapi
 `Display`-nya mengikuti urutan penulisan. `keys()`/`values()` juga mengikuti urutan itu.
@@ -618,9 +624,17 @@ package. Semuanya tersedia tanpa `import`.
 | `option` | `is_some`, `is_none`, `unwrap`, `unwrap_or`, `map`, `and_then` |
 | `result` | `is_ok`, `is_err`, `unwrap`, `unwrap_or`, `map`, `map_err`, `and_then` |
 | `math` | `abs`, `min`, `max`, `floor`, `ceil`, `round`, `sqrt`, `pow`, `pi` — semuanya `Float` |
-| `json` | **belum ada**; menunggu enum `Value` dan runtime per target |
+| `json` | `parse(Str) -> Result<Value, Str>`, `stringify(Value) -> Str` |
+| `Value` | enum bawaan dari prelude `value`: `Null`, `Bool(Bool)`, `Int(Int)`, `Float(Float)`, `Str(Str)`, `Array(List<Value>)`, `Object(Dict<Value>)` |
 | `expect` | `eq`, `not_equal`, `true`, `false` (hanya sah di dalam `test`) |
-| Enum bawaan | `Ordering` (`Less`, `Equal`, `Greater`); `Value` belum ada |
+| Enum bawaan | `Ordering` (`Less`, `Equal`, `Greater`) dan `Value` (lihat tabel di atas) |
+
+`json.parse` menerima bilangan integral sebagai `Value.Int` dan sisanya `Value.Float`; objek
+menjadi `Value.Object(Dict<Value>)` sehingga urutan key dipertahankan; key duplikat terakhir
+menang; trailing garbage dan kedalaman lebih dari 128 adalah error. `json.stringify` menulis
+JSON kompak tanpa spasi, mengikuti urutan key `Dict`, mencetak float integral dengan `.0` agar
+`Int`/`Float` tidak hilang, dan menulis non-ASCII apa adanya. Nama package `value` dicadangkan
+untuk prelude.
 
 Cara pakai: fungsi bawaan dipanggil **hanya** lewat sugar receiver (`xs.map(…)`, `s.len()`,
 `m.get(k)`, `o.is_some()`). Bentuk fungsi berkualifikasi (`list.map(xs, …)`, `str.len(s)`) **belum

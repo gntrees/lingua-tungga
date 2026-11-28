@@ -120,6 +120,7 @@ PostfixExpr    = Primary , { PostfixOp } ;
    di package-nya adalah sugar untuk `f(p)`. Tidak ada dispatch dinamis. *)
 PostfixOp      = "." , Identifier
                | "(" , [ ArgList ] , ")"
+               | "[" , Expr , "]"          (* lookup parsial: Option<T> *)
                | "?" ;
 
 ArgList        = NamedArg , { "," , NamedArg }

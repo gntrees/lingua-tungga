@@ -1,0 +1,3 @@
+title = "json.parse returns a Value, json.stringify prints it"
+feature = "types/json"
+why = "Integral numbers stay Int, fractions become Float, and errors come back as Result."

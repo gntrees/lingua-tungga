@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generated_at": "2026-11-28T12:36:16Z",
+  "generated_at": "2026-11-28T13:28:49Z",
   "cases": {
     "bindings/export_let": {
       "ts": {
@@ -204,6 +204,35 @@
           "Dict(b: 2, a: 1)",
           "0",
           "2"
+        ]
+      }
+    },
+    "collections/index": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "Some(4)",
+          "None",
+          "Some(3)",
+          "None"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "Some(4)",
+          "None",
+          "Some(3)",
+          "None"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "Some(4)",
+          "None",
+          "Some(3)",
+          "None"
         ]
       }
     },
@@ -699,6 +728,29 @@
         "lines": [
           "greeting",
           "List(hi)"
+        ]
+      }
+    },
+    "modules/qualified": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "Priority.High(1)",
+          "new"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "Priority.High(1)",
+          "new"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "Priority.High(1)",
+          "new"
         ]
       }
     },
@@ -1281,6 +1333,35 @@
         "status": "pass",
         "lines": [
           "-9223372036854775808"
+        ]
+      }
+    },
+    "types/json": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "int 1",
+          "float 1.0",
+          "{\"b\":2,\"a\":[1,2.5,\"x\",true,null]}",
+          "expected a key at offset 1"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "int 1",
+          "float 1.0",
+          "{\"b\":2,\"a\":[1,2.5,\"x\",true,null]}",
+          "expected a key at offset 1"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "int 1",
+          "float 1.0",
+          "{\"b\":2,\"a\":[1,2.5,\"x\",true,null]}",
+          "expected a key at offset 1"
         ]
       }
     },

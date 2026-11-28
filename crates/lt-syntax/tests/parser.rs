@@ -463,14 +463,14 @@ package v {
     let Stmt::Expr(Expr::Jsx(root)) = &stmts[0] else {
         panic!("expected jsx");
     };
-    assert_eq!(root.name, "Element");
+    assert_eq!(root.path, vec!["Element".to_string()]);
     assert_eq!(root.attrs.len(), 2);
     assert!(matches!(&root.attrs[0].value, JsxAttrValue::Str(s) if s == "div"));
     assert_eq!(root.children.len(), 1);
     let JsxChild::Element(child) = &root.children[0] else {
         panic!("expected nested element");
     };
-    assert_eq!(child.name, "Element");
+    assert_eq!(child.path, vec!["Element".to_string()]);
     assert!(matches!(&child.children[0], JsxChild::Expr(_)));
 }
 

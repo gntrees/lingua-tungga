@@ -166,6 +166,14 @@ impl Program {
             .find(|decl| decl.name == name.name)
     }
 
+    /// The built-in `value` package, which every program carries.
+    pub fn prelude(&self) -> Option<ModuleId> {
+        self.modules
+            .iter()
+            .find(|module| module.name == "value")
+            .map(|module| module.id)
+    }
+
     pub fn find_struct(&self, module: ModuleId, name: &str) -> Option<&StructInfo> {
         self.modules[module]
             .structs

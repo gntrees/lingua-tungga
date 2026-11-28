@@ -191,6 +191,21 @@ title = "Immutable ordered Map"
 spec = "#5.2"
 
 [[feature]]
+id = "collections/index"
+title = "Indexing returns Option"
+spec = "#5.2"
+
+[[feature]]
+id = "types/json"
+title = "JSON parses into Value"
+spec = "#5.2"
+
+[[feature]]
+id = "modules/qualified"
+title = "Qualified variants and JSX tags"
+spec = "#7"
+
+[[feature]]
 id = "collections/dict"
 title = "Dict keeps string keys in insertion order"
 spec = "#5.2"

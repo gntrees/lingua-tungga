@@ -1,0 +1,3 @@
+title = "Qualified variants and JSX tags"
+feature = "modules/qualified"
+why = "`pkg.Enum.Variant` and `<pkg.Component />` work like `pkg.Type` and `pkg.fn`."

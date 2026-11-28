@@ -620,6 +620,24 @@ fn lookup_type(
         }
     }
 
+    // Fall back to the built-in prelude so `Value` is nameable everywhere.
+    if qualifier.is_none() {
+        if let Some(module) = program.prelude() {
+            let target = &program.modules[module];
+            if let Some(decl) = target.enums.iter().find(|decl| decl.name == name) {
+                if decl.is_export {
+                    return Some((
+                        TypeName {
+                            module,
+                            name: name.to_string(),
+                        },
+                        decl.generics.len(),
+                    ));
+                }
+            }
+        }
+    }
+
     None
 }
 
@@ -1023,6 +1041,19 @@ impl<'a> Checker<'a> {
 
     fn enum_ref(&self, name: &str) -> Option<(&'a EnumInfo, TypeName)> {
         let program = self.program;
+        if let Some(module) = program.prelude() {
+            if let Some(decl) = program.find_enum(module, name) {
+                if decl.is_export {
+                    return Some((
+                        decl,
+                        TypeName {
+                            module,
+                            name: name.to_string(),
+                        },
+                    ));
+                }
+            }
+        }
         if let Some(decl) = program.find_enum(self.module, name) {
             return Some((
                 decl,
@@ -1371,6 +1402,7 @@ impl<'a> Checker<'a> {
             },
             ast::Expr::List { items, span } => self.check_list(items, *span, expected),
             ast::Expr::Dict { entries, span } => self.check_dict(entries, *span, expected),
+            ast::Expr::Index { base, index, span } => self.check_index(base, index, *span),
             ast::Expr::Call { callee, args, span } => self.check_call(callee, args, *span),
             ast::Expr::Field { base, name, span } => self.check_field(base, name, *span),
             ast::Expr::Try { value, span } => self.check_try(value, *span),
@@ -1467,6 +1499,24 @@ impl<'a> Checker<'a> {
             self.expect(entry.span(), &value, &entry_ty, " in this dict value");
         }
         Ty::dict(value)
+    }
+
+    fn check_index(&mut self, base: &ast::Expr, index: &ast::Expr, span: Span) -> Ty {
+        let base_ty = self.check_expr(base, None);
+        let base_ty = self.resolve_deep(&base_ty);
+        let (expected, element) = match &base_ty {
+            Ty::List(inner) => (Ty::Int, *inner.clone()),
+            Ty::Map(key, value) => (*key.clone(), *value.clone()),
+            Ty::Dict(value) => (Ty::Str, *value.clone()),
+            Ty::Error => return Ty::Error,
+            other => {
+                self.diag(span, format!("`{other}` cannot be indexed"));
+                return Ty::Error;
+            }
+        };
+        let index_ty = self.check_expr(index, Some(&expected));
+        self.expect(index.span(), &expected, &index_ty, " as an index");
+        Ty::option(element)
     }
 
     fn check_binary(&mut self, op: BinOp, lhs: &ast::Expr, rhs: &ast::Expr, span: Span) -> Ty {
@@ -1724,6 +1774,9 @@ impl<'a> Checker<'a> {
             }
             Pattern::Variant { path, args, span } => {
                 let name = path.last().cloned().unwrap_or_default();
+                // `Role.Admin` and `pkg.Role.Admin` are accepted, but a prefix
+                // must name the enum being matched instead of being ignored.
+                self.check_pattern_prefix(path, ty, *span);
                 let variants = self.variants_of(ty);
                 let found = variants
                     .as_ref()
@@ -1773,7 +1826,87 @@ impl<'a> Checker<'a> {
         }
     }
 
+    fn check_pattern_prefix(&mut self, path: &[String], ty: &Ty, span: Span) {
+        if path.len() < 2 {
+            return;
+        }
+        if path.len() > 3 {
+            self.diag(
+                span,
+                "pattern paths have at most three segments: `package.Enum.Variant`".to_string(),
+            );
+            return;
+        }
+        let Some(Ty::Named(type_name, _)) = Some(ty.clone()) else {
+            return;
+        };
+        let (module, enum_name) = if path.len() == 3 {
+            match self.package_ref(&path[0]) {
+                Some(module) => (Some(module), path[1].as_str()),
+                None => {
+                    self.diag(span, format!("unknown package `{}`", path[0]));
+                    return;
+                }
+            }
+        } else {
+            (None, path[0].as_str())
+        };
+        let module_matches = module.is_none_or(|module| module == type_name.module);
+        if !module_matches || enum_name != type_name.name {
+            let written = path[..path.len() - 1].join(".");
+            self.diag(
+                span,
+                format!(
+                    "`{written}` does not name the matched enum `{}`",
+                    type_name.name
+                ),
+            );
+        }
+    }
+
+    /// An exported enum in another package, by package qualifier.
+    fn qualified_enum(&self, module: ModuleId, name: &str) -> Option<(EnumInfo, TypeName)> {
+        self.program.modules[module]
+            .enums
+            .iter()
+            .find(|decl| decl.name == name && decl.is_export)
+            .cloned()
+            .map(|decl| {
+                (
+                    decl,
+                    TypeName {
+                        module,
+                        name: name.to_string(),
+                    },
+                )
+            })
+    }
+
     fn check_field(&mut self, base: &ast::Expr, name: &str, span: Span) -> Ty {
+        // `pkg.Enum.Variant`: the parser already builds a nested field, so this
+        // is only a resolution step.
+        if let ast::Expr::Field {
+            base: inner,
+            name: enum_name,
+            span: enum_span,
+        } = base
+        {
+            if let ast::Expr::Ident { name: owner, .. } = &**inner {
+                if self.lookup_var(owner).is_none() {
+                    if let Some(module) = self.package_ref(owner) {
+                        let Some((decl, type_name)) = self.qualified_enum(module, enum_name) else {
+                            self.diag(
+                                *enum_span,
+                                format!("package `{owner}` has no exported enum `{enum_name}`"),
+                            );
+                            return Ty::Error;
+                        };
+                        return self.enum_value(&decl, type_name, name, span);
+                    }
+                }
+            }
+        }
+
         if let ast::Expr::Ident {
             name: owner,
             span: owner_span,
@@ -1964,11 +2097,40 @@ impl<'a> Checker<'a> {
                 name,
                 span: field_span,
             } => {
+                let _ = field_span;
+                // `pkg.Enum.Variant(...)`
+                if let ast::Expr::Field {
+                    base: inner,
+                    name: enum_name,
+                    span: enum_span,
+                } = &**base
+                {
+                    if let ast::Expr::Ident { name: owner, .. } = &**inner {
+                        if self.lookup_var(owner).is_none() {
+                            if let Some(module) = self.package_ref(owner) {
+                                let Some((decl, type_name)) =
+                                    self.qualified_enum(module, enum_name)
+                                else {
+                                    self.diag(
+                                        *enum_span,
+                                        format!(
+                                            "package `{owner}` has no exported enum `{enum_name}`"
+                                        ),
+                                    );
+                                    return Ty::Error;
+                                };
+                                return self.construct_variant(&decl, type_name, name, args, span);
+                            }
+                        }
+                    }
+                }
                 if let ast::Expr::Ident {
                     name: owner,
                     span: owner_span,
                 } = &**base
                 {
+                    // A local value keeps the qualifier branch out of the way, so
+                    // `x.method()` still reaches receiver-call resolution below.
                     if self.lookup_var(owner).is_none() {
                         if let Some(module) = self.package_ref(owner) {
                             return self.call_package_member(module, name, args, span);
@@ -1996,8 +2158,54 @@ impl<'a> Checker<'a> {
                         "math" => return self.call_math(name, args, span),
                         "expect" => return self.call_expect(name, args, span),
                         "json" => {
-                            self.diag(*owner_span, "`json` is not available yet");
-                            return Ty::Error;
+                            let Some(items) = self.positional(args, span, name) else {
+                                return Ty::Error;
+                            };
+                            let Some(prelude) = self.program.prelude() else {
+                                self.diag(*owner_span, "the `value` prelude is missing");
+                                return Ty::Error;
+                            };
+                            let value_ty = Ty::Named(
+                                TypeName {
+                                    module: prelude,
+                                    name: "Value".to_string(),
+                                },
+                                Vec::new(),
+                            );
+                            match name.as_str() {
+                                "parse" => {
+                                    if items.len() != 1 {
+                                        self.diag(span, "`json.parse` expects 1 argument");
+                                        return Ty::Error;
+                                    }
+                                    let arg = self.check_expr(items[0], Some(&Ty::Str));
+                                    self.expect(
+                                        items[0].span(),
+                                        &Ty::Str,
+                                        &arg,
+                                        " in `json.parse`",
+                                    );
+                                    return Ty::result(value_ty, Ty::Str);
+                                }
+                                "stringify" => {
+                                    if items.len() != 1 {
+                                        self.diag(span, "`json.stringify` expects 1 argument");
+                                        return Ty::Error;
+                                    }
+                                    let arg = self.check_expr(items[0], Some(&value_ty));
+                                    self.expect(
+                                        items[0].span(),
+                                        &value_ty,
+                                        &arg,
+                                        " in `json.stringify`",
+                                    );
+                                    return Ty::Str;
+                                }
+                                _ => {
+                                    self.diag(span, format!("`json` has no function `{name}`"));
+                                    return Ty::Error;
+                                }
+                            }
                         }
                         _ => {}
                     }
@@ -2505,12 +2713,37 @@ impl<'a> Checker<'a> {
         self.resolve_deep(&func.ret)
     }
 
+    /// A JSX tag names a struct, locally or through a package qualifier.
+    fn jsx_struct(&self, path: &[String]) -> Option<(StructInfo, TypeName)> {
+        match path {
+            [name] => self
+                .struct_ref(name)
+                .map(|(decl, type_name)| (decl.clone(), type_name)),
+            [package, name] => {
+                let module = self.package_ref(package)?;
+                self.program.modules[module]
+                    .structs
+                    .iter()
+                    .find(|decl| decl.name == *name && decl.is_export)
+                    .cloned()
+                    .map(|decl| {
+                        (
+                            decl,
+                            TypeName {
+                                module,
+                                name: name.clone(),
+                            },
+                        )
+                    })
+            }
+            _ => None,
+        }
+    }
+
     fn check_jsx(&mut self, element: &ast::JsxElement) -> Ty {
-        let Some((class, type_name)) = self.struct_ref(&element.name) else {
-            self.diag(
-                element.span,
-                format!("unknown struct `{}` in JSX", element.name),
-            );
+        let written = element.path.join(".");
+        let Some((class, type_name)) = self.jsx_struct(&element.path) else {
+            self.diag(element.span, format!("unknown struct `{written}` in JSX"));
             return Ty::Error;
         };
         let class = class.clone();

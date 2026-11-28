@@ -14,6 +14,7 @@ lulus di `go test`.
 | `List<T>` | `lt.List[T]` |
 | `Map<K,V>` | `lt.Map[K,V]` (entry terurut, lookup binary search) |
 | `Dict<V>` | `lt.Dict[V]` (key `Str`, urutan insertion, indeks `map[string]V`) |
+| `Value` | enum prelude `value` sebagai `lt.Variant`; `lt.JSONParse/JSONStringify` + `lt.ValueFactory` |
 | `Set<T>` | `lt.Set[T]` |
 | `Option<T>` / `Result<T,E>` | `lt.Variant` (`Tag`, `Order`, `Type`, `Values`) |
 | `enum` | `lt.Variant` dengan `Type` = nama enum + konstruktor `EnumVariant(...)`; display struktural dari `Type`/`Tag`/`Values`, tanpa fungsi display per enum |

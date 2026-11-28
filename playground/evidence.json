@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "generated_at": "2026-11-28T12:36:17Z",
+  "generated_at": "2026-11-28T13:28:49Z",
   "git": {
-    "commit": "f06da5d",
+    "commit": "0944ced",
     "dirty": true
   },
   "tools": {
@@ -14,24 +14,24 @@
   "targets": {
     "ts": {
       "suite": "vitest",
-      "cases": 54,
-      "passed": 54,
-      "conformance": 51,
-      "conformance_passed": 51
+      "cases": 57,
+      "passed": 57,
+      "conformance": 57,
+      "conformance_passed": 57
     },
     "py": {
       "suite": "pytest+mypy",
-      "cases": 54,
-      "passed": 54,
-      "conformance": 51,
-      "conformance_passed": 51
+      "cases": 57,
+      "passed": 57,
+      "conformance": 57,
+      "conformance_passed": 57
     },
     "go": {
       "suite": "go test+vet",
-      "cases": 54,
-      "passed": 54,
-      "conformance": 51,
-      "conformance_passed": 51
+      "cases": 57,
+      "passed": 57,
+      "conformance": 57,
+      "conformance_passed": 57
     }
   },
   "cases": {
@@ -71,6 +71,11 @@
       "go": true
     },
     "collections/dict": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "collections/index": {
       "ts": true,
       "py": true,
       "go": true
@@ -176,6 +181,11 @@
       "go": true
     },
     "jsx/tree": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "modules/qualified": {
       "ts": true,
       "py": true,
       "go": true
@@ -296,6 +306,11 @@
       "go": true
     },
     "types/int_wrapping": {
+      "ts": true,
+      "py": true,
+      "go": true
+    },
+    "types/json": {
       "ts": true,
       "py": true,
       "go": true

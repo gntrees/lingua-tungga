@@ -89,7 +89,14 @@ fn remote_imports_resolve_relative_to_their_url() {
         "main.lt",
     );
     assert!(output.is_ok(), "{:#?}", output.diagnostics);
-    assert_eq!(output.program.modules.len(), 3);
+    // The built-in `value` prelude is always present and is not part of the graph.
+    let loaded: Vec<_> = output
+        .program
+        .modules
+        .iter()
+        .filter(|module| module.path != std::path::Path::new(lt_hir::PRELUDE_PATH))
+        .collect();
+    assert_eq!(loaded.len(), 3);
 
     let remote: Vec<_> = output
         .program

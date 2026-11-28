@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import math
+import re
 import textwrap
 from dataclasses import dataclass
 from functools import cmp_to_key
@@ -574,6 +576,195 @@ def str_parse_float(value: str) -> Opt[float]:
     except ValueError:
         return None_()
 
+
+# --- JSON -------------------------------------------------------------------
+# The reader builds the caller's `Value` through that class, so the runtime never
+# needs to know the type. Numbers stay exact: integral stays `int`, the rest is
+# `float`.
+
+
+class _JsonError(Exception):
+    pass
+
+
+class _JsonReader:
+    def __init__(self, text: str, make: Any) -> None:
+        self.text = text
+        self.make = make
+        self.pos = 0
+
+    def fail(self, message: str) -> None:
+        raise _JsonError(f"{message} at offset {self.pos}")
+
+    def space(self) -> None:
+        while self.pos < len(self.text) and self.text[self.pos] in " \t\n\r":
+            self.pos += 1
+
+    def take(self) -> str:
+        if self.pos >= len(self.text):
+            self.fail("unexpected end of input")
+        char = self.text[self.pos]
+        self.pos += 1
+        return char
+
+    def expect(self, char: str) -> None:
+        if self.take() != char:
+            self.fail(f"expected `{char}`")
+
+    def value(self, depth: int = 0) -> Any:
+        if depth > 128:
+            self.fail("nesting is too deep")
+        self.space()
+        if self.pos >= len(self.text):
+            self.fail("unexpected end of input")
+        char = self.text[self.pos]
+        if char == "{":
+            return self.object(depth)
+        if char == "[":
+            return self.array(depth)
+        if char == '"':
+            return getattr(self.make, "str")(self.string())
+        if char == "-" or char.isdigit():
+            return self.number()
+        if self.text.startswith("true", self.pos):
+            self.pos += 4
+            return getattr(self.make, "bool")(True)
+        if self.text.startswith("false", self.pos):
+            self.pos += 5
+            return getattr(self.make, "bool")(False)
+        if self.text.startswith("null", self.pos):
+            self.pos += 4
+            return getattr(self.make, "null")
+        self.fail("expected a value")
+
+    def object(self, depth: int) -> Any:
+        self.expect("{")
+        entries: list[tuple[str, Any]] = []
+        self.space()
+        if self.pos < len(self.text) and self.text[self.pos] == "}":
+            self.pos += 1
+            return getattr(self.make, "object")(LDict.of(entries))
+        while True:
+            self.space()
+            if self.pos >= len(self.text) or self.text[self.pos] != '"':
+                self.fail("expected a key")
+            key = self.string()
+            self.space()
+            self.expect(":")
+            entries.append((key, self.value(depth + 1)))
+            self.space()
+            char = self.take()
+            if char == "}":
+                return getattr(self.make, "object")(LDict.of(entries))
+            if char != ",":
+                self.fail("expected `,` or `}`")
+
+    def array(self, depth: int) -> Any:
+        self.expect("[")
+        items: list[Any] = []
+        self.space()
+        if self.pos < len(self.text) and self.text[self.pos] == "]":
+            self.pos += 1
+            return getattr(self.make, "array")(LList(tuple(items)))
+        while True:
+            items.append(self.value(depth + 1))
+            self.space()
+            char = self.take()
+            if char == "]":
+                return getattr(self.make, "array")(LList(tuple(items)))
+            if char != ",":
+                self.fail("expected `,` or `]`")
+
+    def number(self) -> Any:
+        start = self.pos
+        if self.pos < len(self.text) and self.text[self.pos] == "-":
+            self.pos += 1
+        while self.pos < len(self.text) and self.text[self.pos].isdigit():
+            self.pos += 1
+        integral = True
+        if self.pos < len(self.text) and self.text[self.pos] == ".":
+            integral = False
+            self.pos += 1
+            while self.pos < len(self.text) and self.text[self.pos].isdigit():
+                self.pos += 1
+        if self.pos < len(self.text) and self.text[self.pos] in "eE":
+            integral = False
+            self.pos += 1
+            if self.pos < len(self.text) and self.text[self.pos] in "+-":
+                self.pos += 1
+            while self.pos < len(self.text) and self.text[self.pos].isdigit():
+                self.pos += 1
+        raw = self.text[start : self.pos]
+        if not re.fullmatch(r"-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?", raw):
+            self.pos = start
+            self.fail("invalid number")
+        if integral:
+            return getattr(self.make, "int")(int(raw))
+        return getattr(self.make, "float")(float(raw))
+
+    def string(self) -> str:
+        self.expect('"')
+        out: list[str] = []
+        while True:
+            char = self.take()
+            if char == '"':
+                return "".join(out)
+            if char != "\\":
+                if char < " ":
+                    self.fail("control character in a string")
+                out.append(char)
+                continue
+            escape = self.take()
+            simple = {'"': '"', "\\": "\\", "/": "/", "b": "\b", "f": "\f", "n": "\n", "r": "\r", "t": "\t"}
+            if escape in simple:
+                out.append(simple[escape])
+                continue
+            if escape != "u":
+                self.fail("invalid escape")
+            hexdigits = self.text[self.pos : self.pos + 4]
+            if len(hexdigits) != 4 or not all(c in "0123456789abcdefABCDEF" for c in hexdigits):
+                self.fail("invalid escape")
+            self.pos += 4
+            out.append(chr(int(hexdigits, 16)))
+            continue
+
+
+def json_parse(text: str, make: Any) -> "Res[Any, str]":
+    try:
+        return Ok(_JsonReader(text, make).value())
+    except _JsonError as error:
+        return Err(str(error))
+
+
+def json_stringify(value: Any) -> str:
+    tag = value.tag
+    if tag == "Null":
+        return "null"
+    if tag == "Bool":
+        return "true" if value.values[0] else "false"
+    if tag == "Int":
+        return str(value.values[0])
+    if tag == "Float":
+        number = value.values[0]
+        if number != number or number in (float("inf"), float("-inf")):
+            return "null"
+        if float(number).is_integer():
+            return f"{number:.1f}"
+        return repr(number)
+    if tag == "Str":
+        return json.dumps(value.values[0], ensure_ascii=False)
+    if tag == "Array":
+        return "[" + ",".join(json_stringify(item) for item in value.values[0].items) + "]"
+    if tag == "Object":
+        return (
+            "{"
+            + ",".join(
+                json.dumps(key, ensure_ascii=False) + ":" + json_stringify(item)
+                for key, item in value.values[0].entries
+            )
+            + "}"
+        )
+    raise AssertionError(f"json.stringify needs a Value, found {tag}")
 
 # --- Test assertions --------------------------------------------------------
 

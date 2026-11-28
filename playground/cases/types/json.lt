@@ -1,0 +1,40 @@
+package json_case {
+  export fn compact(text: Str) -> Str {
+    match json.parse(text) {
+      Err(message) => `error: ${message}`
+      Ok(value) => json.stringify(value)
+    }
+  }
+
+  export fn kind(text: Str) -> Str {
+    match json.parse(text) {
+      Err(message) => message
+      Ok(value) => describe(value)
+    }
+  }
+
+  fn describe(value: Value) -> Str {
+    match value {
+      Value.Int(n) => `int ${n}`
+      Value.Float(f) => `float ${f}`
+      Value.Str(s) => `str ${s}`
+      Value.Null => "null"
+      Value.Array(items) => `array ${items.len()}`
+      Value.Object(fields) => `object ${fields.len()}`
+      Value.Bool(b) => `bool ${b}`
+    }
+  }
+
+  test "numbers keep their kind" {
+    expect.eq(kind("1"), "int 1")
+    expect.eq(kind("1.0"), "float 1.0")
+  }
+
+  test "objects keep their key order and round trip" {
+    expect.eq(compact(`{"b": 2, "a": [1, 2.5, "x", true, null]}`), `{"b":2,"a":[1,2.5,"x",true,null]}`)
+  }
+
+  test "invalid input is an error, not a panic" {
+    expect.eq(kind("{"), "expected a key at offset 1")
+  }
+}

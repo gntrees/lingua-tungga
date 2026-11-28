@@ -270,7 +270,7 @@ fn prepare(
     // never collide.
     let mut names = Vec::new();
     for module in &checked.program.modules {
-        let base = if module.origin.is_some() {
+        let base = if module.origin.is_some() || module.path == Path::new(lt_hir::PRELUDE_PATH) {
             module.path.clone()
         } else {
             match module.path.strip_prefix(&root) {

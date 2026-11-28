@@ -178,6 +178,10 @@ fn collect_expr(expr: &Expr, out: &mut Vec<Container>) {
                 collect_expr(value, out);
             }
         }
+        Expr::Index { base, index, .. } => {
+            collect_expr(base, out);
+            collect_expr(index, out);
+        }
         Expr::Call { callee, args, .. } => {
             collect_expr(callee, out);
             match args {
@@ -744,6 +748,11 @@ impl Formatter {
             Expr::Ident { name, .. } => name.clone(),
             Expr::List { items, .. } => self.list_text(items, indent),
             Expr::Dict { entries, .. } => self.dict_text(entries, indent),
+            Expr::Index { base, index, .. } => format!(
+                "{}[{}]",
+                self.expr_with_min(base, indent, 8),
+                self.expr(index, indent)
+            ),
             Expr::Call { callee, args, .. } => self.call_text(callee, args, indent),
             Expr::Field { base, name, .. } => {
                 format!("{}.{}", self.expr_with_min(base, indent, 8), name)
@@ -934,7 +943,7 @@ impl Formatter {
     }
 
     fn jsx_text(&self, element: &JsxElement, indent: usize) -> String {
-        let mut out = format!("<{}", element.name);
+        let mut out = format!("<{}", element.path.join("."));
         for attr in &element.attrs {
             out.push(' ');
             out.push_str(&attr.name);
@@ -960,7 +969,7 @@ impl Formatter {
 
         if element.children.is_empty() {
             out.push('>');
-            out.push_str(&format!("</{}>", element.name));
+            out.push_str(&format!("</{}>", element.path.join(".")));
             return out;
         }
 
@@ -974,7 +983,7 @@ impl Formatter {
             .map(|child| self.jsx_child_text(child, indent))
             .collect();
 
-        let single = format!("{out}>{inline}</{}>", element.name);
+        let single = format!("{out}>{inline}</{}>", element.path.join("."));
         if has_text || fits_at(indent, &single) {
             return single;
         }
@@ -986,7 +995,7 @@ impl Formatter {
             out.push('\n');
         }
         out.push_str(&pad(indent));
-        out.push_str(&format!("</{}>", element.name));
+        out.push_str(&format!("</{}>", element.path.join(".")));
         out
     }
 

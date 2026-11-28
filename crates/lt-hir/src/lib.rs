@@ -15,7 +15,7 @@ use lt_syntax::Diagnostic;
 pub use check::check_program;
 pub use loader::{
     join_url, load, load_with_remote, normalize, FsLoader, MapLoader, NoRemote, RemoteResolver,
-    ResolvedRemote, SourceLoader,
+    ResolvedRemote, SourceLoader, PRELUDE_PATH,
 };
 pub use program::{
     builtin_enum, BindingInfo, DeclKind, EnumInfo, FieldInfo, FnInfo, ImportInfo, ImportItemInfo,

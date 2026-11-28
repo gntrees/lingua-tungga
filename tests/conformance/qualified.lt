@@ -1,0 +1,29 @@
+import enums "./enums.lt"
+
+package qualified {
+  export fn bump(shape: enums.Shape) -> enums.Shape {
+    match shape {
+      enums.Shape.Point => enums.Shape.Circle(1.0)
+      enums.Shape.Circle(radius) => enums.Shape.Circle(radius + 1.0)
+      enums.Shape.Rect(width, height) => enums.Shape.Rect(width, height)
+    }
+  }
+
+  export fn describe(shape: enums.Shape) -> Str {
+    match shape {
+      enums.Shape.Point => "point"
+      enums.Shape.Circle(radius) => `circle ${radius}`
+      enums.Shape.Rect(width, height) => `rect ${width}x${height}`
+    }
+  }
+
+  test "a package qualifier reaches an enum variant" {
+    expect.eq(bump(enums.Shape.Point), enums.Shape.Circle(1.0))
+    expect.eq(bump(enums.Shape.Circle(1.0)), enums.Shape.Circle(2.0))
+  }
+
+  test "qualified variants also work in patterns" {
+    expect.eq(describe(enums.Shape.Point), "point")
+    expect.eq(describe(enums.Shape.Circle(2.0)), "circle 2.0")
+  }
+}

@@ -926,6 +926,32 @@ impl<'a> Emitter<'a> {
                     code: format!("new lt.LList<{element}>([{}])", rendered.join(", ")),
                 }
             }
+            IrExpr::Json {
+                parse,
+                args,
+                prelude,
+                ..
+            } => {
+                let mut prelude_lines = Vec::new();
+                let rendered: Vec<String> = args
+                    .iter()
+                    .map(|arg| {
+                        let frag = self.expr(arg, level);
+                        prelude_lines.extend(frag.prelude);
+                        frag.code
+                    })
+                    .collect();
+                let code = if *parse {
+                    self.use_module(*prelude);
+                    format!("lt.jsonParse({}, m{}.Value)", rendered.join(", "), prelude)
+                } else {
+                    format!("lt.jsonStringify({})", rendered.join(", "))
+                };
+                Frag {
+                    prelude: prelude_lines,
+                    code,
+                }
+            }
             IrExpr::DictLit { entries, ty } => {
                 let value = match ty {
                     Ty::Dict(value) => self.type_ref(value),

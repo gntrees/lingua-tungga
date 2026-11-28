@@ -1,0 +1,36 @@
+package indexing {
+  export fn first(xs: List<Int>) -> Option<Int> {
+    xs[0]
+  }
+
+  export fn by_key(prices: Dict<Int>, name: Str) -> Option<Int> {
+    prices[name]
+  }
+
+  export fn lookup(table: Map<Str, Int>, key: Str) -> Option<Int> {
+    table[key]
+  }
+
+  test "indexing a list is partial" {
+    expect.eq(first([7, 8]), Some(7))
+    expect.eq(first([]), None)
+  }
+
+  test "indexing a dict and a map uses their key types" {
+    let prices: Dict<Int> = ["apple": 3]
+    expect.eq(by_key(prices, "apple"), Some(3))
+    expect.eq(by_key(prices, "pear"), None)
+
+    let base: Map<Str, Int> = map.empty()
+    let table = base.insert("a", 1)
+    expect.eq(lookup(table, "a"), Some(1))
+    expect.eq(lookup(table, "b"), None)
+  }
+
+  test "index syntax is only a postfix on the same line" {
+    let xs = [1, 2]
+    let next = [3]
+    expect.eq(xs[1], Some(2))
+    expect.eq(next.len(), 1)
+  }
+}

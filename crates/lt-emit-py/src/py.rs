@@ -955,6 +955,36 @@ impl<'a> Emitter<'a> {
                     code: format!("_lt.LList({tuple})"),
                 }
             }
+            IrExpr::Json {
+                parse,
+                args,
+                prelude,
+                ..
+            } => {
+                let mut prelude_lines = Vec::new();
+                let rendered: Vec<String> = args
+                    .iter()
+                    .map(|arg| {
+                        let frag = self.expr(arg, level);
+                        prelude_lines.extend(frag.prelude);
+                        frag.code
+                    })
+                    .collect();
+                let code = if *parse {
+                    self.use_module(*prelude);
+                    format!(
+                        "_lt.json_parse({}, m{}.Value)",
+                        rendered.join(", "),
+                        prelude
+                    )
+                } else {
+                    format!("_lt.json_stringify({})", rendered.join(", "))
+                };
+                Frag {
+                    prelude: prelude_lines,
+                    code,
+                }
+            }
             IrExpr::DictLit { entries, .. } => {
                 let mut prelude = Vec::new();
                 let rendered: Vec<String> = entries

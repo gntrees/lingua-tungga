@@ -168,6 +168,13 @@ impl<'a> Lowerer<'a> {
         }
     }
 
+    fn qualified_enum(&self, module: ModuleId, name: &str) -> Option<&'a EnumInfo> {
+        self.program.modules[module]
+            .enums
+            .iter()
+            .find(|decl| decl.name == name && decl.is_export)
+    }
+
     fn struct_ref(&self, name: &str) -> Option<(&'a StructInfo, TypeName)> {
         let program = self.program;
         if let Some(decl) = program.find_struct(self.module, name) {
@@ -229,6 +236,19 @@ impl<'a> Lowerer<'a> {
 
     fn enum_ref(&self, name: &str) -> Option<(&'a EnumInfo, TypeName)> {
         let program = self.program;
+        if let Some(module) = program.prelude() {
+            if let Some(decl) = program.find_enum(module, name) {
+                if decl.is_export {
+                    return Some((
+                        decl,
+                        TypeName {
+                            module,
+                            name: name.to_string(),
+                        },
+                    ));
+                }
+            }
+        }
         if let Some(decl) = program.find_enum(self.module, name) {
             return Some((
                 decl,
@@ -487,6 +507,22 @@ impl<'a> Lowerer<'a> {
                 items: items.iter().map(|item| self.expr(item)).collect(),
                 ty: self.ty_of(expr),
             },
+            ast::Expr::Index { base, index, .. } => {
+                let receiver_ty = self.ty_of(base);
+                let kind = match receiver_ty {
+                    Ty::List(_) => Builtin::ListGet,
+                    Ty::Map(_, _) => Builtin::MapGet,
+                    Ty::Dict(_) => Builtin::DictGet,
+                    _ => Builtin::ListGet,
+                };
+                IrExpr::Builtin {
+                    kind,
+                    receiver: Box::new(self.expr(base)),
+                    recv_ty: receiver_ty,
+                    args: vec![self.expr(index)],
+                    ty: self.ty_of(expr),
+                }
+            }
             ast::Expr::Dict { entries, .. } => IrExpr::DictLit {
                 entries: entries
                     .iter()
@@ -496,6 +532,32 @@ impl<'a> Lowerer<'a> {
             },
             ast::Expr::Call { callee, args, span } => self.call(callee, args, *span, expr),
             ast::Expr::Field { base, name, .. } => {
+                // `pkg.Enum.Variant`
+                if let ast::Expr::Field {
+                    base: inner,
+                    name: enum_name,
+                    ..
+                } = base.as_ref()
+                {
+                    if let ast::Expr::Ident { name: owner, .. } = inner.as_ref() {
+                        let is_local = self.scopes.iter().any(|scope| scope.contains_key(owner));
+                        if !is_local {
+                            if let Some(module) = self.package_ref(owner) {
+                                if let Some(decl) = self.qualified_enum(module, enum_name) {
+                                    return IrExpr::NewVariant {
+                                        target: VariantRef::Enum {
+                                            module,
+                                            name: decl.name.clone(),
+                                        },
+                                        variant: name.clone(),
+                                        args: Vec::new(),
+                                        ty: self.ty_of(expr),
+                                    };
+                                }
+                            }
+                        }
+                    }
+                }
                 if let ast::Expr::Ident { name: owner, .. } = base.as_ref() {
                     let is_local = self.scopes.iter().any(|scope| scope.contains_key(owner));
                     if !is_local {
@@ -712,6 +774,34 @@ impl<'a> Lowerer<'a> {
                 self.unsupported(span, format!("unsupported call of `{name}`"))
             }
             ast::Expr::Field { base, name, .. } => {
+                if let ast::Expr::Field {
+                    base: inner,
+                    name: enum_name,
+                    ..
+                } = base.as_ref()
+                {
+                    if let ast::Expr::Ident { name: owner, .. } = inner.as_ref() {
+                        let is_local = self.scopes.iter().any(|scope| scope.contains_key(owner));
+                        if !is_local {
+                            if let Some(module) = self.package_ref(owner) {
+                                if let Some(decl) = self.qualified_enum(module, enum_name) {
+                                    let Some(items) = self.positional(args, span) else {
+                                        return IrExpr::Var("undefined".to_string());
+                                    };
+                                    return IrExpr::NewVariant {
+                                        target: VariantRef::Enum {
+                                            module,
+                                            name: decl.name.clone(),
+                                        },
+                                        variant: name.clone(),
+                                        args: items.iter().map(|item| self.expr(item)).collect(),
+                                        ty,
+                                    };
+                                }
+                            }
+                        }
+                    }
+                }
                 if let ast::Expr::Ident { name: owner, .. } = base.as_ref() {
                     let is_local = self.scopes.iter().any(|scope| scope.contains_key(owner));
                     if !is_local {
@@ -750,6 +840,21 @@ impl<'a> Lowerer<'a> {
                         return IrExpr::Math {
                             name: name.clone(),
                             args: items.iter().map(|item| self.expr(item)).collect(),
+                            ty,
+                        };
+                    }
+                    if owner == "json" {
+                        let Some(items) = self.positional(args, span) else {
+                            return IrExpr::Var("undefined".to_string());
+                        };
+                        let Some(prelude) = self.program.prelude() else {
+                            self.diag(span, "the `value` prelude is missing");
+                            return IrExpr::Var("undefined".to_string());
+                        };
+                        return IrExpr::Json {
+                            parse: name == "parse",
+                            args: items.iter().map(|item| self.expr(item)).collect(),
+                            prelude,
                             ty,
                         };
                     }
@@ -1001,9 +1106,38 @@ impl<'a> Lowerer<'a> {
         }
     }
 
+    fn jsx_struct(&self, path: &[String]) -> Option<(StructInfo, TypeName)> {
+        match path {
+            [name] => self
+                .struct_ref(name)
+                .map(|(decl, type_name)| (decl.clone(), type_name)),
+            [package, name] => {
+                let module = self.package_ref(package)?;
+                self.program.modules[module]
+                    .structs
+                    .iter()
+                    .find(|decl| decl.name == *name && decl.is_export)
+                    .cloned()
+                    .map(|decl| {
+                        (
+                            decl,
+                            TypeName {
+                                module,
+                                name: name.clone(),
+                            },
+                        )
+                    })
+            }
+            _ => None,
+        }
+    }
+
     fn jsx(&mut self, element: &ast::JsxElement, ty: Ty) -> IrExpr {
-        let Some((class, type_name)) = self.struct_ref(&element.name) else {
-            return self.unsupported(element.span, format!("unknown struct `{}`", element.name));
+        let Some((class, type_name)) = self.jsx_struct(&element.path) else {
+            return self.unsupported(
+                element.span,
+                format!("unknown struct `{}`", element.path.join(".")),
+            );
         };
         let class = class.clone();
 

@@ -159,6 +159,14 @@ pub enum IrExpr {
         entries: Vec<(IrExpr, IrExpr)>,
         ty: Ty,
     },
+    /// `json.parse` / `json.stringify`. `prelude` is the `value` module whose
+    /// constructors the runtime needs when parsing.
+    Json {
+        parse: bool,
+        args: Vec<IrExpr>,
+        prelude: ModuleId,
+        ty: Ty,
+    },
     /// `map.empty()` / `set.empty()`.
     EmptyCollection {
         ty: Ty,

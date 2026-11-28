@@ -77,6 +77,24 @@ pub fn load(entries: &[PathBuf], loader: &mut dyn SourceLoader) -> LoadResult {
     load_with_remote(entries, loader, &mut NoRemote)
 }
 
+/// The built-in `Value` package. Loaded first, so every program can name
+/// `Value` and `json.parse` has something to return.
+pub const PRELUDE_PATH: &str = "__prelude__.lt";
+
+pub const PRELUDE_SOURCE: &str = "\
+package value {
+  export enum Value {
+    Null
+    Bool(Bool)
+    Int(Int)
+    Float(Float)
+    Str(Str)
+    Array(List<Value>)
+    Object(Dict<Value>)
+  }
+}
+";
+
 pub fn load_with_remote(
     entries: &[PathBuf],
     loader: &mut dyn SourceLoader,
@@ -94,6 +112,32 @@ pub fn load_with_remote(
     };
     for entry in entries {
         state.load_local(normalize(entry.clone()));
+    }
+    // The prelude loads last so existing module ids (and the `m1`, `m2` aliases
+    // in generated code) do not shift when it appeared.
+    match state.by_name.get("value").copied() {
+        Some(module) => {
+            let path = state.modules[module].path.clone();
+            let span = state.modules[module].ast.span;
+            let loc = line_col_at(&state.modules[module].source, span.start);
+            state.diagnostics.push((
+                path,
+                Diagnostic::error(
+                    "package name `value` is reserved for the built-in prelude".to_string(),
+                    span,
+                    loc.line,
+                    loc.col,
+                ),
+            ));
+        }
+        None => {
+            state.load_file(
+                PathBuf::from(PRELUDE_PATH),
+                PRELUDE_SOURCE.to_string(),
+                None,
+                Parent::Local(PathBuf::new()),
+            );
+        }
     }
     LoadResult {
         program: Program {

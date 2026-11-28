@@ -1,0 +1,3 @@
+title = "Indexing a collection is partial"
+feature = "collections/index"
+why = "`xs[i]` and `d[\"k\"]` return Option; a missing key or slot is None, not a panic."

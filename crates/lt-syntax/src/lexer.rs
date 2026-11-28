@@ -707,6 +707,11 @@ impl<'a> Lexer<'a> {
                 self.bump();
                 self.emit(TokenKind::Eq, mark)
             }
+            // Qualified tag: `pkg.Component`.
+            Some('.') => {
+                self.bump();
+                self.emit(TokenKind::Dot, mark)
+            }
             Some(c) => {
                 self.bump();
                 self.error_at(mark, format!("unexpected character `{c}` in JSX tag"));

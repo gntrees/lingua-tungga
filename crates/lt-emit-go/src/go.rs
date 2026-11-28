@@ -946,6 +946,42 @@ impl<'a> Emitter<'a> {
                     code: format!("lt.NewList([]{}{{{}}})", element, rendered.join(", ")),
                 }
             }
+            IrExpr::Json {
+                parse,
+                args,
+                prelude,
+                ..
+            } => {
+                let mut prelude_lines = Vec::new();
+                let rendered: Vec<String> = args
+                    .iter()
+                    .map(|arg| {
+                        let frag = self.expr(arg, level);
+                        prelude_lines.extend(frag.prelude);
+                        frag.code
+                    })
+                    .collect();
+                let code = if *parse {
+                    self.use_module(*prelude);
+                    format!(
+                        "lt.JSONParse({}, lt.ValueFactory{{Null: m{}.ValueNull, Bool: m{}.ValueBool, Int: m{}.ValueInt, Float: m{}.ValueFloat, Str: m{}.ValueStr, Array: m{}.ValueArray, Object: m{}.ValueObject}})",
+                        rendered.join(", "),
+                        prelude,
+                        prelude,
+                        prelude,
+                        prelude,
+                        prelude,
+                        prelude,
+                        prelude
+                    )
+                } else {
+                    format!("lt.JSONStringify({})", rendered.join(", "))
+                };
+                Frag {
+                    prelude: prelude_lines,
+                    code,
+                }
+            }
             IrExpr::DictLit { entries, ty } => {
                 let value = match ty {
                     Ty::Dict(value) => self.type_ref(value),
@@ -1551,6 +1587,11 @@ fn collect_expr(expr: &IrExpr, used: &mut HashSet<String>) {
             for (key, value) in entries {
                 collect_expr(key, used);
                 collect_expr(value, used);
+            }
+        }
+        IrExpr::Json { args, .. } => {
+            for arg in args {
+                collect_expr(arg, used);
             }
         }
         IrExpr::Field { base, .. } => collect_expr(base, used),

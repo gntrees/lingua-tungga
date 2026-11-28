@@ -274,6 +274,12 @@ pub enum Expr {
         entries: Vec<(Expr, Expr)>,
         span: Span,
     },
+    /// `xs[0]` / `d["a"]` — partial lookup, always an `Option`.
+    Index {
+        base: Box<Expr>,
+        index: Box<Expr>,
+        span: Span,
+    },
     Call {
         callee: Box<Expr>,
         args: Args,
@@ -341,6 +347,7 @@ impl Expr {
             | Expr::Ident { span, .. }
             | Expr::List { span, .. }
             | Expr::Dict { span, .. }
+            | Expr::Index { span, .. }
             | Expr::Call { span, .. }
             | Expr::Field { span, .. }
             | Expr::Try { span, .. }
@@ -435,7 +442,8 @@ pub enum MatchBody {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct JsxElement {
-    pub name: String,
+    /// `Component` or `pkg.Component`.
+    pub path: Vec<String>,
     pub attrs: Vec<JsxAttr>,
     pub children: Vec<JsxChild>,
     pub self_closing: bool,

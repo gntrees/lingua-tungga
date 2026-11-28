@@ -14,6 +14,7 @@ lulus di `pytest`.
 | `List<T>` | `_lt.LList` (tuple immutable) |
 | `Map<K,V>` | `_lt.LMap` (entry terurut `cmp`, lookup binary search) |
 | `Dict<V>` | `_lt.LDict` (key `str`, urutan insertion) |
+| `Value` | enum prelude `value`; `_lt.json_parse/json_stringify` |
 | `Set<T>` | `_lt.LSet` |
 | `Option<T>` | `_lt.Opt` (`tag` = `"some"`/`"none"`, `values` tuple) |
 | `Result<T,E>` | `_lt.Res` (`tag` = `"ok"`/`"err"`) |

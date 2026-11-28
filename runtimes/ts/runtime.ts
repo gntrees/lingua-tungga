@@ -546,6 +546,236 @@ export class LDict<V> {
   }
 }
 
+// --- JSON -------------------------------------------------------------------
+// The reader builds the caller's `Value` directly through the constructor set,
+// so the runtime never needs to know that type. Numbers stay exact: an integral
+// literal becomes a bigint and everything else a float.
+export type ValueFactory<T> = {
+  Null: T;
+  Bool: (value: boolean) => T;
+  Int: (value: bigint) => T;
+  Float: (value: number) => T;
+  Str: (value: string) => T;
+  Array: (items: LList<T>) => T;
+  Object: (entries: LDict<T>) => T;
+};
+
+class JsonReader<T> {
+  private position = 0;
+
+  constructor(
+    private readonly text: string,
+    private readonly make: ValueFactory<T>,
+  ) {}
+
+  parse(): T {
+    const value = this.value();
+    this.space();
+    if (this.position !== this.text.length) this.fail("trailing characters");
+    return value;
+  }
+
+  private fail(message: string): never {
+    throw new Error(`${message} at offset ${this.position}`);
+  }
+
+  private space(): void {
+    while (this.position < this.text.length) {
+      const ch = this.text[this.position];
+      if (ch !== " " && ch !== "\t" && ch !== "\n" && ch !== "\r") return;
+      this.position += 1;
+    }
+  }
+
+  private take(): string {
+    const ch = this.text[this.position];
+    if (ch === undefined) this.fail("unexpected end of input");
+    this.position += 1;
+    return ch;
+  }
+
+  private expect(ch: string): void {
+    if (this.take() !== ch) this.fail(`expected \`${ch}\``);
+  }
+
+  private value(depth = 0): T {
+    if (depth > 128) this.fail("nesting is too deep");
+    this.space();
+    const ch = this.text[this.position];
+    if (ch === undefined) this.fail("unexpected end of input");
+    if (ch === "{") return this.object(depth);
+    if (ch === "[") return this.array(depth);
+    if (ch === '"') return this.make.Str(this.string());
+    if (ch === "-" || (ch >= "0" && ch <= "9")) return this.number();
+    if (this.text.startsWith("true", this.position)) {
+      this.position += 4;
+      return this.make.Bool(true);
+    }
+    if (this.text.startsWith("false", this.position)) {
+      this.position += 5;
+      return this.make.Bool(false);
+    }
+    if (this.text.startsWith("null", this.position)) {
+      this.position += 4;
+      return this.make.Null;
+    }
+    this.fail("expected a value");
+  }
+
+  private object(depth: number): T {
+    this.expect("{");
+    const entries: [string, T][] = [];
+    this.space();
+    if (this.text[this.position] === "}") {
+      this.position += 1;
+      return this.make.Object(new LDict(entries));
+    }
+    for (;;) {
+      this.space();
+      if (this.text[this.position] !== '"') this.fail("expected a key");
+      const key = this.string();
+      this.space();
+      this.expect(":");
+      entries.push([key, this.value(depth + 1)]);
+      this.space();
+      const ch = this.take();
+      if (ch === "}") return this.make.Object(new LDict(entries));
+      if (ch !== ",") this.fail("expected `,` or `}`");
+    }
+  }
+
+  private array(depth: number): T {
+    this.expect("[");
+    const items: T[] = [];
+    this.space();
+    if (this.text[this.position] === "]") {
+      this.position += 1;
+      return this.make.Array(new LList(items));
+    }
+    for (;;) {
+      items.push(this.value(depth + 1));
+      this.space();
+      const ch = this.take();
+      if (ch === "]") return this.make.Array(new LList(items));
+      if (ch !== ",") this.fail("expected `,` or `]`");
+    }
+  }
+
+  private number(): T {
+    const start = this.position;
+    if (this.text[this.position] === "-") this.position += 1;
+    while (this.position < this.text.length && /[0-9]/.test(this.text[this.position])) {
+      this.position += 1;
+    }
+    let integral = true;
+    if (this.text[this.position] === ".") {
+      integral = false;
+      this.position += 1;
+      while (this.position < this.text.length && /[0-9]/.test(this.text[this.position])) {
+        this.position += 1;
+      }
+    }
+    if (this.text[this.position] === "e" || this.text[this.position] === "E") {
+      integral = false;
+      this.position += 1;
+      if (this.text[this.position] === "+" || this.text[this.position] === "-") this.position += 1;
+      while (this.position < this.text.length && /[0-9]/.test(this.text[this.position])) {
+        this.position += 1;
+      }
+    }
+    const raw = this.text.slice(start, this.position);
+    if (!/^-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?$/.test(raw)) {
+      this.position = start;
+      this.fail("invalid number");
+    }
+    if (integral) {
+      try {
+        return this.make.Int(BigInt(raw));
+      } catch {
+        return this.make.Float(Number(raw));
+      }
+    }
+    return this.make.Float(Number(raw));
+  }
+
+  private string(): string {
+    this.expect('"');
+    let out = "";
+    for (;;) {
+      const ch = this.take();
+      if (ch === '"') return out;
+      if (ch !== "\\") {
+        if (ch < " ") this.fail("control character in a string");
+        out += ch;
+        continue;
+      }
+      const escape = this.take();
+      switch (escape) {
+        case '"': out += '"'; break;
+        case "\\": out += "\\"; break;
+        case "/": out += "/"; break;
+        case "b": out += "\b"; break;
+        case "f": out += "\f"; break;
+        case "n": out += "\n"; break;
+        case "r": out += "\r"; break;
+        case "t": out += "\t"; break;
+        case "u": {
+          const hex = this.text.slice(this.position, this.position + 4);
+          if (!/^[0-9a-fA-F]{4}$/.test(hex)) this.fail("invalid escape");
+          this.position += 4;
+          out += String.fromCharCode(parseInt(hex, 16));
+          break;
+        }
+        default:
+          this.fail("invalid escape");
+      }
+    }
+  }
+}
+
+export function jsonParse<T>(text: string, make: ValueFactory<T>): Res<T, string> {
+  try {
+    return Ok<T, string>(new JsonReader<T>(text, make).parse());
+  } catch (error) {
+    return Err<T, string>(error instanceof Error ? error.message : String(error));
+  }
+}
+
+function jsonQuote(text: string): string {
+  return JSON.stringify(text);
+}
+
+export function jsonStringify(value: unknown): string {
+  const tagged = value as any;
+  switch (tagged.tag) {
+    case "Null":
+      return "null";
+    case "Bool":
+      return tagged.values[0] ? "true" : "false";
+    case "Int":
+      return (tagged.values[0] as bigint).toString();
+    case "Float": {
+      const number = tagged.values[0] as number;
+      if (!Number.isFinite(number)) return "null";
+      return Number.isInteger(number) ? number.toFixed(1) : String(number);
+    }
+    case "Str":
+      return jsonQuote(tagged.values[0] as string);
+    case "Array": {
+      const items = (tagged.values[0] as LList<unknown>).items;
+      return `[${items.map(jsonStringify).join(",")}]`;
+    }
+    case "Object": {
+      const entries = (tagged.values[0] as LDict<unknown>).entries;
+      return `{${entries
+        .map(([key, item]) => `${jsonQuote(key)}:${jsonStringify(item)}`)
+        .join(",")}}`;
+    }
+    default:
+      throw new Error(`json.stringify needs a Value, found ${String(tagged.tag)}`);
+  }
+}
+
 // --- Test assertions -------------------------------------------------------
 export function expectEqual(actual: unknown, expected: unknown): void {
   if (!eq(actual, expected)) {

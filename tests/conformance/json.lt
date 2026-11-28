@@ -1,0 +1,38 @@
+package json_case {
+  export fn round_trip(text: Str) -> Str {
+    match json.parse(text) {
+      Ok(value) => json.stringify(value)
+      Err(message) => `error: ${message}`
+    }
+  }
+
+  export fn kind(text: Str) -> Str {
+    match json.parse(text) {
+      Err(message) => message
+      Ok(value) => describe(value)
+    }
+  }
+
+  fn describe(value: Value) -> Str {
+    match value {
+      Value.Int(n) => `int ${n}`
+      Value.Float(f) => `float ${f}`
+      Value.Str(s) => `str ${s}`
+      Value.Null => "null"
+      Value.Array(items) => `array ${items.len()}`
+      Value.Object(fields) => `object ${fields.len()}`
+      Value.Bool(b) => `bool ${b}`
+    }
+  }
+
+  test "json round trip" {
+    expect.eq(round_trip(`{"b": 2, "a": [1, 2.5, "x", true, null]}`), `{"b":2,"a":[1,2.5,"x",true,null]}`)
+    expect.eq(kind("1"), "int 1")
+    expect.eq(kind("1.0"), "float 1.0")
+    expect.eq(kind(`"hi"`), "str hi")
+    expect.eq(kind("null"), "null")
+    expect.eq(kind("[]"), "array 0")
+    expect.eq(kind("{}"), "object 0")
+    expect.eq(kind("true"), "bool true")
+  }
+}

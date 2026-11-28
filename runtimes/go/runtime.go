@@ -2,6 +2,7 @@
 package lt
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"sort"
@@ -705,7 +706,6 @@ func (m Map[K, V]) LtDisplay() string {
 	return "Map(" + strings.Join(parts, ", ") + ")"
 }
 
-
 // Dict is a string-keyed, insertion-ordered map. LtEq ignores order; LtCmp is
 // canonical (entries compared by key) so equal dicts always compare equal.
 type DictEntry[V any] struct {
@@ -916,6 +916,384 @@ func StrParseFloat(value string) Variant {
 		return None()
 	}
 	return Some(parsed)
+}
+
+// --- JSON -------------------------------------------------------------------
+
+// ValueFactory is the generated Value enum's constructor set. Passing it in keeps
+// the runtime independent of that type.
+type ValueFactory struct {
+	Null   Variant
+	Bool   func(bool) Variant
+	Int    func(int64) Variant
+	Float  func(float64) Variant
+	Str    func(string) Variant
+	Array  func(List[Variant]) Variant
+	Object func(Dict[Variant]) Variant
+}
+
+type jsonError string
+
+type jsonReader struct {
+	text  []rune
+	pos   int
+	make  ValueFactory
+	depth int
+}
+
+func (r *jsonReader) fail(message string) {
+	panic(jsonError(fmt.Sprintf("%s at offset %d", message, r.pos)))
+}
+
+func (r *jsonReader) space() {
+	for r.pos < len(r.text) {
+		switch r.text[r.pos] {
+		case ' ', '\t', '\n', '\r':
+			r.pos++
+		default:
+			return
+		}
+	}
+}
+
+func (r *jsonReader) take() rune {
+	if r.pos >= len(r.text) {
+		r.fail("unexpected end of input")
+	}
+	ch := r.text[r.pos]
+	r.pos++
+	return ch
+}
+
+func (r *jsonReader) expect(want rune) {
+	if r.take() != want {
+		r.fail("expected `" + string(want) + "`")
+	}
+}
+
+func (r *jsonReader) has(prefix string) bool {
+	runes := []rune(prefix)
+	if r.pos+len(runes) > len(r.text) {
+		return false
+	}
+	for index, ch := range runes {
+		if r.text[r.pos+index] != ch {
+			return false
+		}
+	}
+	return true
+}
+
+func (r *jsonReader) value() Variant {
+	r.depth++
+	if r.depth > 128 {
+		r.fail("nesting is too deep")
+	}
+	defer func() { r.depth-- }()
+	r.space()
+	if r.pos >= len(r.text) {
+		r.fail("unexpected end of input")
+	}
+	switch r.text[r.pos] {
+	case '{':
+		return r.object()
+	case '[':
+		return r.array()
+	case '"':
+		return r.make.Str(r.str())
+	case '-':
+		return r.number()
+	}
+	if r.text[r.pos] >= '0' && r.text[r.pos] <= '9' {
+		return r.number()
+	}
+	if r.has("true") {
+		r.pos += 4
+		return r.make.Bool(true)
+	}
+	if r.has("false") {
+		r.pos += 5
+		return r.make.Bool(false)
+	}
+	if r.has("null") {
+		r.pos += 4
+		return r.make.Null
+	}
+	r.fail("expected a value")
+	return Variant{}
+}
+
+func (r *jsonReader) object() Variant {
+	r.expect('{')
+	entries := make([]DictEntry[Variant], 0, 8)
+	r.space()
+	if r.pos < len(r.text) && r.text[r.pos] == '}' {
+		r.pos++
+		return r.make.Object(NewDict(entries))
+	}
+	for {
+		r.space()
+		if r.pos >= len(r.text) || r.text[r.pos] != '"' {
+			r.fail("expected a key")
+		}
+		key := r.str()
+		r.space()
+		r.expect(':')
+		entries = append(entries, DictEntry[Variant]{Key: key, Value: r.value()})
+		r.space()
+		switch r.take() {
+		case '}':
+			return r.make.Object(NewDict(entries))
+		case ',':
+		default:
+			r.fail("expected `,` or `}`")
+		}
+	}
+}
+
+func (r *jsonReader) array() Variant {
+	r.expect('[')
+	items := make([]Variant, 0, 8)
+	r.space()
+	if r.pos < len(r.text) && r.text[r.pos] == ']' {
+		r.pos++
+		return r.make.Array(NewList(items))
+	}
+	for {
+		items = append(items, r.value())
+		r.space()
+		switch r.take() {
+		case ']':
+			return r.make.Array(NewList(items))
+		case ',':
+		default:
+			r.fail("expected `,` or `]`")
+		}
+	}
+}
+
+func (r *jsonReader) number() Variant {
+	start := r.pos
+	if r.text[r.pos] == '-' {
+		r.pos++
+	}
+	for r.pos < len(r.text) && r.text[r.pos] >= '0' && r.text[r.pos] <= '9' {
+		r.pos++
+	}
+	integral := true
+	if r.pos < len(r.text) && r.text[r.pos] == '.' {
+		integral = false
+		r.pos++
+		for r.pos < len(r.text) && r.text[r.pos] >= '0' && r.text[r.pos] <= '9' {
+			r.pos++
+		}
+	}
+	if r.pos < len(r.text) && (r.text[r.pos] == 'e' || r.text[r.pos] == 'E') {
+		integral = false
+		r.pos++
+		if r.pos < len(r.text) && (r.text[r.pos] == '+' || r.text[r.pos] == '-') {
+			r.pos++
+		}
+		for r.pos < len(r.text) && r.text[r.pos] >= '0' && r.text[r.pos] <= '9' {
+			r.pos++
+		}
+	}
+	raw := string(r.text[start:r.pos])
+	if !jsonNumberOK(raw) {
+		r.pos = start
+		r.fail("invalid number")
+	}
+	if integral {
+		if value, err := strconv.ParseInt(raw, 10, 64); err == nil {
+			return r.make.Int(value)
+		}
+	}
+	value, err := strconv.ParseFloat(raw, 64)
+	if err != nil {
+		r.fail("invalid number")
+	}
+	return r.make.Float(value)
+}
+
+func jsonNumberOK(raw string) bool {
+	index := 0
+	if index < len(raw) && raw[index] == '-' {
+		index++
+	}
+	digits := 0
+	for index < len(raw) && raw[index] >= '0' && raw[index] <= '9' {
+		index++
+		digits++
+	}
+	if digits == 0 {
+		return false
+	}
+	if digits > 1 && raw[index-digits] == '0' {
+		return false
+	}
+	if index < len(raw) && raw[index] == '.' {
+		index++
+		digits = 0
+		for index < len(raw) && raw[index] >= '0' && raw[index] <= '9' {
+			index++
+			digits++
+		}
+		if digits == 0 {
+			return false
+		}
+	}
+	if index < len(raw) && (raw[index] == 'e' || raw[index] == 'E') {
+		index++
+		if index < len(raw) && (raw[index] == '+' || raw[index] == '-') {
+			index++
+		}
+		digits = 0
+		for index < len(raw) && raw[index] >= '0' && raw[index] <= '9' {
+			index++
+			digits++
+		}
+		if digits == 0 {
+			return false
+		}
+	}
+	return index == len(raw)
+}
+
+func (r *jsonReader) str() string {
+	r.expect('"')
+	var out []rune
+	for {
+		ch := r.take()
+		if ch == '"' {
+			return string(out)
+		}
+		if ch != '\\' {
+			if ch < ' ' {
+				r.fail("control character in a string")
+			}
+			out = append(out, ch)
+			continue
+		}
+		escape := r.take()
+		switch escape {
+		case '"':
+			out = append(out, '"')
+		case '\\':
+			out = append(out, '\\')
+		case '/':
+			out = append(out, '/')
+		case 'b':
+			out = append(out, '\b')
+		case 'f':
+			out = append(out, '\f')
+		case 'n':
+			out = append(out, '\n')
+		case 'r':
+			out = append(out, '\r')
+		case 't':
+			out = append(out, '\t')
+		case 'u':
+			out = append(out, r.hex4())
+		default:
+			r.fail("invalid escape")
+		}
+	}
+}
+
+func (r *jsonReader) hex4() rune {
+	if r.pos+4 > len(r.text) {
+		r.fail("invalid escape")
+	}
+	value := 0
+	for _, ch := range r.text[r.pos : r.pos+4] {
+		value <<= 4
+		switch {
+		case ch >= '0' && ch <= '9':
+			value += int(ch - '0')
+		case ch >= 'a' && ch <= 'f':
+			value += int(ch-'a') + 10
+		case ch >= 'A' && ch <= 'F':
+			value += int(ch-'A') + 10
+		default:
+			r.fail("invalid escape")
+		}
+	}
+	r.pos += 4
+	return rune(value)
+}
+
+func JSONParse(text string, make ValueFactory) Variant {
+	defer func() {
+		// recovered below
+	}()
+	reader := &jsonReader{text: []rune(text), make: make}
+	var value Variant
+	var failure string
+	func() {
+		defer func() {
+			if recovered := recover(); recovered != nil {
+				if message, ok := recovered.(jsonError); ok {
+					failure = string(message)
+					return
+				}
+				panic(recovered)
+			}
+		}()
+		value = reader.value()
+		reader.space()
+		if reader.pos != len(reader.text) {
+			reader.fail("trailing characters")
+		}
+	}()
+	if failure != "" {
+		return Err(failure)
+	}
+	return Ok(value)
+}
+
+func JSONStringify(value Variant) string {
+	switch value.Tag {
+	case "Null":
+		return "null"
+	case "Bool":
+		if value.Values[0].(bool) {
+			return "true"
+		}
+		return "false"
+	case "Int":
+		return strconv.FormatInt(value.Values[0].(int64), 10)
+	case "Float":
+		number := value.Values[0].(float64)
+		if math.IsNaN(number) || math.IsInf(number, 0) {
+			return "null"
+		}
+		if number == math.Trunc(number) {
+			return strconv.FormatFloat(number, 'f', 1, 64)
+		}
+		return strconv.FormatFloat(number, 'g', -1, 64)
+	case "Str":
+		encoded, err := json.Marshal(value.Values[0].(string))
+		if err != nil {
+			return "\"\""
+		}
+		return string(encoded)
+	case "Array":
+		items := value.Values[0].(List[Variant]).Items
+		parts := make([]string, len(items))
+		for index, item := range items {
+			parts[index] = JSONStringify(item)
+		}
+		return "[" + strings.Join(parts, ",") + "]"
+	case "Object":
+		entries := value.Values[0].(Dict[Variant]).Entries
+		parts := make([]string, len(entries))
+		for index, entry := range entries {
+			encoded, _ := json.Marshal(entry.Key)
+			parts[index] = string(encoded) + ":" + JSONStringify(entry.Value)
+		}
+		return "{" + strings.Join(parts, ",") + "}"
+	}
+	panic("json.stringify needs a Value, found " + value.Tag)
 }
 
 // --- Test assertions -------------------------------------------------------
