@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "generated_at": "2026-11-28T14:31:08Z",
+  "generated_at": "2026-11-28T15:07:00Z",
   "git": {
-    "commit": "94b6ef4",
+    "commit": "5fc37db",
     "dirty": true
   },
   "tools": {
@@ -16,22 +16,22 @@
       "suite": "vitest",
       "cases": 59,
       "passed": 59,
-      "conformance": 61,
-      "conformance_passed": 61
+      "conformance": 65,
+      "conformance_passed": 65
     },
     "py": {
       "suite": "pytest+mypy",
       "cases": 59,
       "passed": 59,
-      "conformance": 61,
-      "conformance_passed": 61
+      "conformance": 65,
+      "conformance_passed": 65
     },
     "go": {
       "suite": "go test+vet",
       "cases": 59,
       "passed": 59,
-      "conformance": 61,
-      "conformance_passed": 61
+      "conformance": 65,
+      "conformance_passed": 65
     }
   },
   "cases": {

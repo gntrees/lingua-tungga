@@ -414,6 +414,8 @@ pub struct NamedArg {
 #[derive(Debug, Clone, PartialEq)]
 pub struct MatchArm {
     pub pattern: Pattern,
+    /// `pat if cond => …` — evaluated after the pattern binds.
+    pub guard: Option<Expr>,
     pub body: MatchBody,
     pub span: Span,
 }
@@ -421,6 +423,11 @@ pub struct MatchArm {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Pattern {
     Wildcard {
+        span: Span,
+    },
+    /// `A | B` — every alternative must bind the same names.
+    Or {
+        patterns: Vec<Pattern>,
         span: Span,
     },
     NoneLit {
@@ -437,7 +444,7 @@ impl Pattern {
     pub fn span(&self) -> Span {
         match self {
             Pattern::Wildcard { span } | Pattern::NoneLit { span } => *span,
-            Pattern::Variant { span, .. } => *span,
+            Pattern::Or { span, .. } | Pattern::Variant { span, .. } => *span,
         }
     }
 }

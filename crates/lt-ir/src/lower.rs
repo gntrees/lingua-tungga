@@ -469,6 +469,19 @@ impl<'a> Lowerer<'a> {
                             ty: Ty::list(Ty::Str),
                         },
                     ),
+                    Ty::Set(inner) => {
+                        let items = Ty::list((*inner).clone());
+                        (
+                            (*inner).clone(),
+                            IrExpr::Builtin {
+                                kind: Builtin::SetItems,
+                                receiver: Box::new(self.expr(iter)),
+                                recv_ty: iter_ty.clone(),
+                                args: Vec::new(),
+                                ty: items,
+                            },
+                        )
+                    }
                     Ty::Map(key, _) => {
                         let keys = Ty::list((*key).clone());
                         (
@@ -548,6 +561,7 @@ impl<'a> Lowerer<'a> {
                 let receiver_ty = self.ty_of(base);
                 let kind = match receiver_ty {
                     Ty::List(_) => Builtin::ListGet,
+                    Ty::Str => Builtin::StrChar,
                     Ty::Map(_, _) => Builtin::MapGet,
                     Ty::Dict(_) => Builtin::DictGet,
                     _ => Builtin::ListGet,
@@ -1034,7 +1048,6 @@ impl<'a> Lowerer<'a> {
 
         let mut lowered = Vec::new();
         for arm in arms {
-            let pattern = self.pattern(&arm.pattern, &scrutinee_ty, &variants);
             let body = match &arm.body {
                 MatchBody::Expr(expr) => {
                     let value = self.expr(expr);
@@ -1046,7 +1059,22 @@ impl<'a> Lowerer<'a> {
                 }
                 MatchBody::Block(block) => self.block(block),
             };
-            lowered.push(IrArm { pattern, body });
+            let guard = arm.guard.as_ref().map(|guard| self.expr(guard));
+            // An or-pattern is expanded into one arm per alternative, sharing the
+            // body: the checker already proved every alternative binds the same
+            // names with the same types.
+            let alternatives: Vec<&ast::Pattern> = match &arm.pattern {
+                ast::Pattern::Or { patterns, .. } => patterns.iter().collect(),
+                other => vec![other],
+            };
+            for alternative in alternatives {
+                let pattern = self.pattern(alternative, &scrutinee_ty, &variants);
+                lowered.push(IrArm {
+                    pattern,
+                    guard: guard.clone(),
+                    body: body.clone(),
+                });
+            }
         }
 
         IrExpr::Match {
@@ -1064,6 +1092,16 @@ impl<'a> Lowerer<'a> {
     ) -> IrPattern {
         match pattern {
             Pattern::Wildcard { .. } => IrPattern::Wildcard,
+            // Or-patterns are expanded a level up, so seeing one here means a
+            // nested alternative; treat it as the first option (the checker
+            // already required identical bindings).
+            Pattern::Or { patterns, span } => match patterns.as_slice() {
+                [first, ..] => self.pattern(first, scrutinee_ty, variants),
+                [] => {
+                    self.diag(*span, "empty or-pattern".to_string());
+                    IrPattern::Wildcard
+                }
+            },
             Pattern::NoneLit { .. } => IrPattern::Variant {
                 variant: match scrutinee_ty {
                     Ty::Option(_) => "none".to_string(),
@@ -1079,6 +1117,14 @@ impl<'a> Lowerer<'a> {
                         .zip(payload.iter())
                         .map(|(arg, payload_ty)| match arg {
                             Pattern::Wildcard { .. } => IrPattern::Wildcard,
+                            Pattern::Or { patterns, .. } => match patterns.as_slice() {
+                                [first, ..] => self.pattern(
+                                    first,
+                                    payload_ty,
+                                    &self.variants_of(payload_ty).unwrap_or_default(),
+                                ),
+                                [] => IrPattern::Wildcard,
+                            },
                             Pattern::NoneLit { .. } => IrPattern::Variant {
                                 variant: match payload_ty {
                                     Ty::Option(_) => "none".to_string(),

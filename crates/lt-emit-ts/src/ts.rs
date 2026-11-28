@@ -839,9 +839,19 @@ impl<'a> Emitter<'a> {
                 IrPattern::Variant { variant, args } => {
                     lines.push(format!("{pad}  case {}: {{", quote(variant)));
                     let depth = args.iter().map(pattern_depth).max().unwrap_or(0);
-                    let mut core = self.block_lines(&arm.body, level + 2 + depth, tail);
+                    let guard_level = level + 2 + depth;
+                    let body_level = guard_level + usize::from(arm.guard.is_some());
+                    let mut core = self.block_lines(&arm.body, body_level, tail);
                     if needs_break {
-                        core.push(format!("{}break;", indent(level + 2 + depth)));
+                        core.push(format!("{}break;", indent(body_level)));
+                    }
+                    if let Some(guard) = &arm.guard {
+                        let frag = self.expr(guard, guard_level);
+                        let mut wrapped = frag.prelude;
+                        wrapped.push(format!("{}if ({}) {{", indent(guard_level), frag.code));
+                        wrapped.extend(core);
+                        wrapped.push(format!("{}}}", indent(guard_level)));
+                        core = wrapped;
                     }
                     let mut inner = core;
                     for index in (0..args.len()).rev() {
@@ -865,19 +875,39 @@ impl<'a> Emitter<'a> {
                         camel(name),
                         self.type_ref(ty)
                     ));
-                    lines.extend(self.block_lines(&arm.body, level + 2, tail));
+                    let body_level = level + 2 + usize::from(arm.guard.is_some());
+                    let mut core = self.block_lines(&arm.body, body_level, tail);
                     if needs_break {
-                        lines.push(format!("{pad}    break;"));
+                        core.push(format!("{}break;", indent(body_level)));
                     }
+                    if let Some(guard) = &arm.guard {
+                        let frag = self.expr(guard, level + 2);
+                        lines.extend(frag.prelude);
+                        lines.push(format!("{pad}    if ({}) {{", frag.code));
+                        core = {
+                            let mut wrapped = core;
+                            wrapped.push(format!("{pad}    }}"));
+                            wrapped
+                        };
+                    }
+                    lines.extend(core);
                     lines.push(format!("{pad}  }}"));
                 }
                 IrPattern::Wildcard => {
                     catch_all = true;
                     lines.push(format!("{pad}  default: {{"));
-                    lines.extend(self.block_lines(&arm.body, level + 2, tail));
+                    let body_level = level + 2 + usize::from(arm.guard.is_some());
+                    let mut core = self.block_lines(&arm.body, body_level, tail);
                     if needs_break {
-                        lines.push(format!("{pad}    break;"));
+                        core.push(format!("{}break;", indent(body_level)));
                     }
+                    if let Some(guard) = &arm.guard {
+                        let frag = self.expr(guard, level + 2);
+                        lines.extend(frag.prelude);
+                        lines.push(format!("{pad}    if ({}) {{", frag.code));
+                        core.push(format!("{pad}    }}"));
+                    }
+                    lines.extend(core);
                     lines.push(format!("{pad}  }}"));
                 }
             }
@@ -1391,6 +1421,8 @@ impl<'a> Emitter<'a> {
         let call = |name: &str| format!("{recv}.{name}({})", args.join(", "));
         match kind {
             Builtin::StrLen => format!("lt.strLen({recv})"),
+            Builtin::StrChar => format!("lt.strChar({recv}, {})", args.join(", ")),
+            Builtin::SetItems => format!("new lt.LList({recv}.items)"),
             Builtin::StrTrim => format!("{recv}.trim()"),
             Builtin::StrTrimIndent => format!("lt.strTrimIndent({recv})"),
             Builtin::StrLower => format!("{recv}.toLowerCase()"),

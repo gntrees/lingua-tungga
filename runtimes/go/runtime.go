@@ -1305,6 +1305,15 @@ func JSONStringify(value Variant) string {
 	panic("json.stringify needs a Value, found " + value.Tag)
 }
 
+// StrChar returns one code point; out of range is None.
+func StrChar(value string, index int64) Variant {
+	chars := []rune(value)
+	if index < 0 || index >= int64(len(chars)) {
+		return None()
+	}
+	return Some(string(chars[index]))
+}
+
 // --- Test assertions -------------------------------------------------------
 
 func ExpectEqual(actual any, expected any) {

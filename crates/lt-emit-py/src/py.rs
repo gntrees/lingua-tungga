@@ -843,7 +843,8 @@ impl<'a> Emitter<'a> {
                 .map(arm_depth)
                 .max()
                 .unwrap_or(0);
-            let body_level = level + 1 + depth;
+            let guard_level = level + 1 + depth;
+            let body_level = guard_level + usize::from(arm.guard.is_some());
             match &arm.pattern {
                 IrPattern::Variant { variant, args } => {
                     lines.push(format!(
@@ -855,12 +856,22 @@ impl<'a> Emitter<'a> {
                         scope.insert(name.clone(), self.declare(&name));
                     }
                     self.aliases.push(scope.clone());
+                    let guard_frag = arm
+                        .guard
+                        .as_ref()
+                        .map(|guard| self.expr(guard, guard_level));
                     let mut core = self.block_lines(&arm.body, body_level, tail);
                     self.aliases.pop();
                     if core.is_empty() {
                         core.push(format!("{}pass", indent(body_level)));
                     }
                     core.push(format!("{}{} = True", indent(body_level), done));
+                    if let Some(frag) = guard_frag {
+                        let mut wrapped = frag.prelude;
+                        wrapped.push(format!("{}if {}:", indent(guard_level), frag.code));
+                        wrapped.extend(core);
+                        core = wrapped;
+                    }
                     let mut inner = core;
                     for index in (0..args.len()).rev() {
                         inner = self.pattern_block(
@@ -880,23 +891,38 @@ impl<'a> Emitter<'a> {
                     let local = self.declare(name);
                     let mut scope = std::collections::HashMap::new();
                     scope.insert(name.clone(), local.clone());
-                    let mut body = vec![format!(
-                        "{}{}: {} = {binding}",
-                        indent(level + 1),
-                        local,
-                        declared
-                    )];
-                    self.aliases.push(scope);
-                    body.extend(self.block_lines(&arm.body, level + 1, tail));
-                    self.aliases.pop();
-                    body.push(format!("{}{} = True", indent(level + 1), done));
-                    lines.extend(body);
+                    let bind = format!("{}{}: {} = {binding}", indent(level + 1), local, declared);
+                    if let Some(guard) = &arm.guard {
+                        lines.push(bind);
+                        self.aliases.push(scope);
+                        let frag = self.expr(guard, level + 2);
+                        let body = self.block_lines(&arm.body, level + 3, tail);
+                        self.aliases.pop();
+                        lines.extend(frag.prelude);
+                        lines.push(format!("{}if {}:", indent(level + 2), frag.code));
+                        lines.extend(body);
+                        lines.push(format!("{}{} = True", indent(level + 3), done));
+                    } else {
+                        lines.push(bind);
+                        self.aliases.push(scope);
+                        lines.extend(self.block_lines(&arm.body, level + 2, tail));
+                        self.aliases.pop();
+                        lines.push(format!("{}{} = True", indent(level + 2), done));
+                    }
                 }
                 IrPattern::Wildcard => {
                     catch_all = true;
                     lines.push(format!("{pad}if not {done}:"));
-                    lines.extend(self.indented_block(&arm.body, level + 1, tail));
-                    lines.push(format!("{}{} = True", indent(level + 1), done));
+                    if let Some(guard) = &arm.guard {
+                        let frag = self.expr(guard, level + 2);
+                        lines.extend(frag.prelude);
+                        lines.push(format!("{}if {}:", indent(level + 2), frag.code));
+                        lines.extend(self.indented_block(&arm.body, level + 3, tail));
+                        lines.push(format!("{}{} = True", indent(level + 3), done));
+                    } else {
+                        lines.extend(self.indented_block(&arm.body, level + 2, tail));
+                        lines.push(format!("{}{} = True", indent(level + 2), done));
+                    }
                 }
             }
         }
@@ -1453,6 +1479,8 @@ impl<'a> Emitter<'a> {
         let call = |name: &str| format!("{recv}.{name}({})", args.join(", "));
         match kind {
             Builtin::StrLen => format!("_lt.str_len({recv})"),
+            Builtin::StrChar => format!("_lt.str_char({recv}, {})", args.join(", ")),
+            Builtin::SetItems => format!("_lt.LList({recv}.items)"),
             Builtin::StrTrim => format!("{recv}.strip()"),
             Builtin::StrTrimIndent => format!("_lt.str_trim_indent({recv})"),
             Builtin::StrLower => format!("{recv}.lower()"),

@@ -785,6 +785,15 @@ export function mapFrom<K, V, E>(
   return new LMap<K, V>(entries.items.map((entry) => [key(entry), value(entry)] as const));
 }
 
+/// One code point per index; out of range is `None`. O(n) because JavaScript
+/// strings are UTF-16.
+export function strChar(value: string, index: bigint): Opt<string> {
+  const chars = [...value];
+  const position = Number(index);
+  if (position < 0 || position >= chars.length) return None<string>();
+  return Some(chars[position]);
+}
+
 // --- Test assertions -------------------------------------------------------
 export function expectEqual(actual: unknown, expected: unknown): void {
   if (!eq(actual, expected)) {

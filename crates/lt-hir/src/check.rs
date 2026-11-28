@@ -1290,6 +1290,7 @@ impl<'a> Checker<'a> {
                         Ty::List(inner) => Some(*inner),
                         Ty::Map(key, _) => Some(*key),
                         Ty::Dict(_) => Some(Ty::Str),
+                        Ty::Set(inner) => Some(*inner),
                         Ty::Error => None,
                         other => {
                             let other = self.display_ty(&other);
@@ -1551,6 +1552,7 @@ impl<'a> Checker<'a> {
         let base_ty = self.resolve_deep(&base_ty);
         let (expected, element) = match &base_ty {
             Ty::List(inner) => (Ty::Int, *inner.clone()),
+            Ty::Str => (Ty::Int, Ty::Str),
             Ty::Map(key, value) => (*key.clone(), *value.clone()),
             Ty::Dict(value) => (Ty::Str, *value.clone()),
             Ty::Error => return Ty::Error,
@@ -1757,14 +1759,25 @@ impl<'a> Checker<'a> {
         let mut result: Option<Ty> = None;
 
         for arm in arms {
+            // A guarded arm cannot close the match: the guard may be false.
+            let mut arm_covered: Vec<String> = Vec::new();
             let mut bindings = Vec::new();
-            if self.bind_pattern(&arm.pattern, &scrutinee_ty, &mut bindings, &mut covered) {
-                exhaustive = true;
+            let wildcard =
+                self.bind_pattern(&arm.pattern, &scrutinee_ty, &mut bindings, &mut arm_covered);
+            if arm.guard.is_none() {
+                if wildcard {
+                    exhaustive = true;
+                }
+                covered.extend(arm_covered);
             }
 
             self.scopes.push(HashMap::new());
             for (name, ty) in bindings {
                 self.declare(&name, ty, false, arm.pattern.span());
+            }
+            if let Some(guard) = &arm.guard {
+                let guard_ty = self.check_expr(guard, Some(&Ty::Bool));
+                self.expect(guard.span(), &Ty::Bool, &guard_ty, " in a match guard");
             }
             let body_ty = match &arm.body {
                 MatchBody::Expr(expr) => self.check_expr(expr, None),
@@ -1813,6 +1826,38 @@ impl<'a> Checker<'a> {
     ) -> bool {
         match pattern {
             Pattern::Wildcard { .. } => true,
+            Pattern::Or { patterns, span } => {
+                // Every alternative must bind the same names with the same types,
+                // because the arm's body is shared.
+                let mut shared: Option<Vec<(String, Ty)>> = None;
+                let mut catch_all = false;
+                for alternative in patterns {
+                    let mut alternative_bindings = Vec::new();
+                    if self.bind_pattern(alternative, ty, &mut alternative_bindings, covered) {
+                        catch_all = true;
+                    }
+                    match &shared {
+                        None => shared = Some(alternative_bindings),
+                        Some(first) => {
+                            let same = first.len() == alternative_bindings.len()
+                                && first.iter().all(|(name, first_ty)| {
+                                    alternative_bindings.iter().any(|(other, other_ty)| {
+                                        other == name && other_ty == first_ty
+                                    })
+                                });
+                            if !same {
+                                self.diag(
+                                    *span,
+                                    "every or-pattern alternative must bind the same names"
+                                        .to_string(),
+                                );
+                            }
+                        }
+                    }
+                }
+                bindings.extend(shared.unwrap_or_default());
+                catch_all
+            }
             Pattern::NoneLit { .. } => {
                 covered.push("None".to_string());
                 false

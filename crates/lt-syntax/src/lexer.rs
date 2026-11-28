@@ -348,8 +348,7 @@ impl<'a> Lexer<'a> {
                     self.emit(TokenKind::PipePipe, mark)
                 } else {
                     self.bump();
-                    self.error_at(mark, "expected `||`, found `|`");
-                    self.lex_normal()
+                    self.emit(TokenKind::Pipe, mark)
                 }
             }
             '(' => {

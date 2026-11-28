@@ -773,6 +773,14 @@ def map_from(
     return LMap.create((key(entry), value(entry)) for entry in entries.items)
 
 
+def str_char(value: str, index: int) -> "Opt[str]":
+    """One code point per index; out of range is `None`."""
+    chars = list(value)
+    if index < 0 or index >= len(chars):
+        return None_()
+    return Some(chars[index])
+
+
 # --- Test assertions --------------------------------------------------------
 
 

@@ -34,6 +34,15 @@
 - Kasus playground `control/loops` dan `types/nested_match`, conformance
   `control_flow.lt`, `map_from.lt`, `nested_patterns.lt`.
 
+### Added
+
+- **`Str` indexing**: `s[i]` mengembalikan `Option<Str>` berisi satu code point (O(n)).
+- **`for` atas `Set`** mengiterasi elemen dalam urutan `Ord`.
+- **Or-pattern** (`E.A(n) | E.B(n) => …`) dan **guard** (`Some(n) if n > 0 => …`). Setiap
+  alternatif harus mengikat nama dan tipe yang sama; arm berguard tidak dihitung sebagai
+  penutup exhaustiveness.
+- Kasus conformance `guards.lt` dan `str_and_set.lt`.
+
 ## 0.4.0 — 2026-11-28
 
 ### Added

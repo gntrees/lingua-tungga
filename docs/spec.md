@@ -168,9 +168,9 @@ Tidak ada konversi implisit `Int` ↔ `Float`. `1 + 1.0` = compile error.
 | `Dict<V>` | Key selalu `Str`, urutan iterasi = **urutan insertion** (`Dict` tidak punya `Ord` yang terlihat; `cmp`-nya kanonik agar `Eq ⇔ cmp == 0`). Literal: `["a": 1, "b": 2]`, kosong `[:]`. |
 | `Set<T>` | Sama seperti `Map`, elemen terurut. |
 
-Indexing: `xs[i]`, `m[k]`, dan `d["k"]` adalah lookup parsial dan selalu mengembalikan
-`Option<T>`; index di luar batas atau key yang hilang menjadi `None` (bukan panic). `Set` tidak
-bisa di-index. `[` hanya menempel pada ekspresi di baris yang sama — `xs` lalu `[0]` di baris
+Indexing: `xs[i]`, `s[i]`, `m[k]`, dan `d["k"]` adalah lookup parsial dan selalu
+mengembalikan `Option<T>`; index di luar batas atau key yang hilang menjadi `None` (bukan
+panic). Untuk `Str`, index menghitung code point dan berbiaya O(n). `Set` tidak bisa di-index. `[` hanya menempel pada ekspresi di baris yang sama — `xs` lalu `[0]` di baris
 berikutnya adalah dua statement.
 
 `Dict` tidak peduli urutan saat dibandingkan (`["a": 1, "b": 2]` = `["b": 2, "a": 1]`), tetapi
@@ -355,9 +355,11 @@ dalamnya.
 
 **`match`** wajib exhaustive pada level varian teratas. Pola: `_`, `None`, `Variant`,
 `Variant(p, ...)` dengan `p` boleh pola lain — jadi `Ok(Value.Int(n))` dan `Some(Some(x))` sah.
-Tanpa guard, tanpa destructuring struct, tanpa pola literal. Exhaustiveness pola bertingkat tidak
-diperiksa; arm yang tidak cocok jatuh ke arm berikutnya, dan bila tidak ada yang cocok runtime
-melaporkan `unreachable`.
+Alternatif boleh digabung dengan `|` (`E.A(n) | E.B(n)`) asalkan semuanya mengikat nama dan
+tipe yang sama. Guard ditulis `pat if cond => …`, dievaluasi setelah binding, dan arm berguard
+**tidak** dihitung sebagai penutup exhaustiveness. Tanpa destructuring struct, tanpa pola
+literal. Exhaustiveness pola bertingkat tidak diperiksa; arm yang tidak cocok jatuh ke arm
+berikutnya, dan bila tidak ada yang cocok runtime melaporkan `unreachable`.
 
 ```lt
 match role {
@@ -367,8 +369,9 @@ match role {
 }
 ```
 
-**Loop:** `for x in list`, `for key in map`, dan `for key in dict` — `Map`/`Dict` diiterasi lewat
-key-nya (pakai `.values()` untuk nilainya); `Set` belum bisa diiterasi langsung. `while cond`.
+**Loop:** `for x in list`, `for x in set`, `for key in map`, dan `for key in dict` — `Map`/`Dict`
+diiterasi lewat key-nya (pakai `.values()` untuk nilainya), `Set` lewat elemen terurut. `while
+cond`.
 `break` dan `continue` hanya sah di dalam loop terdekat. Perubahan state loop hanya lewat
 `let mut` lokal.
 

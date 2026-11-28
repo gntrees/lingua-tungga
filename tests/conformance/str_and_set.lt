@@ -1,0 +1,29 @@
+package str_and_set {
+  export fn first_char(s: Str) -> Option<Str> {
+    s[0]
+  }
+
+  export fn count_set(xs: Set<Int>) -> Int {
+    let mut n = 0
+    for x in xs {
+      n = n + 1
+    }
+    n
+  }
+
+  test "string indexing counts code points" {
+    expect.eq(first_char("héllo"), Some("h"))
+    expect.eq(first_char(""), None)
+  }
+
+  test "for walks a set in order" {
+    let base: Set<Int> = set.empty()
+    let xs = base.insert(3).insert(1).insert(2)
+    let mut order = ""
+    for x in xs {
+      order = `${order}${x}`
+    }
+    expect.eq(count_set(xs), 3)
+    expect.eq(order, "123")
+  }
+}

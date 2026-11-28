@@ -243,6 +243,9 @@ fn collect_expr(expr: &Expr, out: &mut Vec<Container>) {
                 children: arms.iter().map(|arm| arm.pattern.span().start).collect(),
             });
             for arm in arms {
+                if let Some(guard) = &arm.guard {
+                    collect_expr(guard, out);
+                }
                 match &arm.body {
                     MatchBody::Expr(inner) => collect_expr(inner, out),
                     MatchBody::Block(block) => collect_block(block, out),
@@ -811,6 +814,10 @@ impl Formatter {
                     self.comments(&mut out, arm.pattern.span().start, indent + 1);
                     out.push_str(&pad(indent + 1));
                     out.push_str(&pattern_text(&arm.pattern));
+                    if let Some(guard) = &arm.guard {
+                        out.push_str(" if ");
+                        out.push_str(&self.expr(guard, indent + 1));
+                    }
                     out.push_str(" => ");
                     match &arm.body {
                         MatchBody::Expr(body) => out.push_str(&self.expr(body, indent + 1)),
@@ -1071,6 +1078,11 @@ fn pattern_text(pattern: &Pattern) -> String {
     match pattern {
         Pattern::Wildcard { .. } => "_".to_string(),
         Pattern::NoneLit { .. } => "None".to_string(),
+        Pattern::Or { patterns, .. } => patterns
+            .iter()
+            .map(pattern_text)
+            .collect::<Vec<_>>()
+            .join(" | "),
         Pattern::Variant { path, args, .. } => {
             let mut out = path.join(".");
             if !args.is_empty() {

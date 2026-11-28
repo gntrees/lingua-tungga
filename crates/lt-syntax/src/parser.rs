@@ -1447,6 +1447,30 @@ impl<'a> Parser<'a> {
                     continue;
                 }
             };
+            // `A | B` alternatives, then an optional guard.
+            let mut alternatives = vec![pattern];
+            while self.eat(&TokenKind::Pipe).is_some() {
+                if let Some(next) = self.parse_pattern() {
+                    alternatives.push(next);
+                }
+            }
+            let pattern = if alternatives.len() == 1 {
+                alternatives.pop().expect("one alternative")
+            } else {
+                let span = Span::new(
+                    alternatives[0].span().start,
+                    alternatives.last().expect("non-empty").span().end,
+                );
+                Pattern::Or {
+                    patterns: alternatives,
+                    span,
+                }
+            };
+            let guard = if self.eat(&TokenKind::If).is_some() {
+                Some(self.parse_expr()?)
+            } else {
+                None
+            };
             self.expect(TokenKind::FatArrow, "after a match pattern")?;
             let body = if self.at(&TokenKind::LBrace) {
                 MatchBody::Block(self.parse_block()?)
@@ -1456,6 +1480,7 @@ impl<'a> Parser<'a> {
             arms.push(MatchArm {
                 span: Span::new(pattern.span().start, self.last_end),
                 pattern,
+                guard,
                 body,
             });
             if self.pos == before {

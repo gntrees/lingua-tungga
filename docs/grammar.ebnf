@@ -150,7 +150,7 @@ IfExpr         = "if" , Expr , Block , [ "else" , ( IfExpr | Block ) ] ;
 
 MatchExpr      = "match" , Expr , "{" , { MatchArm } , "}" ;
 
-MatchArm       = Pattern , "=>" , ( Expr | Block ) ;
+MatchArm       = Pattern , { "|" , Pattern } , [ "if" , Expr ] , "=>" , ( Expr | Block ) ;
 
 Pattern        = "_"
                | "None"

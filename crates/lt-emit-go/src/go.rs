@@ -52,13 +52,6 @@ fn export_name(name: &str) -> String {
     out
 }
 
-fn arm_args(pattern: &IrPattern) -> &[IrPattern] {
-    match pattern {
-        IrPattern::Variant { args, .. } => args,
-        _ => &[],
-    }
-}
-
 /// How many nested `if`s a pattern needs (the body sits that much deeper).
 fn pattern_depth(pattern: &IrPattern) -> usize {
     match pattern {
@@ -842,18 +835,19 @@ impl<'a> Emitter<'a> {
         let done = self.temp("matched");
         let mut lines = scrutinee_frag.prelude;
         lines.push(format!("{pad}{binding} := {}", scrutinee_frag.code));
-        // `switch` cannot fall through on a nested mismatch, so arms are ifs
-        // guarded by a "still looking for a match" flag.
+        // `switch` cannot fall through on a nested mismatch or a false guard, so
+        // arms are ifs guarded by a "still looking for a match" flag.
         lines.push(format!("{pad}{done} := false"));
 
         let mut catch_all = false;
         for arm in arms {
-            let depth = arm_args(&arm.pattern)
-                .iter()
-                .map(pattern_depth)
-                .max()
-                .unwrap_or(0);
-            let body_level = level + 1 + depth;
+            let args = match &arm.pattern {
+                IrPattern::Variant { args, .. } => args.as_slice(),
+                _ => &[],
+            };
+            let depth = args.iter().map(pattern_depth).max().unwrap_or(0);
+            let guard_level = level + 1 + depth;
+            let body_level = guard_level + usize::from(arm.guard.is_some());
             match &arm.pattern {
                 IrPattern::Variant { variant, .. } => {
                     lines.push(format!(
@@ -865,10 +859,18 @@ impl<'a> Emitter<'a> {
                     if !matches!(tail, Tail::Return) {
                         core.push(format!("{}{done} = true", indent(body_level)));
                     }
+                    if let Some(guard) = &arm.guard {
+                        let frag = self.expr(guard, guard_level);
+                        let mut wrapped = frag.prelude;
+                        wrapped.push(format!("{}if {} {{", indent(guard_level), frag.code));
+                        wrapped.extend(core);
+                        wrapped.push(format!("{}}}", indent(guard_level)));
+                        core = wrapped;
+                    }
                     let mut inner = core;
-                    for index in (0..arm_args(&arm.pattern).len()).rev() {
+                    for index in (0..args.len()).rev() {
                         inner = self.pattern_block(
-                            &arm_args(&arm.pattern)[index],
+                            &args[index],
                             &format!("{binding}.Values[{index}]"),
                             level + 1,
                             &arm_vars,
@@ -888,18 +890,40 @@ impl<'a> Emitter<'a> {
                     if !arm_vars.contains(name) {
                         lines.push(format!("{}_ = {}", indent(level + 1), local));
                     }
-                    lines.extend(self.block_lines(&arm.body, level + 1, tail));
-                    if !matches!(tail, Tail::Return) {
-                        lines.push(format!("{}{done} = true", indent(level + 1)));
+                    if let Some(guard) = &arm.guard {
+                        let frag = self.expr(guard, level + 2);
+                        lines.extend(frag.prelude);
+                        lines.push(format!("{}if {} {{", indent(level + 2), frag.code));
+                        lines.extend(self.block_lines(&arm.body, level + 3, tail));
+                        if !matches!(tail, Tail::Return) {
+                            lines.push(format!("{}{done} = true", indent(level + 3)));
+                        }
+                        lines.push(format!("{}}}", indent(level + 2)));
+                    } else {
+                        lines.extend(self.block_lines(&arm.body, level + 2, tail));
+                        if !matches!(tail, Tail::Return) {
+                            lines.push(format!("{}{done} = true", indent(level + 2)));
+                        }
                     }
                     lines.push(format!("{pad}}}"));
                 }
                 IrPattern::Wildcard => {
                     catch_all = true;
                     lines.push(format!("{pad}if !{done} {{"));
-                    lines.extend(self.block_lines(&arm.body, level + 1, tail));
-                    if !matches!(tail, Tail::Return) {
-                        lines.push(format!("{}{done} = true", indent(level + 1)));
+                    if let Some(guard) = &arm.guard {
+                        let frag = self.expr(guard, level + 2);
+                        lines.extend(frag.prelude);
+                        lines.push(format!("{}if {} {{", indent(level + 2), frag.code));
+                        lines.extend(self.block_lines(&arm.body, level + 3, tail));
+                        if !matches!(tail, Tail::Return) {
+                            lines.push(format!("{}{done} = true", indent(level + 3)));
+                        }
+                        lines.push(format!("{}}}", indent(level + 2)));
+                    } else {
+                        lines.extend(self.block_lines(&arm.body, level + 2, tail));
+                        if !matches!(tail, Tail::Return) {
+                            lines.push(format!("{}{done} = true", indent(level + 2)));
+                        }
                     }
                     lines.push(format!("{pad}}}"));
                 }
@@ -911,8 +935,6 @@ impl<'a> Emitter<'a> {
             lines.push(format!("{}panic(\"unreachable\")", indent(level + 1)));
             lines.push(format!("{pad}}}"));
             if matches!(tail, Tail::Return) {
-                // Unreachable when an arm matched; it keeps Go's terminating
-                // statement analysis happy.
                 lines.push(format!("{pad}panic(\"unreachable\")"));
             }
         }
@@ -1516,6 +1538,8 @@ impl<'a> Emitter<'a> {
 
         match kind {
             Builtin::StrLen => format!("lt.StrLen({recv})"),
+            Builtin::StrChar => format!("lt.StrChar({recv}, {})", args.join(", ")),
+            Builtin::SetItems => format!("lt.NewList({recv}.Items)"),
             Builtin::StrTrim => format!("lt.StrTrim({recv})"),
             Builtin::StrTrimIndent => format!("lt.StrTrimIndent({recv})"),
             Builtin::StrLower => format!("lt.StrLower({recv})"),

@@ -314,6 +314,8 @@ impl VariantRef {
 #[derive(Debug, Clone)]
 pub struct IrArm {
     pub pattern: IrPattern,
+    /// Evaluated after the pattern binds; a false guard moves to the next arm.
+    pub guard: Option<IrExpr>,
     pub body: IrBlock,
 }
 
@@ -370,6 +372,8 @@ pub enum Builtin {
     SetUnion,
     SetIntersect,
     SetDifference,
+    StrChar,
+    SetItems,
     DictLen,
     DictGet,
     DictInsert,
