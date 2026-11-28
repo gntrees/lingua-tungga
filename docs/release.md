@@ -10,9 +10,9 @@ Rilis dibangun **lokal**, bukan di CI. Alasannya:
 ## Perintah
 
 ```sh
-./scripts/release.sh v0.3.1              # build target host + checksum
-./scripts/release.sh v0.3.1 --publish    # build + unggah lewat gh
-LT_TARGET=x86_64-pc-windows-msvc ./scripts/release.sh v0.3.1
+./scripts/release.sh v0.4.0              # build target host + checksum
+./scripts/release.sh v0.4.0 --publish    # build + unggah lewat gh
+LT_TARGET=x86_64-pc-windows-msvc ./scripts/release.sh v0.4.0
 ```
 
 Hasil di `dist/`:

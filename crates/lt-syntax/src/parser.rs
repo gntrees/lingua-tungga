@@ -330,7 +330,7 @@ impl<'a> Parser<'a> {
         }
 
         if self.at(&TokenKind::LParen) {
-            self.bump();
+            let open = self.bump();
             let group = self.next_group;
             self.next_group += 1;
             let mut out = Vec::new();
@@ -351,7 +351,16 @@ impl<'a> Parser<'a> {
                     self.bump();
                 }
             }
-            self.expect(TokenKind::RParen, "to close the import group");
+            let close = self.expect(TokenKind::RParen, "to close the import group");
+            if out.is_empty() {
+                let end = close.map_or(open.span.end, |token| token.span.end);
+                self.error(
+                    "an empty import group does nothing; remove it".to_string(),
+                    Span::new(open.span.start, end),
+                    open.line,
+                    open.col,
+                );
+            }
             return out;
         }
 

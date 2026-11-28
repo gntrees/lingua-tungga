@@ -264,6 +264,27 @@ fn unwrap(value: MaybeBox<Int>) -> Int {
 "#;
 
 #[test]
+fn empty_collection_types_settle_before_emission() {
+    // `map.empty()` is recorded before `.insert` fixes its type parameters; the
+    // checker resolves the recorded type afterwards, so the emitter must never
+    // print `unknown` here.
+    let source = r#"
+package infer {
+  export fn build() -> Map<Str, Int> {
+    map.empty().insert("a", 1)
+  }
+}
+"#;
+    let files = emit(&[("infer.lt", source)], "infer.lt");
+    let module = find(&files, "src/infer.ts");
+    assert!(
+        module.contains("lt.LMap.empty<string, bigint>()"),
+        "{module}"
+    );
+    assert!(!module.contains("unknown"), "{module}");
+}
+
+#[test]
 fn generic_enum_nullary_variant_is_not_generic() {
     let files = emit(&[("a.lt", GENERIC_ENUM)], "a.lt");
     let module = find(&files, "src/a.ts");

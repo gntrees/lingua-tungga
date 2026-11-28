@@ -1,5 +1,9 @@
 # LT v2 — Ledger Keputusan: `class` → `package`
 
+> **Historis.** Ledger ini merekam keputusan v2 saat diambil. Potongan sintaks di dalamnya
+> (mis. `import … from "…"`) sengaja dibiarkan apa adanya dan **bukan** spesifikasi terbaru;
+> lihat [`docs/spec.md`](docs/spec.md).
+
 Status: **berlaku**, sudah di-merge ke `main` sebagai v2.
 Dokumen ini adalah sumber kebenaran selama eksplorasi; `PLAN.md`, `docs/spec.md`, dan
 `docs/grammar.ebnf` belum disesuaikan (lihat §12).

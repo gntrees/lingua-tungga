@@ -1,5 +1,9 @@
 # Lingua Tungga — Rencana Proyek
 
+> **Historis.** Dokumen ini merekam rencana sebelum v2. Sintaks dan tabel di dalamnya
+> (termasuk `import … from`, `Map.empty()`, dan pembagian tipe) sudah tidak berlaku; lihat
+> [`docs/spec.md`](docs/spec.md) untuk keadaan sekarang.
+
 > Dokumen ini adalah hasil sesi desain yang dikunci per keputusan. Semua keputusan di bawah sudah disetujui; yang belum dikunci dicantumkan eksplisit di bagian **Keputusan Mikro yang Belum Dikunci**, supaya tidak ada asumsi yang tersembunyi.
 
 - Nama bahasa: **Lingua Tungga**

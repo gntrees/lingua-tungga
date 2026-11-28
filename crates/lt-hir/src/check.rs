@@ -23,6 +23,21 @@ pub fn check_program(mut program: Program) -> (Program, Vec<(ModuleId, Diagnosti
     (program, diagnostics, types)
 }
 
+/// Does this type still mention an inference variable?
+fn mentions_any_var(ty: &Ty) -> bool {
+    match ty {
+        Ty::Var(_) => true,
+        Ty::List(inner) | Ty::Set(inner) | Ty::Option(inner) | Ty::Dict(inner) => {
+            mentions_any_var(inner)
+        }
+        Ty::Map(key, value) | Ty::Result(key, value) => {
+            mentions_any_var(key) || mentions_any_var(value)
+        }
+        Ty::Named(_, args) => args.iter().any(mentions_any_var),
+        _ => false,
+    }
+}
+
 fn diag(diagnostics: &mut Vec<Diagnostic>, src: &str, span: Span, message: String) {
     let loc = line_col_at(src, span.start);
     diagnostics.push(Diagnostic::error(message, span, loc.line, loc.col));
@@ -806,7 +821,7 @@ fn check_bodies(
                     " as the function result",
                 );
                 checker.scopes.pop();
-                (checker.diags, checker.types)
+                checker.finish()
             };
             for ((start, end), ty) in local_types {
                 types.insert(module_id, (start, end), ty);
@@ -830,7 +845,7 @@ fn check_bodies(
                 let body_ty = checker.check_block(&decl.body, Some(&Ty::Unit));
                 checker.expect(decl.body.span, &Ty::Unit, &body_ty, " as the test result");
                 checker.scopes.pop();
-                (checker.diags, checker.types)
+                checker.finish()
             };
             for ((start, end), ty) in local_types {
                 types.insert(module_id, (start, end), ty);
@@ -1265,6 +1280,61 @@ impl<'a> Checker<'a> {
         }
         self.record_type(expr, &ty);
         ty
+    }
+
+    /// Checking is done per function, but an expression can be recorded before
+    /// inference settles it: `map.empty().insert(k, v)` records the empty map
+    /// while its key and value are still variables. Resolve every recorded type
+    /// with the final bindings so the IR never sees a stale `Var`.
+    fn finish(self) -> (Vec<Diagnostic>, HashMap<(usize, usize), Ty>) {
+        let Checker {
+            mut diags,
+            source,
+            vars,
+            types,
+            ..
+        } = self;
+        fn resolve(vars: &HashMap<u32, Ty>, ty: &Ty) -> Ty {
+            match ty {
+                Ty::Var(id) => match vars.get(id) {
+                    Some(bound) => resolve(vars, bound),
+                    None => ty.clone(),
+                },
+                Ty::List(inner) => Ty::list(resolve(vars, inner)),
+                Ty::Set(inner) => Ty::set(resolve(vars, inner)),
+                Ty::Option(inner) => Ty::option(resolve(vars, inner)),
+                Ty::Dict(value) => Ty::dict(resolve(vars, value)),
+                Ty::Map(key, value) => Ty::map(resolve(vars, key), resolve(vars, value)),
+                Ty::Result(ok, err) => Ty::result(resolve(vars, ok), resolve(vars, err)),
+                Ty::Named(name, args) => Ty::Named(
+                    name.clone(),
+                    args.iter().map(|arg| resolve(vars, arg)).collect(),
+                ),
+                other => other.clone(),
+            }
+        }
+        let resolved: HashMap<(usize, usize), Ty> = types
+            .into_iter()
+            .map(|(span, ty)| (span, resolve(&vars, &ty)))
+            .collect();
+        // A variable that never got bound means inference ran out of clues
+        // (`let m = map.empty()`); say so here instead of emitting an
+        // `unknown` type that only the host compiler rejects.
+        let mut reported: Vec<usize> = Vec::new();
+        for ((start, _), ty) in &resolved {
+            if !mentions_any_var(ty) || reported.contains(start) {
+                continue;
+            }
+            reported.push(*start);
+            let loc = line_col_at(source, *start);
+            diags.push(Diagnostic::error(
+                "cannot infer this type; annotate the binding".to_string(),
+                Span::new(*start, *start),
+                loc.line,
+                loc.col,
+            ));
+        }
+        (diags, resolved)
     }
 
     fn record_type(&mut self, expr: &ast::Expr, ty: &Ty) {

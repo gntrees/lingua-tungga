@@ -698,6 +698,18 @@ fn error_empty_import_list() {
 }
 
 #[test]
+fn error_empty_import_group() {
+    let out = parse("import ()");
+    assert!(
+        out.diagnostics
+            .iter()
+            .any(|d| d.message.contains("empty import group")),
+        "{:#?}",
+        out.diagnostics
+    );
+}
+
+#[test]
 fn soft_keywords_can_name_declarations_and_members() {
     let file = parse_ok(
         "import from \"./from.lt\"\n\n\

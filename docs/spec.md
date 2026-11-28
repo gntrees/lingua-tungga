@@ -302,7 +302,7 @@ export enum Role {
 package money
 
 export let default_currency: Str = "IDR"
-let lookup: Map<Str, Int> = Map.empty()
+let lookup: Map<Str, Int> = map.empty()
 ```
 
 - Immutable, eager, tanpa parameter.

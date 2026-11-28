@@ -92,7 +92,7 @@ checksum = "65cd87c9a6d60536580b316ad985726104730a5151c99845f2490428ef91240a"
 
 [[package]]
 name = "lt-cli"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "lt-emit-go",
  "lt-emit-py",
@@ -106,7 +106,7 @@ dependencies = [
 
 [[package]]
 name = "lt-emit-go"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "lt-hir",
  "lt-ir",
@@ -114,7 +114,7 @@ dependencies = [
 
 [[package]]
 name = "lt-emit-py"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "lt-hir",
  "lt-ir",
@@ -122,7 +122,7 @@ dependencies = [
 
 [[package]]
 name = "lt-emit-ts"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "lt-hir",
  "lt-ir",
@@ -130,7 +130,7 @@ dependencies = [
 
 [[package]]
 name = "lt-hir"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "lt-syntax",
  "sha2",
@@ -138,7 +138,7 @@ dependencies = [
 
 [[package]]
 name = "lt-ir"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "lt-hir",
  "lt-syntax",
@@ -146,7 +146,7 @@ dependencies = [
 
 [[package]]
 name = "lt-pkg"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "lt-hir",
  "sha2",
@@ -154,7 +154,7 @@ dependencies = [
 
 [[package]]
 name = "lt-playground"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "lt-emit-go",
  "lt-emit-py",
@@ -169,7 +169,7 @@ dependencies = [
 
 [[package]]
 name = "lt-syntax"
-version = "0.3.1"
+version = "0.4.0"
 
 [[package]]
 name = "memchr"

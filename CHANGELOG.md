@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.0 — 2026-11-28
 
 ### Added
 
@@ -11,10 +11,22 @@
   `cmp`-nya kanonik sehingga `Dict` tetap bisa jadi key `Map`/`Set`.
 - Kasus playground `collections/dict` dan conformance `tests/conformance/dicts.lt`.
 
+### Fixed
+
+- Dokumen historis (`PLAN.md`, `docs/v2-decisions.md`) diberi penunjuk bahwa sintaks di
+  dalamnya bukan spesifikasi terbaru, dan contoh di spec memakai `map.empty()` (bukan
+  `Map.empty()`).
+
 ### Changed
 
 - `List`/`Set`/`Map`/`Dict` kini punya perbandingan leksikografis, menggantikan fallback
   perbandingan string display yang membuat `[10]` terurut sebelum `[2]`.
+- Tipe hasil inferensi kini diselesaikan setelah body selesai dicek, jadi
+  `map.empty().insert(k, v)` mengemit `LMap<K, V>` yang konkret, bukan `unknown`. Bila
+  inferensi benar-benar kehabisan petunjuk (`let m = map.empty()`), compiler memberi error
+  "cannot infer this type; annotate the binding" alih-alih membiarkan target compiler host
+  yang gagal.
+- `import ()` kosong sekarang error ("an empty import group does nothing; remove it").
 - `Map` lebih cepat: dedup O(n²) menjadi satu lintasan O(n) (sortir adaptif pada array yang
   hampir terurut membuat `insert`/`remove` praktis linear di TypeScript dan Python), dan
   `get`/`contains_key` memakai binary search O(log n).
