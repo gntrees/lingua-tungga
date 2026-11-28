@@ -108,6 +108,8 @@ pub enum IrStmt {
         value: IrExpr,
     },
     Return(Option<IrExpr>),
+    Break,
+    Continue,
     For {
         var: String,
         ty: Ty,
@@ -158,6 +160,14 @@ pub enum IrExpr {
     DictLit {
         entries: Vec<(IrExpr, IrExpr)>,
         ty: Ty,
+    },
+    /// `map.from(List<Entry<K, V>>)` — one bulk build instead of n inserts.
+    MapFrom {
+        entries: Box<IrExpr>,
+        key_ty: Ty,
+        value_ty: Ty,
+        ty: Ty,
+        prelude: ModuleId,
     },
     /// `json.parse` / `json.stringify`. `prelude` is the `value` module whose
     /// constructors the runtime needs when parsing.
@@ -317,7 +327,8 @@ pub enum IrPattern {
     },
     Variant {
         variant: String,
-        bindings: Vec<(String, Ty)>,
+        /// Payload patterns, positionally. A `Binding` here binds one payload.
+        args: Vec<IrPattern>,
     },
 }
 

@@ -1,0 +1,3 @@
+title = "Patterns nest to any depth"
+feature = "types/nested-match"
+why = "`Ok(Value.Int(n))` and `Some(Some(x))` match the payload's own variants."

@@ -83,6 +83,11 @@ pub const PRELUDE_PATH: &str = "__prelude__.lt";
 
 pub const PRELUDE_SOURCE: &str = "\
 package value {
+  export struct Entry<K, V> {
+    key: K
+    value: V
+  }
+
   export enum Value {
     Null
     Bool(Bool)

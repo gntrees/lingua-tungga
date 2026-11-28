@@ -1,0 +1,3 @@
+title = "break / continue and `for` over keys"
+feature = "control/loops"
+why = "Loops can stop early, and `for` walks a Dict's keys in insertion order."

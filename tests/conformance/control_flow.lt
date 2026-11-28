@@ -1,0 +1,37 @@
+package control_flow {
+  export fn sum_until_big(xs: List<Int>) -> Int {
+    let mut total = 0
+    for x in xs {
+      if x < 0 {
+        continue
+      }
+      if x > 100 {
+        break
+      }
+      total = total + x
+    }
+    total
+  }
+
+  export fn keys_of(d: Dict<Int>, m: Map<Str, Int>) -> Str {
+    let mut out = ""
+    for key in d {
+      out = `${out}${key}`
+    }
+    for key in m {
+      out = `${out}${key}`
+    }
+    out
+  }
+
+  test "break and continue" {
+    expect.eq(sum_until_big([1, -2, 3, 200, 4]), 4)
+    expect.eq(sum_until_big([1, 2]), 3)
+  }
+
+  test "for walks keys" {
+    let d: Dict<Int> = ["a": 1, "b": 2]
+    let base: Map<Str, Int> = map.empty()
+    expect.eq(keys_of(d, base.insert("z", 9)), "abz")
+  }
+}

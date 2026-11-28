@@ -52,6 +52,21 @@ fn export_name(name: &str) -> String {
     out
 }
 
+fn arm_args(pattern: &IrPattern) -> &[IrPattern] {
+    match pattern {
+        IrPattern::Variant { args, .. } => args,
+        _ => &[],
+    }
+}
+
+/// How many nested `if`s a pattern needs (the body sits that much deeper).
+fn pattern_depth(pattern: &IrPattern) -> usize {
+    match pattern {
+        IrPattern::Variant { args, .. } => args.iter().map(pattern_depth).max().unwrap_or(0) + 1,
+        _ => 0,
+    }
+}
+
 fn local_name(name: &str) -> String {
     let mut out = String::new();
     let mut upper = false;
@@ -671,6 +686,8 @@ impl<'a> Emitter<'a> {
     fn stmt(&mut self, stmt: &IrStmt, level: usize, tail: &Tail) -> Vec<String> {
         let pad = indent(level);
         match stmt {
+            IrStmt::Break => vec![format!("{pad}break")],
+            IrStmt::Continue => vec![format!("{pad}continue")],
             IrStmt::Let { name, value, .. } => {
                 let frag = self.expr(value, level);
                 let local = local_name(name);
@@ -822,62 +839,130 @@ impl<'a> Emitter<'a> {
         let pad = indent(level);
         let scrutinee_frag = self.expr(scrutinee, level);
         let binding = self.temp("match");
+        let done = self.temp("matched");
         let mut lines = scrutinee_frag.prelude;
         lines.push(format!("{pad}{binding} := {}", scrutinee_frag.code));
-        lines.push(format!("{pad}switch {binding}.Tag {{"));
+        // `switch` cannot fall through on a nested mismatch, so arms are ifs
+        // guarded by a "still looking for a match" flag.
+        lines.push(format!("{pad}{done} := false"));
 
         let mut catch_all = false;
         for arm in arms {
+            let depth = arm_args(&arm.pattern)
+                .iter()
+                .map(pattern_depth)
+                .max()
+                .unwrap_or(0);
+            let body_level = level + 1 + depth;
             match &arm.pattern {
-                IrPattern::Variant { variant, bindings } => {
-                    lines.push(format!("{pad}case {}:", quote(variant)));
-                    let body_level = level + 1;
-                    let mut body = Vec::new();
-                    // A pattern binding is only visible inside its own arm, so
-                    // the unused check must look at that arm, not the whole
-                    // function: another arm using the same name must not keep
-                    // this one from being marked used.
+                IrPattern::Variant { variant, .. } => {
+                    lines.push(format!(
+                        "{pad}if !{done} && {binding}.Tag == {} {{",
+                        quote(variant)
+                    ));
                     let arm_vars = collect_used(&arm.body);
-                    for (index, (name, ty)) in bindings.iter().enumerate() {
-                        let cast = self.cast(ty, &format!("{binding}.Values[{index}]"));
-                        let local = local_name(name);
-                        body.push(format!("{}{} := {}", indent(body_level), local, cast));
-                        if !arm_vars.contains(name) {
-                            body.push(format!("{}_ = {}", indent(body_level), local));
-                        }
+                    let mut core = self.block_lines(&arm.body, body_level, tail);
+                    if !matches!(tail, Tail::Return) {
+                        core.push(format!("{}{done} = true", indent(body_level)));
                     }
-                    body.extend(self.block_lines(&arm.body, body_level, tail));
-                    lines.extend(body);
+                    let mut inner = core;
+                    for index in (0..arm_args(&arm.pattern).len()).rev() {
+                        inner = self.pattern_block(
+                            &arm_args(&arm.pattern)[index],
+                            &format!("{binding}.Values[{index}]"),
+                            level + 1,
+                            &arm_vars,
+                            inner,
+                        );
+                    }
+                    lines.extend(inner);
+                    lines.push(format!("{pad}}}"));
                 }
                 IrPattern::Binding { name, ty } => {
                     catch_all = true;
                     let cast = self.cast(ty, &binding);
-                    lines.push(format!("{pad}default:"));
-                    let body_level = level + 1;
+                    lines.push(format!("{pad}if !{done} {{"));
                     let local = local_name(name);
                     let arm_vars = collect_used(&arm.body);
-                    let mut body = vec![format!("{}{} := {}", indent(body_level), local, cast)];
+                    lines.push(format!("{}{} := {}", indent(level + 1), local, cast));
                     if !arm_vars.contains(name) {
-                        body.push(format!("{}_ = {}", indent(body_level), local));
+                        lines.push(format!("{}_ = {}", indent(level + 1), local));
                     }
-                    body.extend(self.block_lines(&arm.body, body_level, tail));
-                    lines.extend(body);
+                    lines.extend(self.block_lines(&arm.body, level + 1, tail));
+                    if !matches!(tail, Tail::Return) {
+                        lines.push(format!("{}{done} = true", indent(level + 1)));
+                    }
+                    lines.push(format!("{pad}}}"));
                 }
                 IrPattern::Wildcard => {
                     catch_all = true;
-                    lines.push(format!("{pad}default:"));
+                    lines.push(format!("{pad}if !{done} {{"));
                     lines.extend(self.block_lines(&arm.body, level + 1, tail));
+                    if !matches!(tail, Tail::Return) {
+                        lines.push(format!("{}{done} = true", indent(level + 1)));
+                    }
+                    lines.push(format!("{pad}}}"));
                 }
             }
         }
 
         if !catch_all {
-            lines.push(format!("{pad}default:"));
+            lines.push(format!("{pad}if !{done} {{"));
             lines.push(format!("{}panic(\"unreachable\")", indent(level + 1)));
+            lines.push(format!("{pad}}}"));
+            if matches!(tail, Tail::Return) {
+                // Unreachable when an arm matched; it keeps Go's terminating
+                // statement analysis happy.
+                lines.push(format!("{pad}panic(\"unreachable\")"));
+            }
         }
 
-        lines.push(format!("{pad}}}"));
         lines
+    }
+
+    /// Lines that bind and run `core` when the nested pattern matches; when it
+    /// does not, the enclosing `case` falls through to the next clause.
+    fn pattern_block(
+        &mut self,
+        pattern: &IrPattern,
+        value: &str,
+        level: usize,
+        used: &HashSet<String>,
+        core: Vec<String>,
+    ) -> Vec<String> {
+        let pad = indent(level);
+        match pattern {
+            IrPattern::Wildcard => core,
+            IrPattern::Binding { name, ty } => {
+                let cast = self.cast(ty, value);
+                let local = local_name(name);
+                let mut lines = vec![format!("{pad}{local} := {cast}")];
+                if !used.contains(name) {
+                    lines.push(format!("{pad}_ = {local}"));
+                }
+                lines.extend(core);
+                lines
+            }
+            IrPattern::Variant { variant, args } => {
+                // A payload is stored as `any`, so a nested variant needs the cast
+                // before `.Tag`/`.Values` can be read.
+                let scrutinee = format!("{value}.(lt.Variant)");
+                let mut lines = vec![format!("{pad}if {scrutinee}.Tag == {} {{", quote(variant))];
+                let mut inner = core;
+                for index in (0..args.len()).rev() {
+                    inner = self.pattern_block(
+                        &args[index],
+                        &format!("{scrutinee}.Values[{index}]"),
+                        level + 1,
+                        used,
+                        inner,
+                    );
+                }
+                lines.extend(inner);
+                lines.push(format!("{pad}}}"));
+                lines
+            }
+        }
     }
 
     // ---------------------------------------------------------- expressions
@@ -944,6 +1029,25 @@ impl<'a> Emitter<'a> {
                 Frag {
                     prelude,
                     code: format!("lt.NewList([]{}{{{}}})", element, rendered.join(", ")),
+                }
+            }
+            IrExpr::MapFrom {
+                entries,
+                key_ty,
+                value_ty,
+                prelude,
+                ..
+            } => {
+                self.use_module(*prelude);
+                let frag = self.expr(entries, level);
+                let key = self.type_ref(key_ty);
+                let value = self.type_ref(value_ty);
+                Frag {
+                    prelude: frag.prelude,
+                    code: format!(
+                        "lt.MapFrom[{key}, {value}, m{prelude}.Entry[{key}, {value}]]({}, func(__entry m{prelude}.Entry[{key}, {value}]) {key} {{ return __entry.Key }}, func(__entry m{prelude}.Entry[{key}, {value}]) {value} {{ return __entry.Value }})",
+                        frag.code
+                    ),
                 }
             }
             IrExpr::Json {
@@ -1569,6 +1673,7 @@ fn collect_stmt(stmt: &IrStmt, used: &mut HashSet<String>) {
                 used.insert(name);
             }
         }
+        IrStmt::Break | IrStmt::Continue => {}
         IrStmt::Expr(expr) => collect_expr(expr, used),
     }
 }
@@ -1589,6 +1694,7 @@ fn collect_expr(expr: &IrExpr, used: &mut HashSet<String>) {
                 collect_expr(value, used);
             }
         }
+        IrExpr::MapFrom { entries, .. } => collect_expr(entries, used),
         IrExpr::Json { args, .. } => {
             for arg in args {
                 collect_expr(arg, used);

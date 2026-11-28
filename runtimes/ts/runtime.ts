@@ -776,6 +776,15 @@ export function jsonStringify(value: unknown): string {
   }
 }
 
+/// One bulk build: collect every pair, then sort and dedupe once.
+export function mapFrom<K, V, E>(
+  entries: LList<E>,
+  key: (entry: E) => K,
+  value: (entry: E) => V,
+): LMap<K, V> {
+  return new LMap<K, V>(entries.items.map((entry) => [key(entry), value(entry)] as const));
+}
+
 // --- Test assertions -------------------------------------------------------
 export function expectEqual(actual: unknown, expected: unknown): void {
   if (!eq(actual, expected)) {

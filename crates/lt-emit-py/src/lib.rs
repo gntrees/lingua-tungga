@@ -32,7 +32,11 @@ pub fn emit_package(program: &IrProgram) -> Vec<EmittedFile> {
     ];
 
     let mut directories: BTreeSet<String> = BTreeSet::new();
+    let skip_prelude = !lt_ir::prelude_is_referenced(program);
     for module in &program.modules {
+        if skip_prelude && module.name == "value" {
+            continue;
+        }
         let mut prefix = String::from("gen");
         let parts: Vec<&str> = module.name.split('/').collect();
         for part in &parts[..parts.len().saturating_sub(1)] {

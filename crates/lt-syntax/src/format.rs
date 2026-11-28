@@ -153,6 +153,7 @@ fn collect_stmt(stmt: &Stmt, out: &mut Vec<Container>) {
                 collect_expr(value, out);
             }
         }
+        Stmt::Break { .. } | Stmt::Continue { .. } => {}
         Stmt::For { iter, body, .. } => {
             collect_expr(iter, out);
             collect_block(body, out);
@@ -708,6 +709,8 @@ impl Formatter {
             Stmt::Assign { name, value, .. } => {
                 format!("{name} = {}", self.expr(value, indent))
             }
+            Stmt::Break { .. } => "break".to_string(),
+            Stmt::Continue { .. } => "continue".to_string(),
             Stmt::Return { value: None, .. } => "return".to_string(),
             Stmt::Return {
                 value: Some(value), ..

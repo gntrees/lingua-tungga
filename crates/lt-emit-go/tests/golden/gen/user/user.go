@@ -53,13 +53,16 @@ func (self User) LtDisplay() string {
 
 func Label(u User) string {
 	__match1 := u.Role
-	switch __match1.Tag {
-	case "Admin":
+	__matched2 := false
+	if !__matched2 && __match1.Tag == "Admin" {
 		return "admin"
-	case "Member":
+	}
+	if !__matched2 && __match1.Tag == "Member" {
 		level := __match1.Values[0].(int64)
 		return "member-" + lt.Disp(level)
-	default:
+	}
+	if !__matched2 {
 		panic("unreachable")
 	}
+	panic("unreachable")
 }

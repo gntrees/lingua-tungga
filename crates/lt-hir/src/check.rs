@@ -620,10 +620,21 @@ fn lookup_type(
         }
     }
 
-    // Fall back to the built-in prelude so `Value` is nameable everywhere.
+    // Fall back to the built-in prelude so `Value`/`Entry` are nameable everywhere.
     if qualifier.is_none() {
         if let Some(module) = program.prelude() {
             let target = &program.modules[module];
+            if let Some(decl) = target.structs.iter().find(|decl| decl.name == name) {
+                if decl.is_export {
+                    return Some((
+                        TypeName {
+                            module,
+                            name: name.to_string(),
+                        },
+                        decl.generics.len(),
+                    ));
+                }
+            }
             if let Some(decl) = target.enums.iter().find(|decl| decl.name == name) {
                 if decl.is_export {
                     return Some((
@@ -892,6 +903,7 @@ struct Checker<'a> {
     ret: Ty,
     in_test: bool,
     in_lambda: bool,
+    loop_depth: u32,
     types: HashMap<(usize, usize), Ty>,
 }
 
@@ -909,6 +921,7 @@ impl<'a> Checker<'a> {
             ret: Ty::Unit,
             in_test: false,
             in_lambda: false,
+            loop_depth: 0,
             types: HashMap::new(),
         }
     }
@@ -1013,6 +1026,19 @@ impl<'a> Checker<'a> {
     /// destructured import, then a `package.Type` qualifier is handled by the
     /// caller.
     fn struct_ref(&self, name: &str) -> Option<(&'a StructInfo, TypeName)> {
+        if let Some(module) = self.program.prelude() {
+            if let Some(decl) = self.program.find_struct(module, name) {
+                if decl.is_export {
+                    return Some((
+                        decl,
+                        TypeName {
+                            module,
+                            name: name.to_string(),
+                        },
+                    ));
+                }
+            }
+        }
         let program = self.program;
         if let Some(decl) = program.find_struct(self.module, name) {
             return Some((
@@ -1224,6 +1250,18 @@ impl<'a> Checker<'a> {
                     }
                     last = None;
                 }
+                ast::Stmt::Break { span } => {
+                    if self.loop_depth == 0 {
+                        self.diag(*span, "`break` is only valid inside a loop");
+                    }
+                    last = None;
+                }
+                ast::Stmt::Continue { span } => {
+                    if self.loop_depth == 0 {
+                        self.diag(*span, "`continue` is only valid inside a loop");
+                    }
+                    last = None;
+                }
                 ast::Stmt::Return { value, span } => {
                     match value {
                         Some(value) => {
@@ -1247,37 +1285,44 @@ impl<'a> Checker<'a> {
                     span,
                 } => {
                     let iter_ty = self.check_expr(iter, None);
-                    match self.resolve_deep(&iter_ty) {
-                        Ty::List(element) => {
-                            self.scopes.push(HashMap::new());
-                            self.declare(var, *element, false, *span);
-                            let body_ty = self.check_block(body, None);
-                            if !self.unify(&body_ty, &Ty::Unit) {
-                                let body_ty = self.display_ty(&body_ty);
-                                self.diag(
-                                    body.span,
-                                    format!(
-                                        "a loop body must not produce a value, found `{body_ty}`"
-                                    ),
-                                );
-                            }
-                            self.scopes.pop();
-                        }
-                        Ty::Error => {}
+                    // `for` walks a List's elements, a Map's keys, or a Dict's keys.
+                    let element = match self.resolve_deep(&iter_ty) {
+                        Ty::List(inner) => Some(*inner),
+                        Ty::Map(key, _) => Some(*key),
+                        Ty::Dict(_) => Some(Ty::Str),
+                        Ty::Error => None,
                         other => {
                             let other = self.display_ty(&other);
                             self.diag(
                                 iter.span(),
-                                format!("`for` needs a `List`, found `{other}`"),
+                                format!("`for` needs a `List`, `Map`, or `Dict`, found `{other}`"),
+                            );
+                            None
+                        }
+                    };
+                    if let Some(element) = element {
+                        self.scopes.push(HashMap::new());
+                        self.declare(var, element, false, *span);
+                        self.loop_depth += 1;
+                        let body_ty = self.check_block(body, None);
+                        self.loop_depth -= 1;
+                        if !self.unify(&body_ty, &Ty::Unit) {
+                            let body_ty = self.display_ty(&body_ty);
+                            self.diag(
+                                body.span,
+                                format!("a loop body must not produce a value, found `{body_ty}`"),
                             );
                         }
+                        self.scopes.pop();
                     }
                     last = None;
                 }
                 ast::Stmt::While { cond, body, .. } => {
                     let cond_ty = self.check_expr(cond, Some(&Ty::Bool));
                     self.expect(cond.span(), &Ty::Bool, &cond_ty, " in a `while` condition");
+                    self.loop_depth += 1;
                     let body_ty = self.check_block(body, None);
+                    self.loop_depth -= 1;
                     if !self.unify(&body_ty, &Ty::Unit) {
                         let body_ty = self.display_ty(&body_ty);
                         self.diag(
@@ -1796,19 +1841,6 @@ impl<'a> Checker<'a> {
                     }
                     let mut wildcard = false;
                     for (pattern, payload_ty) in args.iter().zip(payload.iter()) {
-                        if let Pattern::Variant {
-                            args: inner_args,
-                            span: inner_span,
-                            ..
-                        } = pattern
-                        {
-                            if !inner_args.is_empty() {
-                                self.diag(
-                                    *inner_span,
-                                    "nested patterns are not supported by the v1 backend yet",
-                                );
-                            }
-                        }
                         if self.bind_pattern(pattern, payload_ty, bindings, covered) {
                             wildcard = true;
                         }
@@ -2141,6 +2173,49 @@ impl<'a> Checker<'a> {
                         return self.construct_variant(&decl, type_name, name, args, span);
                     }
                     match owner.as_str() {
+                        "map" if name == "from" => {
+                            let Some(items) = self.positional(args, span, name) else {
+                                return Ty::Error;
+                            };
+                            if items.len() != 1 {
+                                self.diag(span, "`map.from` expects 1 argument");
+                                return Ty::Error;
+                            }
+                            let Some(prelude) = self.program.prelude() else {
+                                self.diag(span, "the `value` prelude is missing");
+                                return Ty::Error;
+                            };
+                            let entry_ty = Ty::Named(
+                                TypeName {
+                                    module: prelude,
+                                    name: "Entry".to_string(),
+                                },
+                                vec![self.fresh(), self.fresh()],
+                            );
+                            let list = Ty::list(entry_ty);
+                            let arg_ty = self.check_expr(items[0], Some(&list));
+                            let arg_ty = self.resolve_deep(&arg_ty);
+                            if let Ty::List(inner) = &arg_ty {
+                                if let Ty::Named(name, args) = inner.as_ref() {
+                                    if name.module == prelude
+                                        && name.name == "Entry"
+                                        && args.len() == 2
+                                    {
+                                        return Ty::map(args[0].clone(), args[1].clone());
+                                    }
+                                }
+                            }
+                            if !arg_ty.is_error() {
+                                let found = self.display_ty(&arg_ty);
+                                self.diag(
+                                    items[0].span(),
+                                    format!(
+                                        "`map.from` expects `List<Entry<K, V>>`, found `{found}`"
+                                    ),
+                                );
+                            }
+                            return Ty::Error;
+                        }
                         "map" | "set" if name == "empty" => {
                             let Some(items) = self.positional(args, span, name) else {
                                 return Ty::Error;

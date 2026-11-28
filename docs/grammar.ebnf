@@ -74,7 +74,12 @@ Generics       = "<" , Type , { "," , Type } , ">" ;
 Block          = "{" , { Stmt } , "}" ;
 
 Stmt           = LetStmt | AssignStmt | ReturnStmt
-               | IfStmt | ForStmt | WhileStmt | ExprStmt ;
+               | IfStmt | ForStmt | WhileStmt | BreakStmt | ContinueStmt | ExprStmt ;
+
+(* Statement dipisahkan baris baru di dalam Block. *)
+BreakStmt      = "break" ;
+
+ContinueStmt   = "continue" ;
 
 LetStmt        = "let" , [ "mut" ] , Identifier , [ ":" , Type ] , "=" , Expr ;
 
@@ -84,6 +89,7 @@ ReturnStmt     = "return" , [ Expr ] ;
 
 IfStmt         = "if" , Expr , Block , [ "else" , ( IfStmt | Block ) ] ;
 
+(* Iterable: List (elemen), Map (key), Dict (key). Set belum didukung. *)
 ForStmt        = "for" , Identifier , "in" , Expr , Block ;
 
 WhileStmt      = "while" , Expr , Block ;

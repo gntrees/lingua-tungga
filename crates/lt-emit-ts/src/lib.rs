@@ -33,7 +33,11 @@ pub fn emit_package(program: &IrProgram) -> Vec<EmittedFile> {
         },
     ];
 
+    let skip_prelude = !lt_ir::prelude_is_referenced(program);
     for module in &program.modules {
+        if skip_prelude && module.name == "value" {
+            continue;
+        }
         files.push(EmittedFile {
             path: PathBuf::from(format!("src/{}.ts", module.name)),
             contents: ts::emit_module(program, module),

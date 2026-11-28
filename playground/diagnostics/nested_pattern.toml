@@ -1,4 +1,0 @@
-title = "Nested match patterns are rejected"
-feature = "diagnostics/strict"
-why = "The backends cannot decompose nested patterns yet, so failing hard beats guessing."
-expect = "nested patterns"

@@ -114,7 +114,10 @@ fn emits_a_go_package() {
         module.contains("func RoleMember(_0 int64) lt.Variant"),
         "{module}"
     );
-    assert!(module.contains("switch __match1.Tag {"), "{module}");
+    assert!(
+        module.contains("if !__matched") && module.contains(".Tag == \"Admin\" {"),
+        "{module}"
+    );
 }
 
 #[test]

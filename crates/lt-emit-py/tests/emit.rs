@@ -113,7 +113,7 @@ fn emits_a_python_package() {
     assert!(module.contains("def greet(u: User) -> str:"));
     assert!(module.contains("lt.iadd(u.age, 1)"));
     assert!(module.contains("def to_display(self) -> str:"));
-    assert!(module.contains("if __match1.tag == \"Member\":"));
+    assert!(module.contains("if not __matched") && module.contains("== \"Member\":"));
 }
 
 #[test]

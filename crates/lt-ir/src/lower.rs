@@ -176,6 +176,19 @@ impl<'a> Lowerer<'a> {
     }
 
     fn struct_ref(&self, name: &str) -> Option<(&'a StructInfo, TypeName)> {
+        if let Some(module) = self.program.prelude() {
+            if let Some(decl) = self.program.find_struct(module, name) {
+                if decl.is_export {
+                    return Some((
+                        decl,
+                        TypeName {
+                            module,
+                            name: name.to_string(),
+                        },
+                    ));
+                }
+            }
+        }
         let program = self.program;
         if let Some(decl) = program.find_struct(self.module, name) {
             return Some((
@@ -444,11 +457,33 @@ impl<'a> Lowerer<'a> {
                 var, iter, body, ..
             } => {
                 let iter_ty = self.ty_of(iter);
-                let element = match &iter_ty {
-                    Ty::List(inner) => (**inner).clone(),
-                    _ => Ty::Error,
+                let (element, iter_ir) = match iter_ty.clone() {
+                    Ty::List(inner) => (*inner, self.expr(iter)),
+                    Ty::Dict(_) => (
+                        Ty::Str,
+                        IrExpr::Builtin {
+                            kind: Builtin::DictKeys,
+                            receiver: Box::new(self.expr(iter)),
+                            recv_ty: iter_ty.clone(),
+                            args: Vec::new(),
+                            ty: Ty::list(Ty::Str),
+                        },
+                    ),
+                    Ty::Map(key, _) => {
+                        let keys = Ty::list((*key).clone());
+                        (
+                            (*key).clone(),
+                            IrExpr::Builtin {
+                                kind: Builtin::MapKeys,
+                                receiver: Box::new(self.expr(iter)),
+                                recv_ty: iter_ty.clone(),
+                                args: Vec::new(),
+                                ty: keys,
+                            },
+                        )
+                    }
+                    _ => (Ty::Error, self.expr(iter)),
                 };
-                let iter_ir = self.expr(iter);
                 self.scopes.push(HashMap::new());
                 self.declare(var, element.clone());
                 let body_ir = self.block(body);
@@ -460,6 +495,8 @@ impl<'a> Lowerer<'a> {
                     body: body_ir,
                 }
             }
+            ast::Stmt::Break { .. } => IrStmt::Break,
+            ast::Stmt::Continue { .. } => IrStmt::Continue,
             ast::Stmt::While { cond, body, .. } => IrStmt::While {
                 cond: self.expr(cond),
                 body: self.block(body),
@@ -824,6 +861,26 @@ impl<'a> Lowerer<'a> {
                             ty,
                         };
                     }
+                    if owner == "map" && name == "from" {
+                        let Some(items) = self.positional(args, span) else {
+                            return IrExpr::Var("undefined".to_string());
+                        };
+                        let Some(prelude) = self.program.prelude() else {
+                            self.diag(span, "the `value` prelude is missing");
+                            return IrExpr::Var("undefined".to_string());
+                        };
+                        let (key_ty, value_ty) = match ty {
+                            Ty::Map(ref key, ref value) => ((**key).clone(), (**value).clone()),
+                            _ => (Ty::Error, Ty::Error),
+                        };
+                        return IrExpr::MapFrom {
+                            entries: Box::new(self.expr(items[0])),
+                            key_ty,
+                            value_ty,
+                            ty,
+                            prelude,
+                        };
+                    }
                     if (owner == "map" || owner == "set") && name == "empty" {
                         let Some(items) = self.positional(args, span) else {
                             return IrExpr::Var("undefined".to_string());
@@ -1012,31 +1069,56 @@ impl<'a> Lowerer<'a> {
                     Ty::Option(_) => "none".to_string(),
                     _ => "None".to_string(),
                 },
-                bindings: Vec::new(),
+                args: Vec::new(),
             },
             Pattern::Variant { path, args, span } => {
                 let name = path.last().cloned().unwrap_or_default();
                 if let Some((_, payload)) = variants.iter().find(|(variant, _)| *variant == name) {
-                    let mut bindings = Vec::new();
-                    for (arg, payload_ty) in args.iter().zip(payload.iter()) {
-                        match arg {
-                            Pattern::Wildcard { .. } => {}
+                    let args: Vec<IrPattern> = args
+                        .iter()
+                        .zip(payload.iter())
+                        .map(|(arg, payload_ty)| match arg {
+                            Pattern::Wildcard { .. } => IrPattern::Wildcard,
+                            Pattern::NoneLit { .. } => IrPattern::Variant {
+                                variant: match payload_ty {
+                                    Ty::Option(_) => "none".to_string(),
+                                    _ => "None".to_string(),
+                                },
+                                args: Vec::new(),
+                            },
                             Pattern::Variant {
                                 path: inner,
                                 args: inner_args,
-                                ..
-                            } if inner.len() == 1 && inner_args.is_empty() => {
-                                bindings.push((inner[0].clone(), payload_ty.clone()));
+                                span: inner_span,
+                            } => {
+                                let inner_name = inner.last().cloned().unwrap_or_default();
+                                if inner.len() == 1 && inner_args.is_empty() {
+                                    IrPattern::Binding {
+                                        name: inner_name,
+                                        ty: payload_ty.clone(),
+                                    }
+                                } else {
+                                    let inner_variants =
+                                        self.variants_of(payload_ty).unwrap_or_default();
+                                    let lowered = self.pattern(arg, payload_ty, &inner_variants);
+                                    if matches!(lowered, IrPattern::Wildcard)
+                                        && inner_variants.is_empty()
+                                    {
+                                        self.diag(
+                                            *inner_span,
+                                            format!(
+                                                "`{inner_name}` is not a variant of this value"
+                                            ),
+                                        );
+                                    }
+                                    lowered
+                                }
                             }
-                            _ => self.diag(
-                                *span,
-                                "nested patterns are not supported by the v1 backend yet",
-                            ),
-                        }
-                    }
+                        })
+                        .collect();
                     IrPattern::Variant {
                         variant: runtime_tag(scrutinee_ty, &name),
-                        bindings,
+                        args,
                     }
                 } else if path.len() == 1 && args.is_empty() {
                     IrPattern::Binding {

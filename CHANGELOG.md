@@ -19,6 +19,21 @@
 - Kasus playground `collections/index`, `types/json`, `modules/qualified` dan conformance
   `indexing.lt`, `qualified.lt`, `json.lt`.
 
+### Added
+
+- **Nested patterns**: `Ok(Value.Int(n))`, `Some(Some(x))`, dan pola bertingkat lain kini
+  diterima sampai kedalaman bebas. Exhaustiveness hanya diperiksa di level varian teratas; arm
+  yang tidak cocok jatuh ke arm berikutnya, dan bila tidak ada yang cocok runtime melaporkan
+  `unreachable`.
+- **`break` / `continue`** sebagai statement, hanya sah di dalam loop terdekat.
+- **`for` atas `Map`/`Dict`** mengiterasi key (`for k in m`), bukan hanya `List`.
+- **`map.from(List<Entry<K, V>>)`** membangun map dalam satu kali sortir; `Entry<K, V>` berasal
+  dari prelude dan terlihat tanpa import.
+- Prelude `value` hanya di-emit bila ada modul yang benar-benar menyebut `Value`/`Entry`
+  (`json.*`/`map.from`), sehingga build yang tidak menyentuhnya tidak berubah.
+- Kasus playground `control/loops` dan `types/nested_match`, conformance
+  `control_flow.lt`, `map_from.lt`, `nested_patterns.lt`.
+
 ## 0.4.0 — 2026-11-28
 
 ### Added

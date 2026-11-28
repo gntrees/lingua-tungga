@@ -766,6 +766,13 @@ def json_stringify(value: Any) -> str:
         )
     raise AssertionError(f"json.stringify needs a Value, found {tag}")
 
+def map_from(
+    entries: "LList[E]", key: Callable[[E], K], value: Callable[[E], V]
+) -> "LMap[K, V]":
+    """One bulk build: collect every pair, then sort and dedupe once."""
+    return LMap.create((key(entry), value(entry)) for entry in entries.items)
+
+
 # --- Test assertions --------------------------------------------------------
 
 

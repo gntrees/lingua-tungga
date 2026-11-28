@@ -1,0 +1,11 @@
+package map_from {
+  export fn build() -> Map<Int, Str> {
+    map.from([Entry(key: 2, value: "b"), Entry(key: 1, value: "a")])
+  }
+
+  test "bulk build sorts once" {
+    expect.eq(build().keys(), [1, 2])
+    expect.eq(build().get(1), Some("a"))
+    expect.eq(build().len(), 2)
+  }
+}

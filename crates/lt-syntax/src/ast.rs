@@ -190,6 +190,12 @@ pub enum Stmt {
         value: Option<Expr>,
         span: Span,
     },
+    Break {
+        span: Span,
+    },
+    Continue {
+        span: Span,
+    },
     For {
         var: String,
         iter: Expr,
@@ -210,6 +216,8 @@ impl Stmt {
             Stmt::Let { span, .. }
             | Stmt::Assign { span, .. }
             | Stmt::Return { span, .. }
+            | Stmt::Break { span }
+            | Stmt::Continue { span }
             | Stmt::For { span, .. }
             | Stmt::While { span, .. } => *span,
             Stmt::Expr(e) => e.span(),

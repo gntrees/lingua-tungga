@@ -44,11 +44,15 @@ class User:
 
 def label(u: User) -> str:
     __match1 = u.role
-    if __match1.tag == "Admin":
+    __matched2 = False
+    if not __matched2 and __match1.tag == "Admin":
         return "admin"
-    elif __match1.tag == "Member":
+        __matched2 = True
+    if not __matched2 and __match1.tag == "Member":
         level: int = __match1.values[0]
         return "member-" + _lt.disp(level)
-    else:
+        __matched2 = True
+    if not __matched2:
         raise AssertionError("unreachable")
+    raise AssertionError("unreachable")
 

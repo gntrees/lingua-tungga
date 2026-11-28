@@ -815,6 +815,15 @@ func (d Dict[V]) LtDisplay() string {
 	return "Dict(" + strings.Join(parts, ", ") + ")"
 }
 
+// MapFrom is one bulk build: collect every pair, then sort and dedupe once.
+func MapFrom[K any, V any, E any](entries List[E], key func(E) K, value func(E) V) Map[K, V] {
+	pairs := make([]Entry[K, V], 0, len(entries.Items))
+	for _, entry := range entries.Items {
+		pairs = append(pairs, Entry[K, V]{Key: key(entry), Value: value(entry)})
+	}
+	return mapOf(pairs)
+}
+
 // --- Str helpers (indexing is by Unicode code point) -----------------------
 
 func StrLen(value string) int64 { return int64(len([]rune(value))) }

@@ -115,6 +115,30 @@ fn quote(value: &str) -> String {
     out
 }
 
+/// Nested `if` levels a pattern needs (the body sits that much deeper).
+fn arm_args(pattern: &IrPattern) -> &[IrPattern] {
+    match pattern {
+        IrPattern::Variant { args, .. } => args,
+        _ => &[],
+    }
+}
+
+fn arm_depth(pattern: &IrPattern) -> usize {
+    match pattern {
+        IrPattern::Variant { args, .. } => args.iter().map(arm_depth).max().unwrap_or(0) + 1,
+        _ => 0,
+    }
+}
+
+/// Every name a pattern binds, in source order.
+fn pattern_bindings(pattern: &IrPattern) -> Vec<(String, Ty)> {
+    match pattern {
+        IrPattern::Binding { name, ty } => vec![(name.clone(), ty.clone())],
+        IrPattern::Variant { args, .. } => args.iter().flat_map(pattern_bindings).collect(),
+        IrPattern::Wildcard => Vec::new(),
+    }
+}
+
 fn indent(level: usize) -> String {
     "    ".repeat(level)
 }
@@ -666,6 +690,8 @@ impl<'a> Emitter<'a> {
     fn stmt(&mut self, stmt: &IrStmt, level: usize, tail: &Tail) -> Vec<String> {
         let pad = indent(level);
         match stmt {
+            IrStmt::Break => vec![format!("{pad}break")],
+            IrStmt::Continue => vec![format!("{pad}continue")],
             IrStmt::Let {
                 name, ty, value, ..
             } => {
@@ -798,87 +824,138 @@ impl<'a> Emitter<'a> {
             scrutinee, arms, ..
         } = expr
         else {
-            unreachable!("match_stmt expects `match`")
+            unreachable!("match_stmt expects a `match`")
         };
         let pad = indent(level);
         let scrutinee_frag = self.expr(scrutinee, level);
         let binding = self.temp("match");
+        let done = self.temp("matched");
         let mut lines = scrutinee_frag.prelude;
         lines.push(format!("{pad}{binding} = {}", scrutinee_frag.code));
+        // Nested patterns need a "keep trying the next arm" flag: `elif` cannot
+        // fall through when an inner pattern fails.
+        lines.push(format!("{pad}{done} = False"));
 
-        let mut first = true;
+        let mut catch_all = false;
         for arm in arms {
+            let depth = arm_args(&arm.pattern)
+                .iter()
+                .map(arm_depth)
+                .max()
+                .unwrap_or(0);
+            let body_level = level + 1 + depth;
             match &arm.pattern {
-                IrPattern::Variant { variant, bindings } => {
-                    let keyword = if first { "if" } else { "elif" };
+                IrPattern::Variant { variant, args } => {
                     lines.push(format!(
-                        "{pad}{keyword} {binding}.tag == {}:",
+                        "{pad}if not {done} and {binding}.tag == {}:",
                         quote(variant)
                     ));
-                    let body_level = level + 1;
-                    let mut body = Vec::new();
                     let mut scope = std::collections::HashMap::new();
-                    for (index, (name, ty)) in bindings.iter().enumerate() {
-                        let declared = self.type_ref(ty);
-                        let local = self.declare(name);
-                        scope.insert(name.clone(), local.clone());
-                        body.push(format!(
-                            "{}{}: {} = {binding}.values[{index}]",
-                            indent(body_level),
-                            local,
-                            declared
-                        ));
+                    for (name, _) in pattern_bindings(&arm.pattern) {
+                        scope.insert(name.clone(), self.declare(&name));
                     }
-                    self.aliases.push(scope);
-                    body.extend(self.block_lines(&arm.body, body_level, tail));
+                    self.aliases.push(scope.clone());
+                    let mut core = self.block_lines(&arm.body, body_level, tail);
                     self.aliases.pop();
-                    if body.is_empty() {
-                        body.push(format!("{}pass", indent(body_level)));
+                    if core.is_empty() {
+                        core.push(format!("{}pass", indent(body_level)));
                     }
-                    lines.extend(body);
-                    first = false;
+                    core.push(format!("{}{} = True", indent(body_level), done));
+                    let mut inner = core;
+                    for index in (0..args.len()).rev() {
+                        inner = self.pattern_block(
+                            &args[index],
+                            &format!("{binding}.values[{index}]"),
+                            level + 1,
+                            &scope,
+                            inner,
+                        );
+                    }
+                    lines.extend(inner);
                 }
                 IrPattern::Binding { name, ty } => {
+                    catch_all = true;
                     let declared = self.type_ref(ty);
-                    lines.push(format!("{pad}else:"));
-                    let body_level = level + 1;
+                    lines.push(format!("{pad}if not {done}:"));
                     let local = self.declare(name);
                     let mut scope = std::collections::HashMap::new();
                     scope.insert(name.clone(), local.clone());
                     let mut body = vec![format!(
                         "{}{}: {} = {binding}",
-                        indent(body_level),
+                        indent(level + 1),
                         local,
                         declared
                     )];
                     self.aliases.push(scope);
-                    body.extend(self.block_lines(&arm.body, body_level, tail));
+                    body.extend(self.block_lines(&arm.body, level + 1, tail));
                     self.aliases.pop();
+                    body.push(format!("{}{} = True", indent(level + 1), done));
                     lines.extend(body);
-                    first = false;
                 }
                 IrPattern::Wildcard => {
-                    lines.push(format!("{pad}else:"));
+                    catch_all = true;
+                    lines.push(format!("{pad}if not {done}:"));
                     lines.extend(self.indented_block(&arm.body, level + 1, tail));
-                    first = false;
+                    lines.push(format!("{}{} = True", indent(level + 1), done));
                 }
             }
         }
 
-        if first {
-            lines.push(format!("{pad}raise AssertionError(\"unreachable\")"));
-        } else if !matches!(
-            arms.last().map(|arm| &arm.pattern),
-            Some(IrPattern::Binding { .. }) | Some(IrPattern::Wildcard)
-        ) {
-            lines.push(format!("{pad}else:"));
+        if !catch_all {
+            lines.push(format!("{pad}if not {done}:"));
             lines.push(format!(
                 "{}raise AssertionError(\"unreachable\")",
                 indent(level + 1)
             ));
+            if matches!(tail, Tail::Return) {
+                // Every arm returned, so this is unreachable; it is here only so
+                // the checker sees a terminating statement.
+                lines.push(format!("{pad}raise AssertionError(\"unreachable\")"));
+            }
         }
 
         lines
+    }
+
+    /// Lines that bind and run `core` when the nested pattern matches; when it
+    /// does not, the arm's flag stays false and the next arm is tried.
+    fn pattern_block(
+        &mut self,
+        pattern: &IrPattern,
+        value: &str,
+        level: usize,
+        scope: &std::collections::HashMap<String, String>,
+        core: Vec<String>,
+    ) -> Vec<String> {
+        let pad = indent(level);
+        match pattern {
+            IrPattern::Wildcard => core,
+            IrPattern::Binding { name, ty } => {
+                let declared = self.type_ref(ty);
+                let local = scope.get(name).cloned().unwrap_or_else(|| member(name));
+                let mut lines = vec![format!("{pad}{local}: {declared} = {value}")];
+                lines.extend(core);
+                lines
+            }
+            IrPattern::Variant { variant, args } => {
+                let mut lines = vec![format!("{pad}if {value}.tag == {}:", quote(variant))];
+                let mut inner = core;
+                for index in (0..args.len()).rev() {
+                    inner = self.pattern_block(
+                        &args[index],
+                        &format!("{value}.values[{index}]"),
+                        level + 1,
+                        scope,
+                        inner,
+                    );
+                }
+                if inner.is_empty() {
+                    lines.push(format!("{}pass", indent(level + 1)));
+                }
+                lines.extend(inner);
+                lines
+            }
+        }
     }
 
     // ---------------------------------------------------------- expressions
@@ -953,6 +1030,19 @@ impl<'a> Emitter<'a> {
                 Frag {
                     prelude,
                     code: format!("_lt.LList({tuple})"),
+                }
+            }
+            IrExpr::MapFrom {
+                entries, prelude, ..
+            } => {
+                self.use_module(*prelude);
+                let frag = self.expr(entries, level);
+                Frag {
+                    prelude: frag.prelude,
+                    code: format!(
+                        "_lt.map_from({}, lambda __entry: __entry.key, lambda __entry: __entry.value)",
+                        frag.code
+                    ),
                 }
             }
             IrExpr::Json {

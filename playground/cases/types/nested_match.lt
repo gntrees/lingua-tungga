@@ -1,0 +1,27 @@
+package nested_match_case {
+  export fn unwrap_nested(x: Option<Option<Int>>) -> Int {
+    match x {
+      Some(Some(n)) => n
+      Some(None) => 0
+      None => -1
+    }
+  }
+
+  export fn kind(text: Str) -> Str {
+    match json.parse(text) {
+      Ok(Value.Int(n)) => `int ${n}`
+      Ok(Value.Str(s)) => `str ${s}`
+      Ok(other) => "other"
+      Err(message) => message
+    }
+  }
+
+  test "patterns nest to any depth" {
+    expect.eq(unwrap_nested(Some(Some(3))), 3)
+    expect.eq(unwrap_nested(Some(None)), 0)
+    expect.eq(unwrap_nested(None), -1)
+    expect.eq(kind("1"), "int 1")
+    expect.eq(kind(`"x"`), "str x")
+    expect.eq(kind("true"), "other")
+  }
+}

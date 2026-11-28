@@ -91,6 +91,14 @@ fn quote(value: &str) -> String {
     out
 }
 
+/// How many nested `if`s a pattern needs (the body sits that much deeper).
+fn pattern_depth(pattern: &IrPattern) -> usize {
+    match pattern {
+        IrPattern::Variant { args, .. } => args.iter().map(pattern_depth).max().unwrap_or(0) + 1,
+        _ => 0,
+    }
+}
+
 fn indent(level: usize) -> String {
     "  ".repeat(level)
 }
@@ -555,7 +563,11 @@ impl<'a> Emitter<'a> {
                     let cast = if class.generics.is_empty() {
                         class.name.clone()
                     } else {
-                        format!("{}<any>", class.name)
+                        format!(
+                            "{}<{}>",
+                            class.name,
+                            vec!["any"; class.generics.len()].join(", ")
+                        )
                     };
                     format!("lt.eq(this.{name}, (other as {cast}).{name})")
                 })
@@ -568,7 +580,11 @@ impl<'a> Emitter<'a> {
         let cast = if class.generics.is_empty() {
             class.name.clone()
         } else {
-            format!("{}<any>", class.name)
+            format!(
+                "{}<{}>",
+                class.name,
+                vec!["any"; class.generics.len()].join(", ")
+            )
         };
         out.push_str(&format!(
             "    if (!(other instanceof {})) return 0;\n",
@@ -672,6 +688,8 @@ impl<'a> Emitter<'a> {
     fn stmt(&mut self, stmt: &IrStmt, level: usize, tail: &Tail) -> Vec<String> {
         let pad = indent(level);
         match stmt {
+            IrStmt::Break => vec![format!("{pad}break;")],
+            IrStmt::Continue => vec![format!("{pad}continue;")],
             IrStmt::Let {
                 name,
                 ty,
@@ -818,19 +836,25 @@ impl<'a> Emitter<'a> {
         let mut catch_all = false;
         for arm in arms {
             match &arm.pattern {
-                IrPattern::Variant { variant, bindings } => {
+                IrPattern::Variant { variant, args } => {
                     lines.push(format!("{pad}  case {}: {{", quote(variant)));
-                    for (index, (name, ty)) in bindings.iter().enumerate() {
-                        lines.push(format!(
-                            "{pad}    const {}: {} = {binding}.values[{index}];",
-                            camel(name),
-                            self.type_ref(ty)
-                        ));
-                    }
-                    lines.extend(self.block_lines(&arm.body, level + 2, tail));
+                    let depth = args.iter().map(pattern_depth).max().unwrap_or(0);
+                    let mut core = self.block_lines(&arm.body, level + 2 + depth, tail);
                     if needs_break {
-                        lines.push(format!("{pad}    break;"));
+                        core.push(format!("{}break;", indent(level + 2 + depth)));
                     }
+                    let mut inner = core;
+                    for index in (0..args.len()).rev() {
+                        inner = self.pattern_block(
+                            &args[index],
+                            &format!("{binding}.values[{index}]"),
+                            level + 2,
+                            inner,
+                        );
+                    }
+                    lines.extend(inner);
+                    // No `break` outside the guard: an inner pattern that does not
+                    // match falls through to the next case.
                     lines.push(format!("{pad}  }}"));
                 }
                 IrPattern::Binding { name, ty } => {
@@ -867,6 +891,45 @@ impl<'a> Emitter<'a> {
 
         lines.push(format!("{pad}}}"));
         lines
+    }
+
+    /// Lines that run `core` when `pattern` matches, and do nothing (so the
+    /// enclosing `switch` falls through) otherwise.
+    fn pattern_block(
+        &mut self,
+        pattern: &IrPattern,
+        value: &str,
+        level: usize,
+        core: Vec<String>,
+    ) -> Vec<String> {
+        let pad = indent(level);
+        match pattern {
+            IrPattern::Wildcard => core,
+            IrPattern::Binding { name, ty } => {
+                let mut lines = vec![format!(
+                    "{pad}const {}: {} = {value};",
+                    camel(name),
+                    self.type_ref(ty)
+                )];
+                lines.extend(core);
+                lines
+            }
+            IrPattern::Variant { variant, args } => {
+                let mut lines = vec![format!("{pad}if ({value}.tag === {}) {{", quote(variant))];
+                let mut inner = core;
+                for index in (0..args.len()).rev() {
+                    inner = self.pattern_block(
+                        &args[index],
+                        &format!("{value}.values[{index}]"),
+                        level + 1,
+                        inner,
+                    );
+                }
+                lines.extend(inner);
+                lines.push(format!("{pad}}}"));
+                lines
+            }
+        }
     }
 
     // ----------------------------------------------------------- expressions
@@ -924,6 +987,26 @@ impl<'a> Emitter<'a> {
                 Frag {
                     prelude,
                     code: format!("new lt.LList<{element}>([{}])", rendered.join(", ")),
+                }
+            }
+            IrExpr::MapFrom {
+                entries,
+                key_ty,
+                value_ty,
+                prelude,
+                ..
+            } => {
+                self.use_module(*prelude);
+                let frag = self.expr(entries, level);
+                let key = self.type_ref(key_ty);
+                let value = self.type_ref(value_ty);
+                let entry = format!("m{}.Entry<{key}, {value}>", prelude);
+                Frag {
+                    prelude: frag.prelude,
+                    code: format!(
+                        "lt.mapFrom<{key}, {value}, {entry}>({}, (__entry) => __entry.key, (__entry) => __entry.value)",
+                        frag.code
+                    ),
                 }
             }
             IrExpr::Json {

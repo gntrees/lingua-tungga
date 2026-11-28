@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generated_at": "2026-11-28T13:28:49Z",
+  "generated_at": "2026-11-28T14:31:08Z",
   "cases": {
     "bindings/export_let": {
       "ts": {
@@ -407,6 +407,32 @@
           "3",
           "1",
           "true"
+        ]
+      }
+    },
+    "control/loops": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "4",
+          "ba",
+          "v"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "4",
+          "ba",
+          "v"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "4",
+          "ba",
+          "v"
         ]
       }
     },
@@ -1362,6 +1388,41 @@
           "float 1.0",
           "{\"b\":2,\"a\":[1,2.5,\"x\",true,null]}",
           "expected a key at offset 1"
+        ]
+      }
+    },
+    "types/nested_match": {
+      "ts": {
+        "status": "pass",
+        "lines": [
+          "3",
+          "0",
+          "-1",
+          "int 1",
+          "str x",
+          "other"
+        ]
+      },
+      "py": {
+        "status": "pass",
+        "lines": [
+          "3",
+          "0",
+          "-1",
+          "int 1",
+          "str x",
+          "other"
+        ]
+      },
+      "go": {
+        "status": "pass",
+        "lines": [
+          "3",
+          "0",
+          "-1",
+          "int 1",
+          "str x",
+          "other"
         ]
       }
     },

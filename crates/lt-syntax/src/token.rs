@@ -28,6 +28,8 @@ pub enum TokenKind {
     Let,
     Mut,
     Return,
+    Break,
+    Continue,
     If,
     Else,
     For,
@@ -128,6 +130,8 @@ impl TokenKind {
             TokenKind::Let => "let",
             TokenKind::Mut => "mut",
             TokenKind::Return => "return",
+            TokenKind::Break => "break",
+            TokenKind::Continue => "continue",
             TokenKind::If => "if",
             TokenKind::Else => "else",
             TokenKind::For => "for",
@@ -191,6 +195,8 @@ impl TokenKind {
                 | TokenKind::Let
                 | TokenKind::Mut
                 | TokenKind::Return
+                | TokenKind::Break
+                | TokenKind::Continue
                 | TokenKind::If
                 | TokenKind::Else
                 | TokenKind::For

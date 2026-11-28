@@ -1,0 +1,27 @@
+package nested_patterns {
+  export fn unwrap_nested(x: Option<Option<Int>>) -> Int {
+    match x {
+      Some(Some(n)) => n
+      Some(None) => 0
+      None => -1
+    }
+  }
+
+  export fn json_kind(text: Str) -> Str {
+    match json.parse(text) {
+      Ok(Value.Int(n)) => `int ${n}`
+      Ok(Value.Str(s)) => `str ${s}`
+      Ok(other) => "other"
+      Err(message) => message
+    }
+  }
+
+  test "nested patterns" {
+    expect.eq(unwrap_nested(Some(Some(3))), 3)
+    expect.eq(unwrap_nested(Some(None)), 0)
+    expect.eq(unwrap_nested(None), -1)
+    expect.eq(json_kind("1"), "int 1")
+    expect.eq(json_kind(`"x"`), "str x")
+    expect.eq(json_kind("true"), "other")
+  }
+}

@@ -191,6 +191,16 @@ title = "Immutable ordered Map"
 spec = "#5.2"
 
 [[feature]]
+id = "control/loops"
+title = "break, continue, and `for` over keys"
+spec = "#8"
+
+[[feature]]
+id = "types/nested-match"
+title = "Nested patterns"
+spec = "#8"
+
+[[feature]]
 id = "collections/index"
 title = "Indexing returns Option"
 spec = "#5.2"

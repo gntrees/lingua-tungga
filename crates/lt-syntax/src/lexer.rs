@@ -491,6 +491,8 @@ impl<'a> Lexer<'a> {
             "let" => TokenKind::Let,
             "mut" => TokenKind::Mut,
             "return" => TokenKind::Return,
+            "break" => TokenKind::Break,
+            "continue" => TokenKind::Continue,
             "if" => TokenKind::If,
             "else" => TokenKind::Else,
             "for" => TokenKind::For,

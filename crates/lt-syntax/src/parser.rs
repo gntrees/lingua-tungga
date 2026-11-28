@@ -903,6 +903,14 @@ impl<'a> Parser<'a> {
         match self.peek().kind {
             TokenKind::Let => self.parse_let(),
             TokenKind::Return => self.parse_return(),
+            TokenKind::Break => {
+                let span = self.bump().span;
+                Some(Stmt::Break { span })
+            }
+            TokenKind::Continue => {
+                let span = self.bump().span;
+                Some(Stmt::Continue { span })
+            }
             TokenKind::For => self.parse_for(),
             TokenKind::While => self.parse_while(),
             _ => {

@@ -1,0 +1,33 @@
+package loops_case {
+  export fn newest_first(version: Str) -> Str {
+    "v"
+  }
+
+  export fn sum_until(xs: List<Int>) -> Int {
+    let mut total = 0
+    for x in xs {
+      if x < 0 {
+        continue
+      }
+      if x > 100 {
+        break
+      }
+      total = total + x
+    }
+    total
+  }
+
+  test "break and continue stop a loop" {
+    expect.eq(sum_until([1, -2, 3, 200, 4]), 4)
+  }
+
+  test "for walks map keys" {
+    let d: Dict<Int> = ["b": 2, "a": 1]
+    let mut keys = ""
+    for k in d {
+      keys = `${keys}${k}`
+    }
+    expect.eq(keys, "ba")
+    expect.eq(newest_first("x"), "v")
+  }
+}

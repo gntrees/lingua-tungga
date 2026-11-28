@@ -177,6 +177,9 @@ berikutnya adalah dua statement.
 `Display`-nya mengikuti urutan penulisan. `keys()`/`values()` juga mengikuti urutan itu.
 Meng-`insert` key yang sudah ada mempertahankan posisinya dan menimpa nilainya.
 
+`map.from(entries)` membangun `Map<K, V>` dalam satu kali sortir dari `List<Entry<K, V>>`;
+`Entry<K, V> { key: K, value: V }` berasal dari prelude dan terlihat tanpa import.
+
 ### 5.3 Option & Result
 
 ```lt
@@ -335,7 +338,8 @@ test "formats with currency" {
 
 ## 7. Statement & Ekspresi
 
-**Statement:** `let`, assignment (hanya untuk `mut`), `return`, `if`, `for`, `while`, ekspresi.
+**Statement:** `let`, assignment (hanya untuk `mut`), `return`, `if`, `for`, `while`, `break`,
+`continue`, ekspresi. Dua statement pada baris yang sama = compile error.
 
 **Ekspresi:** literal, identifier, konstruksi struct, pemanggilan fungsi, pemanggilan receiver,
 akses field, path berkualifikasi, `[]` list literal, `[:]`/`["k": v]` dict literal, `match`,
@@ -349,8 +353,11 @@ terakhirnya. Blok lepas adalah statement-only; `let x = { … }` ilegal.
 luar (tidak ada closure mutable). Lambda tidak boleh mengembalikan `Result` lalu memakai `?` di
 dalamnya.
 
-**`match`** wajib exhaustive. Pola: `_`, `None`, `Variant`, `Variant(p, ...)`. Tanpa guard, tanpa
-destructuring struct, tanpa pola literal. Pola bertingkat (mis. `Ok(Some(x))`) ditolak compiler.
+**`match`** wajib exhaustive pada level varian teratas. Pola: `_`, `None`, `Variant`,
+`Variant(p, ...)` dengan `p` boleh pola lain — jadi `Ok(Value.Int(n))` dan `Some(Some(x))` sah.
+Tanpa guard, tanpa destructuring struct, tanpa pola literal. Exhaustiveness pola bertingkat tidak
+diperiksa; arm yang tidak cocok jatuh ke arm berikutnya, dan bila tidak ada yang cocok runtime
+melaporkan `unreachable`.
 
 ```lt
 match role {
@@ -360,8 +367,10 @@ match role {
 }
 ```
 
-**Loop:** `for x in list` (hanya `List`, bukan `Map`/`Set` — pakai `.keys()`/`.values()`), dan
-`while cond`. Perubahan state loop hanya lewat `let mut` lokal.
+**Loop:** `for x in list`, `for key in map`, dan `for key in dict` — `Map`/`Dict` diiterasi lewat
+key-nya (pakai `.values()` untuk nilainya); `Set` belum bisa diiterasi langsung. `while cond`.
+`break` dan `continue` hanya sah di dalam loop terdekat. Perubahan state loop hanya lewat
+`let mut` lokal.
 
 **Path berkualifikasi:** maksimum 3 segmen.
 
