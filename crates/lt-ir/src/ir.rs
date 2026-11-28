@@ -173,6 +173,7 @@ pub enum IrExpr {
     /// constructors the runtime needs when parsing.
     Json {
         parse: bool,
+        pretty: bool,
         args: Vec<IrExpr>,
         prelude: ModuleId,
         ty: Ty,

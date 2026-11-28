@@ -636,7 +636,7 @@ package. Semuanya tersedia tanpa `import`.
 | `option` | `is_some`, `is_none`, `unwrap`, `unwrap_or`, `map`, `and_then` |
 | `result` | `is_ok`, `is_err`, `unwrap`, `unwrap_or`, `map`, `map_err`, `and_then` |
 | `math` | `abs`, `min`, `max`, `floor`, `ceil`, `round`, `sqrt`, `pow`, `pi` — semuanya `Float` |
-| `json` | `parse(Str) -> Result<Value, Str>`, `stringify(Value) -> Str` |
+| `json` | `parse(Str) -> Result<Value, Str>`, `stringify(Value) -> Str`, `pretty(Value, Int) -> Str` |
 | `Value` | enum bawaan dari prelude `value`: `Null`, `Bool(Bool)`, `Int(Int)`, `Float(Float)`, `Str(Str)`, `Array(List<Value>)`, `Object(Dict<Value>)` |
 | `expect` | `eq`, `not_equal`, `true`, `false` (hanya sah di dalam `test`) |
 | Enum bawaan | `Ordering` (`Less`, `Equal`, `Greater`) dan `Value` (lihat tabel di atas) |

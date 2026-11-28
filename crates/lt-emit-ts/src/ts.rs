@@ -1041,6 +1041,7 @@ impl<'a> Emitter<'a> {
             }
             IrExpr::Json {
                 parse,
+                pretty,
                 args,
                 prelude,
                 ..
@@ -1057,6 +1058,8 @@ impl<'a> Emitter<'a> {
                 let code = if *parse {
                     self.use_module(*prelude);
                     format!("lt.jsonParse({}, m{}.Value)", rendered.join(", "), prelude)
+                } else if *pretty {
+                    format!("lt.jsonPretty({}, {})", rendered[0], rendered[1])
                 } else {
                     format!("lt.jsonStringify({})", rendered.join(", "))
                 };

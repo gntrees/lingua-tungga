@@ -41,7 +41,8 @@
 - **Or-pattern** (`E.A(n) | E.B(n) => …`) dan **guard** (`Some(n) if n > 0 => …`). Setiap
   alternatif harus mengikat nama dan tipe yang sama; arm berguard tidak dihitung sebagai
   penutup exhaustiveness.
-- Kasus conformance `guards.lt` dan `str_and_set.lt`.
+- **`json.pretty(Value, Int)`** mencetak JSON berindentasi (`0` = kompak).
+- Kasus conformance `guards.lt`, `str_and_set.lt`, dan `json_pretty.lt`.
 
 ## 0.4.0 — 2026-11-28
 

@@ -2307,6 +2307,27 @@ impl<'a> Checker<'a> {
                                     );
                                     return Ty::result(value_ty, Ty::Str);
                                 }
+                                "pretty" => {
+                                    if items.len() != 2 {
+                                        self.diag(span, "`json.pretty` expects 2 arguments");
+                                        return Ty::Error;
+                                    }
+                                    let arg = self.check_expr(items[0], Some(&value_ty));
+                                    self.expect(
+                                        items[0].span(),
+                                        &value_ty,
+                                        &arg,
+                                        " in `json.pretty`",
+                                    );
+                                    let indent = self.check_expr(items[1], Some(&Ty::Int));
+                                    self.expect(
+                                        items[1].span(),
+                                        &Ty::Int,
+                                        &indent,
+                                        " in `json.pretty`",
+                                    );
+                                    return Ty::Str;
+                                }
                                 "stringify" => {
                                     if items.len() != 1 {
                                         self.diag(span, "`json.stringify` expects 1 argument");

@@ -1314,6 +1314,44 @@ func StrChar(value string, index int64) Variant {
 	return Some(string(chars[index]))
 }
 
+func jsonPrettyAt(value Variant, unit string, depth int) string {
+	inner := strings.Repeat(unit, depth+1)
+	outer := strings.Repeat(unit, depth)
+	switch value.Tag {
+	case "Array":
+		items := value.Values[0].(List[Variant]).Items
+		if len(items) == 0 {
+			return "[]"
+		}
+		parts := make([]string, len(items))
+		for index, item := range items {
+			parts[index] = inner + jsonPrettyAt(item, unit, depth+1)
+		}
+		return "[\n" + strings.Join(parts, ",\n") + "\n" + outer + "]"
+	case "Object":
+		entries := value.Values[0].(Dict[Variant]).Entries
+		if len(entries) == 0 {
+			return "{}"
+		}
+		parts := make([]string, len(entries))
+		for index, entry := range entries {
+			encoded, _ := json.Marshal(entry.Key)
+			parts[index] = inner + string(encoded) + ": " + jsonPrettyAt(entry.Value, unit, depth+1)
+		}
+		return "{\n" + strings.Join(parts, ",\n") + "\n" + outer + "}"
+	}
+	return JSONStringify(value)
+}
+
+// JSONPretty renders indented JSON; indent is the number of spaces per level.
+func JSONPretty(value Variant, indent int64) string {
+	width := int(indent)
+	if width < 0 {
+		width = 0
+	}
+	return jsonPrettyAt(value, strings.Repeat(" ", width), 0)
+}
+
 // --- Test assertions -------------------------------------------------------
 
 func ExpectEqual(actual any, expected any) {

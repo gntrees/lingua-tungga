@@ -794,6 +794,33 @@ export function strChar(value: string, index: bigint): Opt<string> {
   return Some(chars[position]);
 }
 
+function jsonPrettyAt(value: unknown, unit: string, depth: number): string {
+  const tagged = value as any;
+  const inner = unit.repeat(depth + 1);
+  const outer = unit.repeat(depth);
+  if (tagged.tag === "Array") {
+    const items = (tagged.values[0] as LList<unknown>).items;
+    if (items.length === 0) return "[]";
+    const parts = items.map((item) => inner + jsonPrettyAt(item, unit, depth + 1));
+    return `[\n${parts.join(",\n")}\n${outer}]`;
+  }
+  if (tagged.tag === "Object") {
+    const entries = (tagged.values[0] as LDict<unknown>).entries;
+    if (entries.length === 0) return "{}";
+    const parts = entries.map(
+      ([key, item]) => `${inner}${jsonQuote(key)}: ${jsonPrettyAt(item, unit, depth + 1)}`,
+    );
+    return `{\n${parts.join(",\n")}\n${outer}}`;
+  }
+  return jsonStringify(value);
+}
+
+/// Indented JSON; `indent` is the number of spaces per level (0 is compact).
+export function jsonPretty(value: unknown, indent: bigint): string {
+  const width = Number(indent);
+  return jsonPrettyAt(value, " ".repeat(width > 0 ? width : 0), 0);
+}
+
 // --- Test assertions -------------------------------------------------------
 export function expectEqual(actual: unknown, expected: unknown): void {
   if (!eq(actual, expected)) {

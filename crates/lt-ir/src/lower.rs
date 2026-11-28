@@ -924,6 +924,7 @@ impl<'a> Lowerer<'a> {
                         };
                         return IrExpr::Json {
                             parse: name == "parse",
+                            pretty: name == "pretty",
                             args: items.iter().map(|item| self.expr(item)).collect(),
                             prelude,
                             ty,

@@ -781,6 +781,32 @@ def str_char(value: str, index: int) -> "Opt[str]":
     return Some(chars[index])
 
 
+def _json_pretty_at(value: Any, unit: str, depth: int) -> str:
+    inner = unit * (depth + 1)
+    outer = unit * depth
+    if value.tag == "Array":
+        items = value.values[0].items
+        if not items:
+            return "[]"
+        parts = [inner + _json_pretty_at(item, unit, depth + 1) for item in items]
+        return "[\n" + ",\n".join(parts) + "\n" + outer + "]"
+    if value.tag == "Object":
+        entries = value.values[0].entries
+        if not entries:
+            return "{}"
+        parts = [
+            inner + json.dumps(key, ensure_ascii=False) + ": " + _json_pretty_at(item, unit, depth + 1)
+            for key, item in entries
+        ]
+        return "{\n" + ",\n".join(parts) + "\n" + outer + "}"
+    return json_stringify(value)
+
+
+def json_pretty(value: Any, indent: int) -> str:
+    """Indented JSON; `indent` is the number of spaces per level (0 is compact)."""
+    return _json_pretty_at(value, " " * max(indent, 0), 0)
+
+
 # --- Test assertions --------------------------------------------------------
 
 

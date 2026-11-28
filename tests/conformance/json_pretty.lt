@@ -1,0 +1,14 @@
+package json_pretty {
+  export fn pretty(text: Str, indent: Int) -> Str {
+    match json.parse(text) {
+      Ok(value) => json.pretty(value, indent)
+      Err(message) => message
+    }
+  }
+
+  test "pretty prints with the requested indent" {
+    expect.eq(pretty(`{"a": [1, true]}`, 2), "{\n  \"a\": [\n    1,\n    true\n  ]\n}")
+    expect.eq(pretty("[]", 2), "[]")
+    expect.eq(pretty(`{"a": 1}`, 0), "{\n\"a\": 1\n}")
+  }
+}
