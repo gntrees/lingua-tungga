@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.1 — 2026-11-28
+
+### Added
+
+- Kata kunci kini **soft** di posisi yang sudah pasti nama: setelah `.` semua
+  kata kunci boleh (`b.from`, `b.match`), begitu juga nama field, label,
+  parameter, dan atribut JSX; nama fungsi/`let`/binding/package serta item import
+  menerima `from`, `as`, dan `in`. Jadi `fn from(r: Range)` + `r.from()` sah,
+  `from` juga boleh jadi nama package. Kata kunci lain tetap ditolak dengan
+  pesan yang menyarankan akhiran `_` (mis. `match_`).
+
 ## 0.3.0 — 2026-11-28 (breaking: import syntax, enum output)
 
 ### Added
@@ -33,12 +44,6 @@
 - Aturan spec §13 yang sebelumnya hanya tertulis di dokumen kini ditegakkan:
   nama import (qualifier maupun hasil destructuring) yang bentrok dengan
   deklarasi package itu, atau yang diimpor dua kali, menjadi compile error.
-- Kata kunci kini **soft** di posisi yang sudah pasti nama: setelah `.` semua
-  kata kunci boleh (`b.from`, `b.match`), begitu juga nama field, label,
-  parameter, dan atribut JSX; nama fungsi/`let`/binding/package serta item import
-  menerima `from`, `as`, dan `in`. Jadi `fn from(r: Range)` + `r.from()` sah,
-  `from` juga boleh jadi nama package. Kata kunci lain tetap ditolak dengan
-  pesan yang menyarankan akhiran `_` (mis. `match_`).
 - Korpus playground (50 kasus) dan seluruh metadata sidecar kini berbahasa Inggris.
 - 24 kasus yang sebelumnya hanya berisi `test` sekarang mengekspor fungsi yang
   dipanggil oleh test-nya, sehingga panel output tidak lagi kosong.

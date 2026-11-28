@@ -15,14 +15,14 @@ export fn format(p: Price) -> Str {
 }
 ```
 
-Rilis dibangun lokal (`./scripts/release.sh v0.3.0 --publish`) — lihat
+Rilis dibangun lokal (`./scripts/release.sh v0.3.1 --publish`) — lihat
 [docs/release.md](docs/release.md).
 
 Pasang compiler (tanpa Rust, binary rilis + verifikasi checksum):
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/gntrees/lingua-tungga/main/scripts/install.sh | bash
-# atau kunci versi: LT_VERSION=v0.3.0 ... | bash
+# atau kunci versi: LT_VERSION=v0.3.1 ... | bash
 # dari sumber: cargo install --path crates/lt-cli
 ```
 
@@ -97,7 +97,7 @@ Lingua Tungga tidak punya runtime sendiri, tidak punya UI, tidak punya `main`, d
 ```sh
 ./scripts/check.sh          # fmt + clippy + test (yang dijalankan CI tiap push)
 ./scripts/check.sh --full   # + conformance tiga target + playground
-./scripts/release.sh v0.3.0 # build rilis lokal (lihat docs/release.md)
+./scripts/release.sh v0.3.1 # build rilis lokal (lihat docs/release.md)
 ```
 
 Pembagian beban: CI per-push hanya ubuntu + target TypeScript; matriks penuh
