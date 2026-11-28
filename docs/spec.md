@@ -78,6 +78,23 @@ tanpa takut siklus.
 menghasilkan error yang menyebut penggantinya (`class` → `package` + `struct`, `pub` → `export`,
 `self` → parameter receiver eksplisit).
 
+**Soft keyword.** Sebuah kata kunci boleh menjadi *nama* bila posisinya sudah pasti nama:
+
+- Setelah `.`, **semua** kata kunci boleh: `b.from`, `b.match`, `b.class`.
+- Nama field, label named argument, parameter, dan atribut JSX boleh **semua** kata kunci, karena
+  posisinya selalu diikuti `:` (atau `=`): `struct Range { from: Int }`, `Range(from: 1)`.
+- Nama fungsi, `let`, binding pola, variabel `for`, assignment target, nama package, serta item
+  dan alias import hanya boleh memakai `from`, `as`, dan `in` — satu-satunya kata kunci yang
+  tidak bisa memulai statement, ekspresi, tipe, atau item. Jadi `fn from(r: Range)` dan
+  `r.from()` sah, sedangkan `fn match(...)` tidak.
+- Nama tipe/struct/enum/varian tidak berubah: wajib `PascalCase`, dan satu-satunya kata kunci
+  kapital adalah `None`.
+
+Memakai kata kunci terlarang di posisi nama menghasilkan error yang menyarankan akhiran `_`
+(mis. `` `match` is a keyword; rename it to `match_` ``). Emitter host meng-angle nama itu bila
+bahasa target membutuhkannya: field `from` menjadi `from` di TypeScript, `from_` di Python, dan
+`From` di Go.
+
 ---
 
 ## 4. Penamaan & Formatting
@@ -453,7 +470,8 @@ let q = query`SELECT * FROM users WHERE id = ${SqlArg.I(id)}`
   package). **Tag huruf kecil = compile error**, karena nama tipe wajib `PascalCase` dan Go
   hanya mengekspor identifier berhuruf besar.
 - Atribut = named argument. Nilai: string literal atau `{expr}`.
-- Atribut bernama kata kunci bahasa (`class`, `for`, `match`, dst.) **dilarang**.
+- Atribut boleh bernama kata kunci, karena posisinya selalu diikuti `=` (`<div class="x">`).
+  Nama atribut yang bukan field struct tetap compile error seperti named argument biasa.
 - Children dikumpulkan menjadi argumen `children` **hanya jika** struct mendeklarasikan field
   `children`. Kalau tidak ada field tersebut tetapi ada children = compile error.
 - Teks polos di antara tag = satu child `Str`. Diperbolehkan hanya jika field `children` bertipe

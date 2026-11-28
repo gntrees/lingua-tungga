@@ -171,6 +171,39 @@ impl TokenKind {
             _ => "",
         }
     }
+
+    /// True for the reserved words. `_` is reserved too, but it is not a word,
+    /// so it is deliberately excluded: it can never stand in for a name.
+    pub fn is_keyword(&self) -> bool {
+        matches!(
+            self,
+            TokenKind::Package
+                | TokenKind::Export
+                | TokenKind::Struct
+                | TokenKind::As
+                | TokenKind::Pub
+                | TokenKind::Class
+                | TokenKind::Test
+                | TokenKind::Enum
+                | TokenKind::Fn
+                | TokenKind::Static
+                | TokenKind::SelfKw
+                | TokenKind::Let
+                | TokenKind::Mut
+                | TokenKind::Return
+                | TokenKind::If
+                | TokenKind::Else
+                | TokenKind::For
+                | TokenKind::In
+                | TokenKind::While
+                | TokenKind::Match
+                | TokenKind::Import
+                | TokenKind::From
+                | TokenKind::True
+                | TokenKind::False
+                | TokenKind::NoneKw
+        )
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

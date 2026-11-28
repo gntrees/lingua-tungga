@@ -198,3 +198,13 @@ Comment        = "//" , { any - newline } , newline
 
 (* Kata kunci v1 yang dihapus TETAP dicadangkan agar errornya jelas:
    class pub static self  *)
+
+(* Soft keyword (lihat spec §7). Posisi yang sudah pasti nama menerima kata
+   kunci: setelah ".", dan sebelum ":" (field, label, parameter, atribut JSX).
+   Nama fungsi/binding/package dan item import hanya menerima from, as, in. *)
+NameAfterDot   = Identifier | Keyword ;   (* b.from, b.match *)
+
+SoftName       = Identifier | "from" | "as" | "in" ;
+
+FieldName      = NameAfterDot ;           (* selalu diikuti ":" *)
+AttrName       = NameAfterDot ;           (* selalu diikuti "=" *)

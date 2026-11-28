@@ -108,6 +108,23 @@ package c {
 }
 
 #[test]
+fn keyword_names_round_trip() {
+    let src = "\
+package keys {
+  export struct Range {
+    from: Int
+  }
+
+  export fn from(r: Range) -> Int {
+    Range(from: r.from)
+  }
+}
+";
+    assert_eq!(fmt(src), src);
+    assert_stable(src);
+}
+
+#[test]
 fn comments_above_an_import_group_stay_above_it() {
     let src = "\
 // header

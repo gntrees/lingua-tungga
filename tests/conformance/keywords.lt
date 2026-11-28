@@ -1,0 +1,37 @@
+package keywords {
+  export struct Range {
+    from: Int
+    to: Int
+  }
+
+  export fn from(r: Range) -> Int {
+    r.from
+  }
+
+  export fn widen(r: Range, delta: Int) -> Range {
+    Range(from: r.from - delta, to: r.to + delta)
+  }
+
+  export fn label() -> Str {
+    `<${range_label(1, 2)}>`
+  }
+
+  fn range_label(from: Int, to: Int) -> Str {
+    `${from}..${to}`
+  }
+
+  export fn shadow() -> Int {
+    let from = 7
+    let in = from + 1
+    let as = in * 2
+    as
+  }
+
+  test "a keyword names a field, a function and a binding" {
+    let base = Range(from: 10, to: 20)
+    expect.eq(base.from(), 10)
+    expect.eq(widen(base, 5).from, 5)
+    expect.eq(label(), "<1..2>")
+    expect.eq(shadow(), 16)
+  }
+}

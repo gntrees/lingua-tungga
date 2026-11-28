@@ -698,6 +698,56 @@ fn error_empty_import_list() {
 }
 
 #[test]
+fn soft_keywords_can_name_declarations_and_members() {
+    let file = parse_ok(
+        "import from \"./from.lt\"\n\n\
+         package keys {\n\
+         \x20 export struct Range {\n\
+         \x20   from: Int\n\
+         \x20 }\n\
+         \n\
+         \x20 export fn from(r: Range) -> Int {\n\
+         \x20   r.from\n\
+         \x20 }\n\
+         \n\
+         \x20 export fn build() -> Range {\n\
+         \x20   let from = 1\n\
+         \x20   Range(from: from)\n\
+         \x20 }\n\
+         }\n",
+    );
+    assert_eq!(file.imports.len(), 1);
+    assert_eq!(file.imports[0].package, "from");
+    let package = first_package(&file);
+    assert_eq!(package.name, "keys");
+    assert_eq!(first_struct(&file).fields[0].name, "from");
+    assert!(package_fn(package, "from").is_export);
+}
+
+#[test]
+fn any_keyword_can_name_a_member() {
+    // The position after `.` already proves this is a name, so even words that
+    // can begin a statement are accepted there.
+    let file = parse_ok(
+        "package a {\n  export fn f(b: Box) -> Int {\n    b.match + b.class + b.fn + b.none\n  }\n}\n",
+    );
+    let package = first_package(&file);
+    assert!(package_fn(package, "f").is_export);
+}
+
+#[test]
+fn reserved_keyword_as_a_name_suggests_an_underscore() {
+    let out = parse("package a {\n  export fn match(x: Int) -> Int {\n    x\n  }\n}");
+    assert!(
+        out.diagnostics.iter().any(|d| d
+            .message
+            .contains("`match` is a keyword; rename it to `match_`")),
+        "{:#?}",
+        out.diagnostics
+    );
+}
+
+#[test]
 fn error_does_not_panic_on_garbage() {
     let out = parse("@@@@ class { fn } } }");
     assert!(!out.diagnostics.is_empty());

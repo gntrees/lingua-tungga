@@ -29,6 +29,37 @@ fn same_kind(a: &TokenKind, b: &TokenKind) -> bool {
     std::mem::discriminant(a) == std::mem::discriminant(b)
 }
 
+/// Keywords that may stand in for a declaration name: none of them can begin a
+/// statement, an expression, a type, or an item, so the position is unambiguous
+/// (`from` in particular is no longer part of the import grammar).
+const SOFT_KEYWORDS: &[&str] = &["from", "as", "in"];
+
+/// Where a name is being read, which decides how much a keyword may step in.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum NameScope {
+    /// Only an identifier: type names, struct/enum/variant names, generic params.
+    Strict,
+    /// Identifiers plus `SOFT_KEYWORDS`: bindings, function names, packages.
+    Soft,
+    /// Any keyword, because the position already proves it is a name: after `.`,
+    /// before `:`, and anywhere else the caller used lookahead.
+    Any,
+}
+
+/// Is this token usable as a name at all (ignoring the keyword tier)?
+fn is_name_token(kind: &TokenKind) -> bool {
+    matches!(kind, TokenKind::Ident(_)) || kind.is_keyword()
+}
+
+/// Is this token a name that needs no lookahead to disambiguate?
+fn is_soft_name_token(kind: &TokenKind) -> bool {
+    match kind {
+        TokenKind::Ident(_) => true,
+        kind if kind.is_keyword() => SOFT_KEYWORDS.contains(&kind.spelling()),
+        _ => false,
+    }
+}
+
 fn is_taggable(expr: &Expr) -> bool {
     matches!(expr, Expr::Ident { .. } | Expr::Field { .. })
 }
@@ -150,51 +181,67 @@ impl<'a> Parser<'a> {
     }
 
     fn expect_ident(&mut self, ctx: &str) -> Option<(String, Span)> {
+        self.expect_name(ctx, NameScope::Strict)
+    }
+
+    /// A declaration name: an identifier, or a keyword that cannot begin a
+    /// statement, expression, type, or item.
+    fn expect_soft_name(&mut self, ctx: &str) -> Option<(String, Span)> {
+        self.expect_name(ctx, NameScope::Soft)
+    }
+
+    /// A name in a position that already proves it is a name (after `.`, before
+    /// `:`), so every keyword is acceptable.
+    fn expect_any_name(&mut self, ctx: &str) -> Option<(String, Span)> {
+        self.expect_name(ctx, NameScope::Any)
+    }
+
+    fn expect_name(&mut self, ctx: &str, scope: NameScope) -> Option<(String, Span)> {
         let token = self.peek().clone();
-        if let TokenKind::Ident(name) = token.kind {
+        if let TokenKind::Ident(name) = token.kind.clone() {
             self.bump();
-            Some((name, token.span))
-        } else {
-            let suffix = if ctx.is_empty() {
-                String::new()
-            } else {
-                format!(" {ctx}")
+            return Some((name, token.span));
+        }
+        if token.kind.is_keyword() {
+            let word = token.kind.spelling();
+            let allowed = match scope {
+                NameScope::Strict => false,
+                NameScope::Soft => SOFT_KEYWORDS.contains(&word),
+                NameScope::Any => true,
             };
+            if allowed {
+                self.bump();
+                return Some((word.to_string(), token.span));
+            }
             self.error(
-                format!(
-                    "expected an identifier{suffix}, found {}",
-                    self.peek().kind.describe()
-                ),
+                format!("`{word}` is a keyword; rename it to `{word}_`"),
                 token.span,
                 token.line,
                 token.col,
             );
-            None
+            return None;
         }
+        let suffix = if ctx.is_empty() {
+            String::new()
+        } else {
+            format!(" {ctx}")
+        };
+        self.error(
+            format!(
+                "expected an identifier{suffix}, found {}",
+                self.peek().kind.describe()
+            ),
+            token.span,
+            token.line,
+            token.col,
+        );
+        None
     }
 
-    /// Member names after `.` may collide with `true`/`false` (e.g. `Expect.true`).
+    /// Member names after `.` may collide with any keyword (`Expect.true`,
+    /// `range.from`), because the position has already settled that it is a name.
     fn expect_member_name(&mut self, ctx: &str) -> Option<(String, Span)> {
-        let token = self.peek().clone();
-        let name = match &token.kind {
-            TokenKind::Ident(name) => name.clone(),
-            TokenKind::True => "true".to_string(),
-            TokenKind::False => "false".to_string(),
-            _ => {
-                self.error(
-                    format!(
-                        "expected a member name {ctx}, found {}",
-                        token.kind.describe()
-                    ),
-                    token.span,
-                    token.line,
-                    token.col,
-                );
-                return None;
-            }
-        };
-        self.bump();
-        Some((name, token.span))
+        self.expect_any_name(ctx)
     }
 
     fn error(&mut self, message: impl Into<String>, span: Span, line: u32, col: u32) {
@@ -345,9 +392,9 @@ impl<'a> Parser<'a> {
             blank_before = self.peek().line > previous + 1;
         }
 
-        let (package, _) = self.expect_ident("after `import`")?;
+        let (package, _) = self.expect_soft_name("after `import`")?;
         let alias = if self.eat(&TokenKind::As).is_some() {
-            Some(self.expect_ident("after `as`")?.0)
+            Some(self.expect_soft_name("after `as`")?.0)
         } else {
             None
         };
@@ -355,9 +402,9 @@ impl<'a> Parser<'a> {
         let mut items = Vec::new();
         if let Some(open) = self.eat(&TokenKind::LBrace) {
             while !self.at(&TokenKind::RBrace) && !self.at_eof() {
-                let (name, nspan) = self.expect_ident("as imported name")?;
+                let (name, nspan) = self.expect_soft_name("as imported name")?;
                 let item_alias = if self.eat(&TokenKind::As).is_some() {
-                    Some(self.expect_ident("after `as`")?.0)
+                    Some(self.expect_soft_name("after `as`")?.0)
                 } else {
                     None
                 };
@@ -450,7 +497,7 @@ impl<'a> Parser<'a> {
             return None;
         }
         let start = self.expect(TokenKind::Package, "")?.span.start;
-        let (name, _) = self.expect_ident("as package name")?;
+        let (name, _) = self.expect_soft_name("as package name")?;
         self.expect(TokenKind::LBrace, "to start the package body")?;
 
         let mut items = Vec::new();
@@ -531,7 +578,9 @@ impl<'a> Parser<'a> {
             }
 
             let before = self.pos;
-            if matches!(self.peek().kind, TokenKind::Ident(_)) {
+            if is_name_token(&self.peek().kind)
+                && same_kind(&self.peek_at(1).kind, &TokenKind::Colon)
+            {
                 if let Some(field) = self.parse_field() {
                     fields.push(field);
                 }
@@ -557,7 +606,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_field(&mut self) -> Option<Field> {
-        let (name, nspan) = self.expect_ident("as field name")?;
+        let (name, nspan) = self.expect_any_name("as field name")?;
         self.expect(TokenKind::Colon, "after field name")?;
         let ty = self.parse_type()?;
         Some(Field {
@@ -569,7 +618,7 @@ impl<'a> Parser<'a> {
 
     fn parse_fn(&mut self, start: usize, is_export: bool) -> Option<FnDecl> {
         self.expect(TokenKind::Fn, "to start a function")?;
-        let (name, _) = self.expect_ident("as function name")?;
+        let (name, _) = self.expect_soft_name("as function name")?;
         let generics = self.parse_generic_params()?;
         self.expect(TokenKind::LParen, "to start parameters")?;
 
@@ -604,7 +653,7 @@ impl<'a> Parser<'a> {
             self.error_here("package-level bindings are immutable; `mut` is local-only");
             return None;
         }
-        let (name, _) = self.expect_ident("as binding name")?;
+        let (name, _) = self.expect_soft_name("as binding name")?;
         let ty = if self.eat(&TokenKind::Colon).is_some() {
             Some(self.parse_type()?)
         } else {
@@ -654,7 +703,7 @@ impl<'a> Parser<'a> {
     fn parse_params(&mut self) -> Option<Vec<Param>> {
         let mut params = Vec::new();
         loop {
-            let (name, nspan) = self.expect_ident("as parameter name")?;
+            let (name, nspan) = self.expect_any_name("as parameter name")?;
             self.expect(TokenKind::Colon, "after parameter name")?;
             let ty = self.parse_type()?;
             params.push(Param {
@@ -849,14 +898,13 @@ impl<'a> Parser<'a> {
     }
 
     fn is_assign_start(&self) -> bool {
-        matches!(self.peek().kind, TokenKind::Ident(_))
-            && same_kind(&self.peek_at(1).kind, &TokenKind::Eq)
+        is_soft_name_token(&self.peek().kind) && same_kind(&self.peek_at(1).kind, &TokenKind::Eq)
     }
 
     fn parse_let(&mut self) -> Option<Stmt> {
         let start = self.bump().span.start;
         let mutable = self.eat(&TokenKind::Mut).is_some();
-        let (name, _) = self.expect_ident("after `let`")?;
+        let (name, _) = self.expect_soft_name("after `let`")?;
         let ty = if self.eat(&TokenKind::Colon).is_some() {
             Some(self.parse_type()?)
         } else {
@@ -874,7 +922,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_assign(&mut self) -> Option<Stmt> {
-        let (name, nspan) = self.expect_ident("in an assignment")?;
+        let (name, nspan) = self.expect_soft_name("in an assignment")?;
         self.expect(TokenKind::Eq, "in an assignment")?;
         let value = self.parse_expr()?;
         Some(Stmt::Assign {
@@ -902,7 +950,7 @@ impl<'a> Parser<'a> {
 
     fn parse_for(&mut self) -> Option<Stmt> {
         let start = self.bump().span.start;
-        let (var, _) = self.expect_ident("after `for`")?;
+        let (var, _) = self.expect_soft_name("after `for`")?;
         self.expect(TokenKind::In, "in a `for` loop")?;
         let iter = self.parse_expr()?;
         let body = self.parse_block()?;
@@ -941,7 +989,7 @@ impl<'a> Parser<'a> {
         // Lambda parameters are bare names: their types are inferred.
         let mut params = Vec::new();
         while !self.at(&TokenKind::RParen) {
-            let (name, _) = self.expect_ident("as lambda parameter")?;
+            let (name, _) = self.expect_any_name("as lambda parameter")?;
             params.push(name);
             if self.eat(&TokenKind::Comma).is_none() {
                 break;
@@ -1060,13 +1108,13 @@ impl<'a> Parser<'a> {
             return Some(Args::Empty);
         }
 
-        let named = matches!(self.peek().kind, TokenKind::Ident(_))
-            && same_kind(&self.peek_at(1).kind, &TokenKind::Colon);
+        let named =
+            is_name_token(&self.peek().kind) && same_kind(&self.peek_at(1).kind, &TokenKind::Colon);
 
         if named {
             let mut items = Vec::new();
             loop {
-                let (name, nspan) = self.expect_ident("as named argument")?;
+                let (name, nspan) = self.expect_any_name("as named argument")?;
                 self.expect(TokenKind::Colon, "after named argument")?;
                 let value = self.parse_expr()?;
                 items.push(NamedArg {
@@ -1142,6 +1190,16 @@ impl<'a> Parser<'a> {
                 Some(Expr::NoneLit { span: token.span })
             }
             TokenKind::Ident(name) => {
+                self.bump();
+                Some(Expr::Ident {
+                    name,
+                    span: token.span,
+                })
+            }
+            // `from(1)`, `x.from()` and friends: the soft set can name a
+            // function, so it must also be readable as an expression.
+            ref kind if is_soft_name_token(kind) => {
+                let name = token.kind.spelling().to_string();
                 self.bump();
                 Some(Expr::Ident {
                     name,
@@ -1321,11 +1379,11 @@ impl<'a> Parser<'a> {
                 self.bump();
                 Some(Pattern::NoneLit { span: token.span })
             }
-            TokenKind::Ident(name) => {
-                self.bump();
+            ref kind if is_soft_name_token(kind) => {
+                let (name, _) = self.expect_soft_name("in a pattern")?;
                 let mut path = vec![name];
                 while self.eat(&TokenKind::Dot).is_some() {
-                    let (segment, _) = self.expect_ident("after `.` in a pattern")?;
+                    let (segment, _) = self.expect_member_name("after `.` in a pattern")?;
                     path.push(segment);
                 }
                 let mut args = Vec::new();
@@ -1384,7 +1442,7 @@ impl<'a> Parser<'a> {
                 return None;
             }
 
-            let (attr_name, aspan) = self.expect_ident("as JSX attribute")?;
+            let (attr_name, aspan) = self.expect_any_name("as JSX attribute")?;
             self.expect(TokenKind::Eq, "after a JSX attribute name")?;
             let value_token = self.peek().clone();
             let value = match value_token.kind {
